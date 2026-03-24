@@ -13,6 +13,17 @@ class DatasetDefinition:
     domain: str
 
 
+@dataclass(frozen=True)
+class DatasetRuntimeSpec:
+    definition: DatasetDefinition
+    input_channels: int
+    input_height: int
+    input_width: int
+    num_classes: int
+    starts_flattened: bool = False
+    input_features: int | None = None
+
+
 DATASET_DEFINITIONS = [
     DatasetDefinition(
         id="mnist",
@@ -52,6 +63,15 @@ MNIST_FILES = {
 }
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "mnist"
+MNIST_SPEC = DatasetRuntimeSpec(
+    definition=DATASET_DEFINITIONS[0],
+    input_channels=1,
+    input_height=28,
+    input_width=28,
+    num_classes=10,
+    starts_flattened=False,
+    input_features=None,
+)
 
 
 def ensure_mnist_downloaded() -> dict[str, object]:
@@ -77,3 +97,14 @@ def ensure_mnist_downloaded() -> dict[str, object]:
         "path": str(DATA_DIR),
         "files": sorted(downloaded + existing),
     }
+
+
+def get_dataset_definition(dataset_id: str) -> DatasetDefinition | None:
+    return next((dataset for dataset in DATASET_DEFINITIONS if dataset.id == dataset_id), None)
+
+
+def get_dataset_runtime_spec(dataset_id: str) -> DatasetRuntimeSpec:
+    if dataset_id == "mnist":
+        return MNIST_SPEC
+
+    raise ValueError(f"Dataset '{dataset_id}' is not implemented yet")

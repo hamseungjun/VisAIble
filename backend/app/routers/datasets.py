@@ -4,6 +4,7 @@ from app.services.datasets import (
     DATASET_DEFINITIONS,
     DatasetDefinition,
     ensure_mnist_downloaded,
+    get_dataset_definition,
 )
 
 router = APIRouter(tags=["datasets"])
@@ -26,7 +27,7 @@ def list_datasets() -> dict[str, list[dict[str, str]]]:
 
 @router.post("/datasets/mnist/prepare")
 def prepare_mnist() -> dict[str, object]:
-    dataset = next((item for item in DATASET_DEFINITIONS if item.id == "mnist"), None)
+    dataset = get_dataset_definition("mnist")
 
     if dataset is None:
         raise HTTPException(status_code=404, detail="MNIST dataset definition not found")

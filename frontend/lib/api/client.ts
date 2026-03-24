@@ -2,8 +2,48 @@ type RequestOptions = RequestInit & {
   query?: Record<string, string | number | boolean | undefined>;
 };
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000/api';
+const rawApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8001';
+export const API_BASE_URL = rawApiBaseUrl.endsWith('/api')
+  ? rawApiBaseUrl
+  : `${rawApiBaseUrl.replace(/\/$/, '')}/api`;
+
+export function buildApiUrl(path: string) {
+  return new URL(path, API_BASE_URL).toString();
+}
+
+function normalizeErrorDetail(detail: unknown): string | null {
+  if (typeof detail === 'string') {
+    return detail;
+  }
+
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => normalizeErrorDetail(item))
+      .filter((item): item is string => Boolean(item));
+
+    return messages.length > 0 ? messages.join(' | ') : null;
+  }
+
+  if (detail && typeof detail === 'object') {
+    if ('msg' in detail && typeof detail.msg === 'string') {
+      const location =
+        'loc' in detail && Array.isArray(detail.loc) ? ` (${detail.loc.join(' > ')})` : '';
+      return `${detail.msg}${location}`;
+    }
+
+    if ('detail' in detail) {
+      return normalizeErrorDetail(detail.detail);
+    }
+
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
 
 export async function apiClient<T>(
   path: string,
@@ -29,7 +69,22 @@ export async function apiClient<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.status}`);
+    let detail = `API request failed: ${response.status}`;
+
+    try {
+      const payload = (await response.json()) as { detail?: unknown };
+      const normalizedDetail = normalizeErrorDetail(payload.detail);
+      if (normalizedDetail) {
+        detail = normalizedDetail;
+      }
+    } catch {
+      const text = await response.text();
+      if (text) {
+        detail = text;
+      }
+    }
+
+    throw new Error(detail);
   }
 
   return response.json() as Promise<T>;

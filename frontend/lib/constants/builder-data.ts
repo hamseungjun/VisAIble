@@ -44,8 +44,8 @@ export const libraryBlocks: LibraryBlock[] = [
     accent: 'primary',
     defaults: {
       fields: [
-        { label: 'Input', value: '2' },
-        { label: 'Output', value: '8' },
+        { label: 'Input', value: '784' },
+        { label: 'Output', value: '128' },
       ],
       activation: 'ReLU',
       activationOptions: ['ReLU', 'Leaky ReLU', 'GELU', 'Sigmoid', 'Tanh', 'Softplus'],
@@ -59,8 +59,8 @@ export const libraryBlocks: LibraryBlock[] = [
     accent: 'tertiary',
     defaults: {
       fields: [
-        { label: 'Channel In', value: '3' },
-        { label: 'Channel Out', value: '32' },
+        { label: 'Channel In', value: '1' },
+        { label: 'Channel Out', value: '16' },
         { label: 'Kernel Size', value: '3x3' },
         { label: 'Padding', value: '1' },
         { label: 'Stride', value: '1' },
