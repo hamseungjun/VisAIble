@@ -1,0 +1,13 @@
+/.next-dev
+frontend/.next
+frontend/.next-build
+frontend/.next-dev
+frontend/.next_stale_1774243378
+frontend/node_modules
+frontend/dist
+frontend/out
+frontend/.vercel
+backend/data
+__pycache__/
+*.pyc
+*.log
