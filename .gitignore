@@ -11,4 +11,7 @@ backend/data
 __pycache__/
 *.pyc
 *.log
-venv/
+venv/venv/
+.venv/
+__pycache__/
+*.pyc
