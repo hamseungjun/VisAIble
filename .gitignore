@@ -15,4 +15,7 @@ __pycache__/
 .DS_Store
 frontend/node_modules_broken_*/
 frontend/tsconfig.tsbuildinfo
-venv/
+venv/venv/
+.venv/
+__pycache__/
+*.pyc
