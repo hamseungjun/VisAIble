@@ -118,13 +118,21 @@ export function Sidebar({
                 </div>
               ) : null}
 
-              <div className="mt-3 grid gap-2">
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
                 <div className="rounded-[16px] bg-[#f6f8ff] px-3 py-2">
                   <div className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-muted">
                     Input Shape
                   </div>
                   <div className="mt-1 font-mono text-[12px] font-semibold text-ink">
                     {hoveredDataset.inputShape}
+                  </div>
+                </div>
+                <div className="rounded-[16px] bg-[#f6f8ff] px-3 py-2">
+                  <div className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-muted">
+                    Class Num
+                  </div>
+                  <div className="mt-1 text-[12px] font-semibold text-ink">
+                    {hoveredDataset.classCount ?? '-'}
                   </div>
                 </div>
                 <div className="rounded-[16px] bg-[#f6f8ff] px-3 py-2">
