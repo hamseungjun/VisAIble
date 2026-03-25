@@ -29,6 +29,16 @@ function poolingStrideArg(value: string) {
   return `, stride=${value}`;
 }
 
+function normalizeDropoutProbability(value: string) {
+  const probability = Number(value);
+
+  if (!Number.isFinite(probability)) {
+    return '0.30';
+  }
+
+  return Math.min(0.95, Math.max(0, probability)).toFixed(2);
+}
+
 function optimizerCode(
   optimizer: string,
   learningRate: string,
@@ -56,6 +66,10 @@ export function generateModelCode(
 ) {
   const datasetClassCount: Record<string, number> = {
     mnist: 10,
+    fashion_mnist: 10,
+    cifar10: 10,
+    imagenet: 1000,
+    coco: 80,
   };
   const classCount = datasetClassCount[dataset.id] ?? 10;
   const lines = [
@@ -98,6 +112,13 @@ export function generateModelCode(
       const strideArg = poolingStrideArg(fieldValue(node, 'Stride', ''));
       lines.push(
         `            ${poolLayer}(kernel_size=${kernelValue}${strideArg}, padding=${fieldValue(node, 'Padding', '0')}),`,
+      );
+      return;
+    }
+
+    if (node.type === 'dropout') {
+      lines.push(
+        `            nn.Dropout(p=${normalizeDropoutProbability(fieldValue(node, 'Probability', '0.30'))}),`,
       );
       return;
     }

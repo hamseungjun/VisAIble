@@ -5,16 +5,26 @@ export type DatasetItem = {
   inputShape?: string;
   records?: string;
   domain?: string;
+  classCount?: number;
+  descriptionKo?: string;
+  shapeDescriptionKo?: string;
+  classesDescriptionKo?: string;
+  sampleClasses?: Array<{
+    label: string;
+    imageSrc?: string;
+  }>;
 };
 
-export type BlockType = 'linear' | 'cnn' | 'pooling';
+export type BlockType = 'linear' | 'cnn' | 'pooling' | 'dropout';
+
+export type BlockAccent = 'blue' | 'amber' | 'violet' | 'rose' | 'emerald';
 
 export type LibraryBlock = {
   id: BlockType;
   title: string;
   description: string;
   icon: IconName;
-  accent: 'primary' | 'tertiary';
+  accent: BlockAccent;
   defaults: {
     fields: Array<{ label: string; value: string }>;
     activation: string;
@@ -26,7 +36,7 @@ export type CanvasNode = {
   id: string;
   type: BlockType;
   title: string;
-  accent: 'primary' | 'tertiary';
+  accent: BlockAccent;
   fields: Array<{ label: string; value: string }>;
   activation: string;
   activationOptions: string[];
@@ -111,4 +121,6 @@ export type IconName =
   | 'check'
   | 'dots'
   | 'chevron'
-  | 'architecture';
+  | 'architecture'
+  | 'dropout'
+  | 'copy';

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Icon } from '@/features/model-builder/components/icons';
 import type { TrainingJobStatus } from '@/types/builder';
 
 type InspectorProps = {
@@ -12,7 +13,7 @@ type InspectorProps = {
 };
 
 const GRAPH_WIDTH = 320;
-const GRAPH_HEIGHT = 180;
+const GRAPH_HEIGHT = 200;
 const GRAPH_PADDING_X = 14;
 const GRAPH_PADDING_Y = 12;
 const MAX_GRAPH_POINTS = 120;
@@ -83,23 +84,55 @@ export function Inspector({
     validationAccuracy: liveHistory.validationAccuracy ?? [],
   };
   const [metricMode, setMetricMode] = useState<'loss' | 'accuracy'>('loss');
+  const [replayEpochCount, setReplayEpochCount] = useState<number | null>(null);
   const metrics = trainingStatus?.metrics ?? [];
-  const latestMetric = metrics.at(-1);
+  const isReplayAvailable =
+    (trainingStatus?.status === 'completed' ||
+      trainingStatus?.status === 'failed' ||
+      trainingStatus?.status === 'stopped') &&
+    metrics.length > 1;
+  const isReplaying = replayEpochCount !== null;
+  const visibleMetrics =
+    isReplaying && replayEpochCount !== null ? metrics.slice(0, replayEpochCount) : metrics;
+  const latestMetric = visibleMetrics.at(-1);
+
+  useEffect(() => {
+    setReplayEpochCount(null);
+  }, [trainingStatus?.jobId, trainingStatus?.status]);
+
+  useEffect(() => {
+    if (!isReplaying || replayEpochCount === null || !isReplayAvailable) {
+      return;
+    }
+
+    if (replayEpochCount >= metrics.length) {
+      setReplayEpochCount(null);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setReplayEpochCount((current) => (current == null ? current : current + 1));
+    }, 550);
+
+    return () => window.clearTimeout(timeout);
+  }, [isReplayAvailable, isReplaying, metrics.length, replayEpochCount]);
+
+  const replayMetricsCount = isReplaying ? visibleMetrics.length : metrics.length;
   const displayTrainLoss = [
-    ...metrics.map((item) => item.trainLoss),
-    ...safeLiveHistory.loss,
+    ...visibleMetrics.map((item) => item.trainLoss),
+    ...(isReplaying ? [] : safeLiveHistory.loss),
   ];
   const displayTrainAccuracy = [
-    ...metrics.map((item) => item.trainAccuracy),
-    ...safeLiveHistory.accuracy,
+    ...visibleMetrics.map((item) => item.trainAccuracy),
+    ...(isReplaying ? [] : safeLiveHistory.accuracy),
   ];
   const validationLossValues = [
-    ...metrics.map((item) => item.validationLoss),
-    ...safeLiveHistory.validationLoss,
+    ...visibleMetrics.map((item) => item.validationLoss),
+    ...(isReplaying ? [] : safeLiveHistory.validationLoss),
   ];
   const validationAccuracyValues = [
-    ...metrics.map((item) => item.validationAccuracy),
-    ...safeLiveHistory.validationAccuracy,
+    ...visibleMetrics.map((item) => item.validationAccuracy),
+    ...(isReplaying ? [] : safeLiveHistory.validationAccuracy),
   ];
   const rawTrainValues = metricMode === 'loss' ? displayTrainLoss : displayTrainAccuracy;
   const rawValidationValues =
@@ -142,9 +175,13 @@ export function Inspector({
           ? `${(latestMetric.validationAccuracy * 100).toFixed(2)}%`
           : '--';
   const statusLines = trainingStatus?.error
-    ? [trainingStatus.error]
+    ? [
+        trainingStatus.stage ? `Stage ${trainingStatus.stage}` : null,
+        trainingStatus.error,
+      ].filter((value): value is string => value !== null)
     : latestMetric
       ? [
+          trainingStatus?.stage ? `Stage ${trainingStatus.stage}` : null,
           `Val Acc ${Math.round(latestMetric.validationAccuracy * 10000) / 100}%`,
           `Val Loss ${latestMetric.validationLoss}`,
           trainingStatus?.device ? `Device ${trainingStatus.device}` : null,
@@ -152,8 +189,11 @@ export function Inspector({
       : [
           trainingStatus?.device ? `Device ${trainingStatus.device}` : 'Run training to see validation metrics.',
         ];
-  const progressPercent =
-    trainingStatus?.epochs && trainingStatus.currentEpoch
+  const progressEpochCount = isReplaying
+    ? replayMetricsCount
+    : (trainingStatus?.currentEpoch ?? metrics.length);
+  const progressPercent = trainingStatus?.epochs
+    ? trainingStatus.currentEpoch && !isReplaying
       ? Math.min(
           (((trainingStatus.currentEpoch - 1) +
             ((trainingStatus.currentBatch ?? 0) / Math.max(trainingStatus.totalBatches ?? 1, 1))) /
@@ -161,38 +201,38 @@ export function Inspector({
             100,
           100,
         )
-      : trainingStatus?.epochs && metrics.length > 0
-        ? Math.min((metrics.length / trainingStatus.epochs) * 100, 100)
-        : 0;
+      : Math.min((progressEpochCount / trainingStatus.epochs) * 100, 100)
+    : 0;
   const epochLabel = trainingStatus?.epochs
-    ? `${trainingStatus.currentEpoch ?? metrics.length} / ${trainingStatus.epochs} epochs`
+    ? `${progressEpochCount} / ${trainingStatus.epochs} epochs`
     : '0 / 0 epochs';
 
   return (
     <aside className="grid content-start gap-4 bg-[linear-gradient(180deg,#fbfcff_0%,#f7f9ff_100%)] p-4">
-      <section className="rounded-[22px] bg-panel/80 p-3.5">
-        <div className="mb-3 flex items-center justify-between">
-          <strong className="font-display text-lg font-bold text-ink">Decision Boundary</strong>
-          <span className="text-muted">↗</span>
-        </div>
-        <div className="relative h-[270px] overflow-hidden rounded-[18px] bg-white/85">
-          <div className="absolute inset-x-[-20px] bottom-[-10px] top-[118px] rounded-[46%_34%_24%_8%/28%_22%_26%_12%] bg-[rgba(194,212,251,0.45)]" />
-          <span className="absolute left-[46px] top-[56px] h-2 w-2 rounded-full bg-[#6695ff]" />
-          <span className="absolute left-[148px] top-[68px] h-2 w-2 rounded-full bg-[#6695ff]" />
-          <span className="absolute left-[98px] top-[130px] h-2 w-2 rounded-full bg-[#6695ff]" />
-          <span className="absolute left-[224px] top-[218px] h-2 w-2 rounded-full bg-[#5d93a6]" />
-          <span className="absolute left-[184px] top-[268px] h-2 w-2 rounded-full bg-[#5d93a6]" />
-          <span className="absolute left-[262px] top-[244px] h-2 w-2 rounded-full bg-[#5d93a6]" />
-
-          <div className="absolute bottom-3 right-4 flex gap-4 text-[11px] text-muted">
-            <span className="flex items-center gap-2">
-              <i className="h-2 w-2 rounded-full bg-primary" />
-              Class A
-            </span>
-            <span className="flex items-center gap-2">
-              <i className="h-2 w-2 rounded-full bg-tertiary" />
-              Class B
-            </span>
+      <section className="grid gap-4 px-1 pt-1">
+        <div className="rounded-[18px] bg-white/70 px-3 py-3 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
+          <div className="mb-2 flex items-center justify-between text-[12px] font-bold uppercase tracking-[0.12em] text-muted">
+            <span>Progress</span>
+            <div className="flex items-center gap-2">
+              {isReplayAvailable ? (
+                <button
+                  type="button"
+                  onClick={() => setReplayEpochCount(1)}
+                  disabled={isReplaying}
+                  className="inline-flex items-center gap-1 rounded-full bg-[#eef3ff] px-2 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-primary transition-colors hover:bg-[#dfe9ff] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Icon name="play" className="h-3 w-3" />
+                  {isReplaying ? 'Replaying' : 'Replay'}
+                </button>
+              ) : null}
+              <span>{epochLabel}</span>
+            </div>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-[#d9e4fb]">
+            <span
+              className="block h-full rounded-full bg-[linear-gradient(90deg,#1151ff,#3a6cff)] transition-all duration-500"
+              style={{ width: `${progressPercent}%` }}
+            />
           </div>
         </div>
       </section>
@@ -238,11 +278,11 @@ export function Inspector({
         <div className="rounded-[18px] bg-white/85 p-3">
           <svg
             viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`}
-            preserveAspectRatio="none"
-            className="h-[160px] w-full overflow-visible"
+            preserveAspectRatio="xMidYMid meet"
+            className="aspect-[16/10] w-full overflow-visible"
           >
             <path
-              d={`M${GRAPH_PADDING_X} 36H${GRAPH_WIDTH - GRAPH_PADDING_X}M${GRAPH_PADDING_X} 90H${GRAPH_WIDTH - GRAPH_PADDING_X}M${GRAPH_PADDING_X} 144H${GRAPH_WIDTH - GRAPH_PADDING_X}`}
+              d={`M${GRAPH_PADDING_X} 48H${GRAPH_WIDTH - GRAPH_PADDING_X}M${GRAPH_PADDING_X} 100H${GRAPH_WIDTH - GRAPH_PADDING_X}M${GRAPH_PADDING_X} 152H${GRAPH_WIDTH - GRAPH_PADDING_X}`}
               fill="none"
               stroke="rgba(129,149,188,0.26)"
             />
@@ -297,17 +337,21 @@ export function Inspector({
         </div>
       </section>
 
-      <section className="grid gap-4 px-1 pt-1">
-        <div className="rounded-[18px] bg-white/70 px-3 py-3 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
-          <div className="mb-2 flex items-center justify-between text-[12px] font-bold uppercase tracking-[0.12em] text-muted">
-            <span>Progress</span>
-            <span>{epochLabel}</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-[#d9e4fb]">
-            <span
-              className="block h-full rounded-full bg-[linear-gradient(90deg,#1151ff,#3a6cff)] transition-all duration-500"
-              style={{ width: `${progressPercent}%` }}
-            />
+      <section className="rounded-[22px] bg-panel/80 p-3.5">
+        <div className="mb-3 flex items-center justify-between">
+          <strong className="font-display text-lg font-bold text-ink">Decision Boundary</strong>
+          <span className="text-muted">↗</span>
+        </div>
+        <div className="relative aspect-square overflow-hidden rounded-[18px] bg-white/85">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(194,212,251,0.28),transparent_58%)]" />
+          <div className="absolute inset-6 rounded-[20px] border border-dashed border-[rgba(129,149,188,0.28)] bg-[linear-gradient(180deg,rgba(244,247,255,0.78),rgba(236,241,252,0.48))]" />
+          <div className="absolute inset-x-6 bottom-6 rounded-[16px] bg-white/88 px-3.5 py-3 text-center shadow-[0_10px_24px_rgba(13,27,51,0.06)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
+            <div className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">
+              Frontend Placeholder
+            </div>
+            <div className="mt-2 text-[13px] font-semibold leading-6 text-[#5c6d89]">
+              Decision boundary visualization area
+            </div>
           </div>
         </div>
       </section>

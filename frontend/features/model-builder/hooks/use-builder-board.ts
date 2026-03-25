@@ -61,6 +61,26 @@ export function useBuilderBoard() {
     );
   };
 
+  const moveNode = (id: string, index: number) => {
+    setNodes((current) => {
+      const fromIndex = current.findIndex((node) => node.id === id);
+      if (fromIndex === -1) {
+        return current;
+      }
+
+      const clampedIndex = Math.max(0, Math.min(index, current.length));
+      const adjustedIndex = fromIndex < clampedIndex ? clampedIndex - 1 : clampedIndex;
+      if (fromIndex === adjustedIndex) {
+        return current;
+      }
+
+      const next = [...current];
+      const [movedNode] = next.splice(fromIndex, 1);
+      next.splice(adjustedIndex, 0, movedNode);
+      return next;
+    });
+  };
+
   const resetBoard = () => {
     setNodes([]);
     setDraggingBlock(null);
@@ -74,6 +94,7 @@ export function useBuilderBoard() {
     removeNode,
     updateNodeField,
     updateNodeActivation,
+    moveNode,
     resetBoard,
   };
 }

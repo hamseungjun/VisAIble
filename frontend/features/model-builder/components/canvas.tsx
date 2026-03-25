@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { Icon } from '@/features/model-builder/components/icons';
-import type { BlockType, CanvasNode, DatasetItem } from '@/types/builder';
+import type { BlockAccent, BlockType, CanvasNode, DatasetItem } from '@/types/builder';
 
 type CanvasProps = {
   selectedDataset: DatasetItem;
@@ -12,6 +12,7 @@ type CanvasProps = {
   onRemoveNode: (id: string) => void;
   onUpdateNodeField: (id: string, fieldLabel: string, value: string) => void;
   onUpdateNodeActivation: (id: string, activation: string) => void;
+  onMoveNode: (id: string, index: number) => void;
   onDropBlock: (type: BlockType, index?: number) => void;
 };
 
@@ -25,11 +26,21 @@ function getDroppedBlockType(event: React.DragEvent, fallback: BlockType | null)
     event.dataTransfer.getData('application/x-builder-block') ||
     event.dataTransfer.getData('text/plain');
 
-  if (droppedBlock === 'linear' || droppedBlock === 'cnn' || droppedBlock === 'pooling') {
+  if (
+    droppedBlock === 'linear' ||
+    droppedBlock === 'cnn' ||
+    droppedBlock === 'pooling' ||
+    droppedBlock === 'dropout'
+  ) {
     return droppedBlock;
   }
 
   return fallback;
+}
+
+function getDraggedNodeId(event: React.DragEvent) {
+  const nodeId = event.dataTransfer.getData('application/x-builder-node');
+  return nodeId || null;
 }
 
 function getInsertionIndex(
@@ -165,6 +176,19 @@ function getNodeDimensions(selectedDataset: DatasetItem, nodes: CanvasNode[]): R
       return;
     }
 
+    if (node.type === 'dropout') {
+      dimensionMap[node.id] = current.flattened
+        ? {
+            inputLabel: `${current.features ?? current.width}`,
+            outputLabel: `${current.features ?? current.width}`,
+          }
+        : {
+            inputLabel: `${current.channels} x ${current.height} x ${current.width}`,
+            outputLabel: `${current.channels} x ${current.height} x ${current.width}`,
+          };
+      return;
+    }
+
     const inputFeatures = current.flattened
       ? (current.features ?? current.width)
       : current.channels * current.height * current.width;
@@ -182,46 +206,97 @@ function getNodeDimensions(selectedDataset: DatasetItem, nodes: CanvasNode[]): R
   return dimensionMap;
 }
 
+function blockTone(accent: BlockAccent) {
+  const palette: Record<
+    BlockAccent,
+    {
+      card: string;
+      bar: string;
+      chip: string;
+      focus: string;
+      icon: string;
+    }
+  > = {
+    blue: {
+      card: 'bg-[#edf4ff]',
+      bar: 'bg-[#2463eb]',
+      chip: 'bg-[#dbe8ff] text-[#2456c9]',
+      focus: 'focus:border-[#2463eb]/30 focus:shadow-[0_0_0_3px_rgba(36,99,235,0.12)]',
+      icon: 'text-[#2456c9]',
+    },
+    amber: {
+      card: 'bg-[#fff1e6]',
+      bar: 'bg-[#de7a2d]',
+      chip: 'bg-[#ffe1cc] text-[#b95b16]',
+      focus: 'focus:border-[#de7a2d]/35 focus:shadow-[0_0_0_3px_rgba(222,122,45,0.14)]',
+      icon: 'text-[#b95b16]',
+    },
+    violet: {
+      card: 'bg-[#f2eeff]',
+      bar: 'bg-[#7b5ad6]',
+      chip: 'bg-[#e5dcff] text-[#6846bd]',
+      focus: 'focus:border-[#7b5ad6]/35 focus:shadow-[0_0_0_3px_rgba(123,90,214,0.14)]',
+      icon: 'text-[#6846bd]',
+    },
+    rose: {
+      card: 'bg-[#fff0f4]',
+      bar: 'bg-[#d45a7a]',
+      chip: 'bg-[#ffdbe6] text-[#b43b5c]',
+      focus: 'focus:border-[#d45a7a]/35 focus:shadow-[0_0_0_3px_rgba(212,90,122,0.14)]',
+      icon: 'text-[#b43b5c]',
+    },
+    emerald: {
+      card: 'bg-[#ddf5ef]',
+      bar: 'bg-[#169b8a]',
+      chip: 'bg-[#c8ede3] text-[#0b7d6f]',
+      focus: 'focus:border-[#169b8a]/30 focus:shadow-[0_0_0_3px_rgba(22,155,138,0.12)]',
+      icon: 'text-[#0b7d6f]',
+    },
+  };
+
+  return palette[accent];
+}
+
 function NodeCard({
   node,
   dimensions,
   onRemove,
   onFieldChange,
   onActivationChange,
+  onDragStart,
+  onDragEnd,
 }: {
   node: CanvasNode;
   dimensions?: NodeDimensionInfo;
   onRemove: () => void;
   onFieldChange: (fieldLabel: string, value: string) => void;
   onActivationChange: (activation: string) => void;
+  onDragStart: (event: React.DragEvent<HTMLButtonElement>) => void;
+  onDragEnd: () => void;
 }) {
   const isCnn = node.type === 'cnn';
   const isPooling = node.type === 'pooling';
+  const isDropout = node.type === 'dropout';
   const isAdaptivePooling = isPooling && fieldValue(node, 'Pool Type', 'MaxPool') === 'AdaptiveAvgPool';
   const fieldCountLabel = `${node.fields.length} settings`;
-  const poolingTypeLabel = isPooling ? fieldValue(node, 'Pool Type', 'MaxPool') : node.activation;
-  const cardBackgroundClass = isPooling
-    ? 'bg-[#f3ecff]'
-    : node.accent === 'primary'
-      ? 'bg-panel/95'
-      : 'bg-[#ffe7da]';
-  const accentBarClass = isPooling
-    ? 'bg-[#8b63d9]'
-    : node.accent === 'primary'
-      ? 'bg-primary'
-      : 'bg-[#e68252]';
+  const poolingTypeLabel = isPooling
+    ? fieldValue(node, 'Pool Type', 'MaxPool')
+    : isDropout
+      ? `p=${fieldValue(node, 'Probability', '0.30')}`
+      : node.activation;
+  const tone = blockTone(node.accent);
 
   return (
     <article
       className={[
-        'relative w-full max-w-[760px] rounded-[28px] px-3.5 pb-2.5 pt-3 shadow-[0_12px_24px_rgba(13,27,51,0.08)]',
-        cardBackgroundClass,
+        'relative w-full rounded-[28px] px-3.5 pb-2.5 pt-3 shadow-[0_12px_24px_rgba(13,27,51,0.08)]',
+        tone.card,
       ].join(' ')}
     >
       <div
         className={[
           'absolute inset-x-3 top-0 h-[7px] rounded-b-[10px] rounded-t-[999px]',
-          accentBarClass,
+          tone.bar,
         ].join(' ')}
       />
       <div className="pointer-events-none absolute left-1/2 top-0 h-[14px] w-[72px] -translate-x-1/2 -translate-y-[35%] rounded-full border-[3px] border-background bg-white/82 shadow-[0_6px_14px_rgba(13,27,51,0.06)]" />
@@ -269,7 +344,16 @@ function NodeCard({
 
         <div className="flex shrink-0 items-start gap-2">
           <div className="flex items-center gap-1 pt-1">
-            <Icon name="dots" className="h-3 w-3 text-muted/70" />
+            <button
+              type="button"
+              draggable
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              className="grid h-6 w-6 cursor-grab place-items-center rounded-full text-muted/70 transition-colors hover:bg-white/70 hover:text-ink active:cursor-grabbing"
+              aria-label={`${node.title} move`}
+            >
+              <Icon name="dots" className="h-3 w-3" />
+            </button>
             <button
               type="button"
               onClick={onRemove}
@@ -318,13 +402,16 @@ function NodeCard({
                 <span className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
                   {field.label}
                 </span>
-                <input
-                  value={field.value}
-                  onChange={(event) => onFieldChange(field.label, event.target.value)}
-                  className="w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow focus:border-primary/30 focus:shadow-[0_0_0_3px_rgba(17,81,255,0.12)]"
-                />
-              </label>
-            ))}
+              <input
+                value={field.value}
+                onChange={(event) => onFieldChange(field.label, event.target.value)}
+                className={[
+                  'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
+                  tone.focus,
+                ].join(' ')}
+              />
+            </label>
+          ))}
           </div>
 
           <div className="grid min-w-0 gap-1.5 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1.4fr)]">
@@ -352,7 +439,10 @@ function NodeCard({
                 <select
                   value={node.activation}
                   onChange={(event) => onActivationChange(event.target.value)}
-                  className="w-full appearance-none rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow focus:border-primary/30 focus:shadow-[0_0_0_3px_rgba(17,81,255,0.12)]"
+                  className={[
+                    'w-full appearance-none rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
+                    tone.focus,
+                  ].join(' ')}
                 >
                   {node.activationOptions.map((option) => (
                     <option key={option} value={option}>
@@ -391,7 +481,10 @@ function NodeCard({
                       <select
                         value={field.value}
                         onChange={(event) => onFieldChange(field.label, event.target.value)}
-                        className="w-full appearance-none rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow focus:border-primary/30 focus:shadow-[0_0_0_3px_rgba(17,81,255,0.12)]"
+                        className={[
+                          'w-full appearance-none rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
+                          tone.focus,
+                        ].join(' ')}
                       >
                         <option value="MaxPool">MaxPool</option>
                         <option value="AvgPool">AvgPool</option>
@@ -408,7 +501,8 @@ function NodeCard({
                     onChange={(event) => onFieldChange(field.label, event.target.value)}
                     placeholder={field.label === 'Stride' ? 'None' : undefined}
                     className={[
-                      'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow focus:border-[#e68252]/40 focus:shadow-[0_0_0_3px_rgba(230,130,82,0.14)]',
+                      'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
+                      tone.focus,
                       isCompactField ? 'text-center' : '',
                       ].join(' ')}
                     />
@@ -420,14 +514,42 @@ function NodeCard({
 
           <div className="flex justify-end rounded-[16px] bg-white/62 px-3 py-2 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
             {isAdaptivePooling ? (
-              <div className="rounded-full bg-[#f4efff] px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#7b57c6]">
+              <div className={['rounded-full px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em]', tone.chip].join(' ')}>
                 Output Size 1 x 1
               </div>
             ) : (
-              <div className="rounded-full bg-[#f4efff] px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#7b57c6]">
+              <div className={['rounded-full px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em]', tone.chip].join(' ')}>
                 Feature Map Resize
               </div>
             )}
+          </div>
+        </div>
+      ) : isDropout ? (
+        <div className="mt-2 grid gap-1.5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] xl:items-end">
+          {node.fields.map((field) => (
+            <label
+              key={field.label}
+              className="grid min-w-0 gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
+            >
+              <span className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
+                {field.label}
+              </span>
+              <input
+                value={field.value}
+                onChange={(event) => onFieldChange(field.label, event.target.value)}
+                inputMode="decimal"
+                className={[
+                  'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-center text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
+                  tone.focus,
+                ].join(' ')}
+              />
+            </label>
+          ))}
+
+          <div className="flex justify-end rounded-[16px] bg-white/62 px-3 py-2 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
+            <div className={['rounded-full px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em]', tone.chip].join(' ')}>
+              Training-Time Regularization
+            </div>
           </div>
         </div>
       ) : (
@@ -444,7 +566,10 @@ function NodeCard({
                 value={field.value}
                 onChange={(event) => onFieldChange(field.label, event.target.value)}
                 inputMode="numeric"
-                className="w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-center text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow focus:border-primary/30 focus:shadow-[0_0_0_3px_rgba(17,81,255,0.12)]"
+                className={[
+                  'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-center text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
+                  tone.focus,
+                ].join(' ')}
               />
             </label>
           ))}
@@ -457,7 +582,10 @@ function NodeCard({
               <select
                 value={node.activation}
                 onChange={(event) => onActivationChange(event.target.value)}
-                className="w-full appearance-none rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow focus:border-primary/30 focus:shadow-[0_0_0_3px_rgba(17,81,255,0.12)]"
+                className={[
+                  'w-full appearance-none rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
+                  tone.focus,
+                ].join(' ')}
               >
                 {node.activationOptions.map((option) => (
                   <option key={option} value={option}>
@@ -475,9 +603,11 @@ function NodeCard({
 }
 
 function DataBlockCard({ dataset }: { dataset: DatasetItem }) {
+  const tone = blockTone('emerald');
+
   return (
-    <article className="relative w-full max-w-[760px] rounded-[28px] bg-[#d9f3ef] px-3.5 pb-2.5 pt-3 shadow-[0_12px_24px_rgba(13,27,51,0.08)]">
-      <div className="absolute inset-x-3 top-0 h-[7px] rounded-b-[10px] rounded-t-[999px] bg-[#169b8a]" />
+    <article className={['relative w-full rounded-[28px] px-3.5 pb-2.5 pt-3 shadow-[0_12px_24px_rgba(13,27,51,0.08)]', tone.card].join(' ')}>
+      <div className={['absolute inset-x-3 top-0 h-[7px] rounded-b-[10px] rounded-t-[999px]', tone.bar].join(' ')} />
       <div className="pointer-events-none absolute left-1/2 bottom-[-8px] h-[16px] w-[52px] -translate-x-1/2 rounded-b-[14px] bg-background/92 shadow-[inset_0_2px_0_rgba(129,149,188,0.14)]" />
 
       <div className="flex items-start justify-between gap-2 border-b border-line pb-1.5">
@@ -489,7 +619,7 @@ function DataBlockCard({ dataset }: { dataset: DatasetItem }) {
             Fixed source block
           </span>
         </div>
-        <div className="shrink-0 rounded-full bg-white/70 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-[#169b8a]">
+        <div className={['shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em]', tone.chip].join(' ')}>
           locked
         </div>
       </div>
@@ -525,14 +655,16 @@ export function Canvas({
   onRemoveNode,
   onUpdateNodeField,
   onUpdateNodeActivation,
+  onMoveNode,
   onDropBlock,
 }: CanvasProps) {
   const stackRef = useRef<HTMLDivElement>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const nodeDimensions = getNodeDimensions(selectedDataset, nodes);
 
   return (
-    <main className="relative min-h-[760px] overflow-hidden bg-background">
+    <main className="relative min-h-[840px] overflow-hidden bg-background">
       <div className="pointer-events-none canvas-grid absolute inset-0 opacity-35" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(17,81,255,0.06),transparent_42%),radial-gradient(circle_at_78%_72%,rgba(10,96,127,0.1),transparent_26%)]" />
 
@@ -541,8 +673,9 @@ export function Canvas({
           event.preventDefault();
 
           const droppedBlock = getDroppedBlockType(event, draggingBlock);
+          const draggedNodeId = getDraggedNodeId(event);
 
-          if (!droppedBlock) {
+          if (!droppedBlock && !draggedNodeId) {
             setHoverIndex(null);
             return;
           }
@@ -558,41 +691,49 @@ export function Canvas({
           event.preventDefault();
 
           const droppedBlock = getDroppedBlockType(event, draggingBlock);
+          const draggedNodeId = getDraggedNodeId(event);
+          const insertionIndex = getInsertionIndex(event, stackRef.current, nodes.length);
+
+          if (draggedNodeId) {
+            setHoverIndex(null);
+            setDraggingNodeId(null);
+            onMoveNode(draggedNodeId, insertionIndex);
+            return;
+          }
 
           if (!droppedBlock) {
             return;
           }
 
-          const insertionIndex = getInsertionIndex(event, stackRef.current, nodes.length);
           setHoverIndex(null);
           onDropBlock(droppedBlock, insertionIndex);
         }}
         className={[
-          'relative flex min-h-[760px] flex-col items-center px-4 pb-8 pt-3 transition-colors sm:px-6',
-          draggingBlock ? 'bg-primary/[0.03]' : '',
+          'relative flex min-h-[840px] flex-col items-start px-4 pb-10 pt-5 transition-colors sm:px-6',
+          draggingBlock || draggingNodeId ? 'bg-primary/[0.03]' : '',
         ].join(' ')}
       >
-        <div className="relative w-full max-w-[1080px] overflow-hidden rounded-[32px] border border-white/50 bg-white/28 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-sm">
-          <div className="px-5 py-4">
+        <div className="relative w-full overflow-hidden rounded-[32px] border border-white/50 bg-white/28 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-sm">
+          <div className="px-5 py-6">
             <div
               ref={stackRef}
-              className="mx-auto flex max-w-[760px] flex-col items-center transition-transform duration-150"
-              style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}
+              className="flex w-full flex-col items-start transition-transform duration-150"
+              style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}
             >
               <DataBlockCard dataset={selectedDataset} />
 
               {nodes.length === 0 ? (
-                <div className="-mt-2 w-full rounded-b-[24px] border border-dashed border-primary/25 bg-white/72 px-5 py-6 text-center text-[13px] font-semibold text-muted">
+                <div className="-mt-2 w-full rounded-b-[24px] border border-dashed border-primary/25 bg-white/72 px-5 py-6 text-left text-[13px] font-semibold text-muted">
                   Drag a layer anywhere into this stack to attach it under the data block.
                 </div>
               ) : null}
 
               {hoverIndex === 0 ? (
-                <div className="z-10 -mt-1 mb-1 h-2.5 w-full max-w-[760px] rounded-full bg-primary/18 ring-2 ring-primary/35" />
+                <div className="z-10 -mt-1 mb-1 h-2.5 w-full rounded-full bg-primary/18 ring-2 ring-primary/35" />
               ) : null}
 
               {nodes.map((node, index) => (
-                <div key={node.id} className="-mt-2.5 flex w-full flex-col items-center first:mt-0">
+                <div key={node.id} className="-mt-2.5 flex w-full flex-col items-start first:mt-0">
                   <div data-node-card="true" className="w-full">
                     <NodeCard
                       node={node}
@@ -604,10 +745,19 @@ export function Canvas({
                       onActivationChange={(activation) =>
                         onUpdateNodeActivation(node.id, activation)
                       }
+                      onDragStart={(event) => {
+                        event.dataTransfer.effectAllowed = 'move';
+                        event.dataTransfer.setData('application/x-builder-node', node.id);
+                        setDraggingNodeId(node.id);
+                      }}
+                      onDragEnd={() => {
+                        setDraggingNodeId(null);
+                        setHoverIndex(null);
+                      }}
                     />
                   </div>
                   {hoverIndex === index + 1 ? (
-                    <div className="z-10 my-1 h-2.5 w-full max-w-[760px] rounded-full bg-primary/18 ring-2 ring-primary/35" />
+                    <div className="z-10 my-1 h-2.5 w-full rounded-full bg-primary/18 ring-2 ring-primary/35" />
                   ) : null}
                 </div>
               ))}
@@ -623,9 +773,11 @@ export function Canvas({
             </div>
           </div>
         </div>
-        {draggingBlock ? (
+        {draggingBlock || draggingNodeId ? (
           <div className="pointer-events-none absolute inset-x-5 bottom-5 rounded-2xl border border-dashed border-primary/40 bg-white/80 px-4 py-2.5 text-center text-[13px] font-semibold text-primary backdrop-blur-md">
-            Drag anywhere on the stack to place {draggingBlock === 'linear' ? 'Linear Layer' : draggingBlock === 'cnn' ? 'CNN Layer' : 'Pooling Layer'}
+            {draggingNodeId
+              ? 'Drag the block handle to reorder it in the stack'
+              : `Drag anywhere on the stack to place ${draggingBlock === 'linear' ? 'Linear Layer' : draggingBlock === 'cnn' ? 'CNN Layer' : draggingBlock === 'pooling' ? 'Pooling Layer' : 'Dropout Layer'}`}
           </div>
         ) : null}
       </div>

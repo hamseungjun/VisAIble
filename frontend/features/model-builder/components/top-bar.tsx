@@ -55,6 +55,7 @@ export function TopBar({
   const optimizerConfig = optimizerConfigs[optimizer];
   const learningRates = optimizerConfig.learningRates;
   const optimizerField = optimizerConfig.parameter;
+  const formattedDeviceLabel = formatDeviceLabel(trainingStatus?.device);
   const learningRateIndex = Math.max(0, learningRates.indexOf(learningRate));
   const optimizerParamIndex = Math.max(
     0,
@@ -144,8 +145,18 @@ export function TopBar({
     <header className="border-b border-line bg-white/80 px-4 py-2.5 backdrop-blur-xl lg:px-5 lg:py-3">
       <div className="grid gap-2.5 xl:grid-cols-[minmax(280px,1.1fr)_minmax(420px,1.35fr)_minmax(260px,0.95fr)]">
         <section className="glass-panel ghost-border flex min-w-0 flex-col justify-start gap-2 rounded-[24px] px-5 py-3 shadow-panel">
-          <div className="font-display text-[2rem] font-bold tracking-[-0.06em] text-primary">
-            VisAIble
+          <div className="flex items-start justify-between gap-3">
+            <div className="font-display text-[2rem] font-bold tracking-[-0.06em] text-primary">
+              VisAIble
+            </div>
+            <div className="shrink-0 rounded-full bg-[rgba(17,81,255,0.08)] px-3 py-1 text-right">
+              <div className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-muted">
+                Device
+              </div>
+              <div className="font-display text-xs font-bold uppercase text-primary">
+                {formattedDeviceLabel}
+              </div>
+            </div>
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -339,4 +350,12 @@ function estimateTotalParameters(nodes: CanvasNode[]) {
   });
 
   return total;
+}
+
+function formatDeviceLabel(device?: string | null) {
+  if (!device) {
+    return 'Auto';
+  }
+
+  return device.toUpperCase();
 }

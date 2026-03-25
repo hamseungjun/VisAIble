@@ -15,6 +15,22 @@ const paths: Record<IconName, ReactNode> = {
       <circle cx="12" cy="4" r="1.2" fill="currentColor" stroke="none" />
     </>
   ),
+  copy: (
+    <>
+      <rect x="9" y="9" width="9" height="11" rx="2" />
+      <path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1" />
+    </>
+  ),
+  dropout: (
+    <>
+      <path d="M7 7.5h10" />
+      <path d="M7 12h10" />
+      <path d="M7 16.5h10" />
+      <circle cx="9" cy="7.5" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="12" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="11" cy="16.5" r="1.1" fill="currentColor" stroke="none" />
+    </>
+  ),
   stack: (
     <>
       <ellipse cx="12" cy="6.5" rx="6.5" ry="2.5" />

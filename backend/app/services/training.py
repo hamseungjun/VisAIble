@@ -1,3 +1,4 @@
+import json
 import gzip
 import math
 import struct
@@ -11,14 +12,27 @@ import numpy as np
 import torch
 from torch import nn
 from torch.optim import Adagrad, Adam, RMSprop, SGD
-from torch.utils.data import DataLoader, Subset, TensorDataset
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset, TensorDataset
 
 from app.schemas.training import CanvasNodePayload, EpochMetrics, TrainModelRequest
-from app.services.datasets import DATA_DIR, ensure_mnist_downloaded, get_dataset_runtime_spec
+from app.services.datasets import (
+    MNIST_DATA_DIR,
+    ensure_cifar10_downloaded,
+    ensure_coco_compact_downloaded,
+    ensure_mnist_downloaded,
+    get_dataset_runtime_spec,
+    ensure_tiny_imagenet_downloaded,
+)
 
 
 BATCH_SIZE = 128
 RANDOM_STATE = 42
+COMPACT_CIFAR10_TRAIN_PER_CLASS = 400
+COMPACT_CIFAR10_VAL_PER_CLASS = 100
+COMPACT_TINY_IMAGENET_TRAIN_PER_CLASS = 20
+COMPACT_TINY_IMAGENET_VAL_PER_CLASS = 5
+COMPACT_COCO_TRAIN_PER_CLASS = 32
+COMPACT_COCO_VAL_PER_CLASS = 8
 TRAINING_JOBS: dict[str, dict[str, object]] = {}
 TRAINING_LOCK = Lock()
 
@@ -31,6 +45,60 @@ class TrainingStoppedError(Exception):
 class CompiledModel:
     model: nn.Module
     architecture: list[str]
+
+
+class CocoClassificationDataset(Dataset):
+    def __init__(
+        self,
+        image_dir: Path,
+        annotation_path: Path,
+        transform,
+        category_to_index: dict[int, int] | None = None,
+    ) -> None:
+        payload = json.loads(annotation_path.read_text())
+        categories = sorted(payload.get("categories", []), key=lambda item: item["id"])
+        self.category_to_index = (
+            category_to_index
+            if category_to_index is not None
+            else {category["id"]: index for index, category in enumerate(categories)}
+        )
+        image_by_id = {image["id"]: image for image in payload.get("images", [])}
+        dominant_annotations: dict[int, tuple[int, float]] = {}
+
+        for annotation in payload.get("annotations", []):
+            image_id = annotation["image_id"]
+            category_id = annotation["category_id"]
+            if category_id not in self.category_to_index:
+                continue
+
+            area = float(annotation.get("area", 0) or 0)
+            current = dominant_annotations.get(image_id)
+            if current is None or area > current[1]:
+                dominant_annotations[image_id] = (self.category_to_index[category_id], area)
+
+        self.records: list[tuple[Path, int]] = []
+        for image_id, (label, _) in dominant_annotations.items():
+            image_meta = image_by_id.get(image_id)
+            if image_meta is None:
+                continue
+
+            image_path = image_dir / image_meta["file_name"]
+            if image_path.exists():
+                self.records.append((image_path, label))
+
+        self.transform = transform
+
+    def __len__(self) -> int:
+        return len(self.records)
+
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
+        from PIL import Image
+
+        image_path, label = self.records[index]
+        image = Image.open(image_path).convert("RGB")
+        if self.transform is not None:
+            image = self.transform(image)
+        return image, label
 
 
 def _read_idx_images(path: Path) -> torch.Tensor:
@@ -58,10 +126,10 @@ def _read_idx_labels(path: Path) -> torch.Tensor:
 def load_mnist_dataset() -> TensorDataset:
     ensure_mnist_downloaded()
 
-    train_images = _read_idx_images(DATA_DIR / "train-images-idx3-ubyte.gz")
-    train_labels = _read_idx_labels(DATA_DIR / "train-labels-idx1-ubyte.gz")
-    test_images = _read_idx_images(DATA_DIR / "t10k-images-idx3-ubyte.gz")
-    test_labels = _read_idx_labels(DATA_DIR / "t10k-labels-idx1-ubyte.gz")
+    train_images = _read_idx_images(MNIST_DATA_DIR / "train-images-idx3-ubyte.gz")
+    train_labels = _read_idx_labels(MNIST_DATA_DIR / "train-labels-idx1-ubyte.gz")
+    test_images = _read_idx_images(MNIST_DATA_DIR / "t10k-images-idx3-ubyte.gz")
+    test_labels = _read_idx_labels(MNIST_DATA_DIR / "t10k-labels-idx1-ubyte.gz")
 
     images = torch.cat([train_images, test_images], dim=0)
     labels = torch.cat([train_labels, test_labels], dim=0)
@@ -69,20 +137,97 @@ def load_mnist_dataset() -> TensorDataset:
     return TensorDataset(images, labels)
 
 
-def build_stratified_loaders() -> tuple[DataLoader, DataLoader, int, int]:
-    dataset = load_mnist_dataset()
-    _, labels = dataset.tensors
+def _classification_transform(image_size: int):
+    from torchvision import transforms
+
+    return transforms.Compose(
+        [
+            transforms.Resize((image_size, image_size)),
+            transforms.ToTensor(),
+        ]
+    )
+
+
+def _dataset_targets(dataset: Dataset) -> np.ndarray:
+    targets = getattr(dataset, "targets", None)
+    if targets is None:
+        raise ValueError("Dataset does not expose targets for stratified splitting")
+    if isinstance(targets, list):
+        return np.array(targets, dtype=np.int64)
+    if torch.is_tensor(targets):
+        return targets.cpu().numpy()
+    return np.array(targets, dtype=np.int64)
+
+
+def _load_combined_torchvision_dataset(dataset_id: str) -> tuple[Dataset, np.ndarray]:
+    from torchvision import datasets
+
+    if dataset_id == "mnist":
+        dataset = load_mnist_dataset()
+        _, labels = dataset.tensors
+        return dataset, labels.cpu().numpy()
+
+    if dataset_id == "fashion_mnist":
+        transform = _classification_transform(28)
+        train_split = datasets.FashionMNIST(
+            root=str(MNIST_DATA_DIR.parent / "fashion_mnist"),
+            train=True,
+            download=True,
+            transform=transform,
+        )
+        test_split = datasets.FashionMNIST(
+            root=str(MNIST_DATA_DIR.parent / "fashion_mnist"),
+            train=False,
+            download=True,
+            transform=transform,
+        )
+    elif dataset_id == "cifar10":
+        ensure_cifar10_downloaded()
+        transform = _classification_transform(32)
+        train_split = datasets.CIFAR10(
+            root=str(MNIST_DATA_DIR.parent / "cifar10"),
+            train=True,
+            download=False,
+            transform=transform,
+        )
+        test_split = datasets.CIFAR10(
+            root=str(MNIST_DATA_DIR.parent / "cifar10"),
+            train=False,
+            download=False,
+            transform=transform,
+        )
+    else:
+        raise ValueError(f"Dataset '{dataset_id}' does not support automatic split download")
+
+    labels = np.concatenate([_dataset_targets(train_split), _dataset_targets(test_split)])
+    return ConcatDataset([train_split, test_split]), labels
+
+
+def _build_stratified_loaders(dataset_id: str) -> tuple[DataLoader, DataLoader, int, int]:
+    dataset, labels = _load_combined_torchvision_dataset(dataset_id)
+    train_limit_per_class: int | None = None
+    validation_limit_per_class: int | None = None
+
+    if dataset_id == "cifar10":
+        train_limit_per_class = COMPACT_CIFAR10_TRAIN_PER_CLASS
+        validation_limit_per_class = COMPACT_CIFAR10_VAL_PER_CLASS
 
     generator = np.random.default_rng(RANDOM_STATE)
     train_index_parts: list[np.ndarray] = []
     validation_index_parts: list[np.ndarray] = []
 
-    for class_id in torch.unique(labels).tolist():
-        class_indices = np.where(labels.numpy() == class_id)[0]
+    for class_id in np.unique(labels).tolist():
+        class_indices = np.where(labels == class_id)[0]
         shuffled = generator.permutation(class_indices)
         split_index = int(len(shuffled) * 0.8)
-        train_index_parts.append(shuffled[:split_index])
-        validation_index_parts.append(shuffled[split_index:])
+        train_split = shuffled[:split_index]
+        validation_split = shuffled[split_index:]
+        if train_limit_per_class is not None:
+            train_split = train_split[:train_limit_per_class]
+        if validation_limit_per_class is not None:
+            validation_split = validation_split[:validation_limit_per_class]
+        train_index_parts.append(train_split)
+        validation_index_parts.append(validation_split)
 
     train_indices = np.concatenate(train_index_parts)
     validation_indices = np.concatenate(validation_index_parts)
@@ -101,6 +246,104 @@ def build_stratified_loaders() -> tuple[DataLoader, DataLoader, int, int]:
     )
 
     return train_loader, validation_loader, len(train_indices), len(validation_indices)
+
+
+def _build_imagenet_loaders() -> tuple[DataLoader, DataLoader, int, int]:
+    from torchvision import datasets
+
+    imagenet_root = ensure_tiny_imagenet_downloaded()
+    train_dir = imagenet_root / "train"
+    val_dir = imagenet_root / "val-by-class"
+
+    transform = _classification_transform(64)
+    train_dataset = datasets.ImageFolder(str(train_dir), transform=transform)
+    validation_dataset = datasets.ImageFolder(str(val_dir), transform=transform)
+    train_dataset = _limit_imagefolder_per_class(
+        train_dataset,
+        COMPACT_TINY_IMAGENET_TRAIN_PER_CLASS,
+    )
+    validation_dataset = _limit_imagefolder_per_class(
+        validation_dataset,
+        COMPACT_TINY_IMAGENET_VAL_PER_CLASS,
+    )
+
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    validation_loader = DataLoader(validation_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    return train_loader, validation_loader, len(train_dataset), len(validation_dataset)
+
+
+def _build_coco_loaders() -> tuple[DataLoader, DataLoader, int, int]:
+    coco_root = ensure_coco_compact_downloaded()
+    val_dir = coco_root / "val2017"
+    val_annotations = coco_root / "annotations" / "instances_val2017.json"
+
+    transform = _classification_transform(224)
+    source_dataset = CocoClassificationDataset(
+        image_dir=val_dir,
+        annotation_path=val_annotations,
+        transform=transform,
+    )
+    train_dataset, validation_dataset = _split_coco_dataset(source_dataset)
+
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    validation_loader = DataLoader(validation_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    return train_loader, validation_loader, len(train_dataset), len(validation_dataset)
+
+
+def build_dataset_loaders(dataset_id: str) -> tuple[DataLoader, DataLoader, int, int]:
+    if dataset_id in {"mnist", "fashion_mnist", "cifar10"}:
+        return _build_stratified_loaders(dataset_id)
+
+    if dataset_id == "imagenet":
+        return _build_imagenet_loaders()
+
+    if dataset_id == "coco":
+        return _build_coco_loaders()
+
+    raise ValueError(f"Dataset '{dataset_id}' is not implemented for training yet")
+
+
+def _limit_imagefolder_per_class(dataset: Dataset, limit_per_class: int) -> Subset:
+    samples = getattr(dataset, "samples", None)
+    if samples is None:
+        raise ValueError("ImageFolder dataset does not expose samples")
+
+    class_buckets: dict[int, list[int]] = {}
+    for index, (_, label) in enumerate(samples):
+        class_buckets.setdefault(label, []).append(index)
+
+    generator = np.random.default_rng(RANDOM_STATE)
+    selected_indices: list[int] = []
+    for label, indices in class_buckets.items():
+        shuffled = generator.permutation(indices).tolist()
+        selected_indices.extend(shuffled[:limit_per_class])
+
+    selected_indices = generator.permutation(selected_indices).tolist()
+    return Subset(dataset, selected_indices)
+
+
+def _split_coco_dataset(dataset: CocoClassificationDataset) -> tuple[Subset, Subset]:
+    generator = np.random.default_rng(RANDOM_STATE)
+    label_buckets: dict[int, list[int]] = {}
+
+    for index, (_, label) in enumerate(dataset.records):
+        label_buckets.setdefault(label, []).append(index)
+
+    train_indices: list[int] = []
+    validation_indices: list[int] = []
+    for label, indices in label_buckets.items():
+        shuffled = generator.permutation(indices).tolist()
+        split_index = max(1, int(len(shuffled) * 0.8))
+        train_indices.extend(shuffled[: min(split_index, COMPACT_COCO_TRAIN_PER_CLASS)])
+        validation_indices.extend(
+            shuffled[split_index : split_index + COMPACT_COCO_VAL_PER_CLASS],
+        )
+
+    train_indices = generator.permutation(train_indices).tolist()
+    validation_indices = generator.permutation(validation_indices).tolist()
+    return Subset(dataset, train_indices), Subset(dataset, validation_indices)
+
+
 
 
 def _parse_int(field_map: dict[str, str], label: str) -> int:
@@ -163,6 +406,13 @@ def _parse_pooling_stride(field_map: dict[str, str], kernel_size: int) -> int:
     if value == "" or value == "none":
         return kernel_size
     return int(value)
+
+
+def _parse_dropout_probability(field_map: dict[str, str]) -> float:
+    value = float(field_map.get("Probability", "0.30"))
+    if value < 0 or value >= 1:
+        raise ValueError("Dropout probability must be in the range [0, 1)")
+    return value
 
 
 def compile_model(
@@ -255,6 +505,12 @@ def compile_model(
 
             current_height = _conv_output_size(current_height, kernel_size, padding, stride)
             current_width = _conv_output_size(current_width, kernel_size, padding, stride)
+            continue
+
+        if node.type == "dropout":
+            probability = _parse_dropout_probability(field_map)
+            layers.append(nn.Dropout(p=probability))
+            architecture.append(f"{node.title}: Dropout(p={probability:.2f})")
             continue
 
         if node.type != "linear":
@@ -446,6 +702,8 @@ def _evaluate_model(
                     {
                         "currentBatch": batch_index,
                         "totalBatches": len(loader),
+                        "liveValidationLoss": round(loss_sum / total, 4),
+                        "liveValidationAccuracy": round(correct / total, 4),
                     }
                 )
 
@@ -487,6 +745,11 @@ def train_model(
     progress_callback=None,
 ) -> dict[str, object]:
     dataset_spec = get_dataset_runtime_spec(payload.datasetId)
+    if dataset_spec.task != "classification":
+        raise ValueError(
+            f"{dataset_spec.definition.label} is a {dataset_spec.task} dataset and is not supported by this builder yet",
+        )
+
     compiled = compile_model(
         payload.nodes,
         input_channels=dataset_spec.input_channels,
@@ -496,7 +759,9 @@ def train_model(
         starts_flattened=dataset_spec.starts_flattened,
         input_features=dataset_spec.input_features,
     )
-    train_loader, validation_loader, train_size, validation_size = build_stratified_loaders()
+    train_loader, validation_loader, train_size, validation_size = build_dataset_loaders(
+        payload.datasetId,
+    )
 
     device = _get_training_device()
     model = compiled.model.to(device)
@@ -505,6 +770,9 @@ def train_model(
 
     metrics: list[EpochMetrics] = []
     best_validation_accuracy = 0.0
+    train_total_batches = len(train_loader)
+    validation_total_batches = len(validation_loader)
+    total_epoch_batches = train_total_batches + validation_total_batches
 
     for epoch in range(1, payload.epochs + 1):
         validation_iter_ref = [iter(validation_loader)]
@@ -524,6 +792,7 @@ def train_model(
                                 "currentEpoch": current_epoch,
                                 "stage": "train",
                                 **update,
+                                "totalBatches": total_epoch_batches,
                                 "liveValidationLoss": round(validation_snapshot[0], 4),
                                 "liveValidationAccuracy": round(validation_snapshot[1], 4),
                             },
@@ -547,19 +816,32 @@ def train_model(
             ),
         )
 
-        train_loss, train_accuracy = _evaluate_model(
-            model=model,
-            loader=train_loader,
-            criterion=criterion,
-            device=device,
-            job_id=job_id,
-        )
+        train_loss, train_accuracy = train_step_loss, train_step_accuracy
         validation_loss, validation_accuracy = _evaluate_model(
             model=model,
             loader=validation_loader,
             criterion=criterion,
             device=device,
             job_id=job_id,
+            batch_progress_callback=(
+                lambda update, current_epoch=epoch, train_loss_value=train_loss, train_accuracy_value=train_accuracy: progress_callback(
+                    {
+                        "status": "running",
+                        "currentEpoch": current_epoch,
+                        "stage": "validation",
+                        "currentBatch": train_total_batches + int(update["currentBatch"]),
+                        "totalBatches": total_epoch_batches,
+                        "liveTrainLoss": round(train_loss_value, 4),
+                        "liveTrainAccuracy": round(train_accuracy_value, 4),
+                        "liveValidationLoss": update.get("liveValidationLoss"),
+                        "liveValidationAccuracy": update.get("liveValidationAccuracy"),
+                    },
+                    metrics,
+                    best_validation_accuracy,
+                )
+                if progress_callback is not None
+                else None
+            ),
         )
 
         best_validation_accuracy = max(best_validation_accuracy, validation_accuracy)
@@ -577,8 +859,8 @@ def train_model(
                 {
                     "status": "running",
                     "currentEpoch": epoch,
-                    "currentBatch": len(train_loader),
-                    "totalBatches": len(train_loader),
+                    "currentBatch": total_epoch_batches,
+                    "totalBatches": total_epoch_batches,
                     "stage": "validation",
                     "liveTrainLoss": round(train_loss, 4),
                     "liveTrainAccuracy": round(train_accuracy, 4),
@@ -649,6 +931,11 @@ def _run_training_job(job_id: str, payload: TrainModelRequest) -> None:
 
 def start_training_job(payload: TrainModelRequest) -> dict[str, str]:
     dataset_spec = get_dataset_runtime_spec(payload.datasetId)
+    if dataset_spec.task != "classification":
+        raise ValueError(
+            f"{dataset_spec.definition.label} is a {dataset_spec.task} dataset and is not supported by this builder yet",
+        )
+
     compile_model(
         payload.nodes,
         input_channels=dataset_spec.input_channels,

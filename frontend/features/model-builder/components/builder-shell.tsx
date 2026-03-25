@@ -32,6 +32,7 @@ export function BuilderShell() {
     removeNode,
     updateNodeField,
     updateNodeActivation,
+    moveNode,
     resetBoard,
   } = useBuilderBoard();
   const [selectedDatasetId, setSelectedDatasetId] = useState(datasets[0]?.id ?? 'mnist');
@@ -64,6 +65,36 @@ export function BuilderShell() {
   const streamRef = useRef<EventSource | null>(null);
   const liveBatchKeyRef = useRef<string | null>(null);
   const selectedDataset = datasets.find((dataset) => dataset.id === selectedDatasetId) ?? datasets[0];
+
+  const surfaceTrainingError = (message: string, jobId: string | null = currentJobId) => {
+    setTrainingError(message);
+    setIsTraining(false);
+    setTrainingStatus((current) => ({
+      jobId: jobId ?? current?.jobId ?? 'local-error',
+      status: 'failed',
+      architecture: current?.architecture ?? [],
+      metrics: current?.metrics ?? [],
+      datasetId: current?.datasetId ?? selectedDatasetId,
+      epochs: current?.epochs ?? Number(epochs),
+      learningRate: current?.learningRate ?? Number(learningRate),
+      optimizer: current?.optimizer ?? optimizer,
+      trainSize: current?.trainSize ?? null,
+      validationSize: current?.validationSize ?? null,
+      numClasses: current?.numClasses ?? null,
+      device: current?.device ?? null,
+      bestValidationAccuracy: current?.bestValidationAccuracy ?? null,
+      currentEpoch: current?.currentEpoch ?? null,
+      currentBatch: current?.currentBatch ?? null,
+      totalBatches: current?.totalBatches ?? null,
+      stage: current?.stage ?? 'error',
+      liveTrainLoss: current?.liveTrainLoss ?? null,
+      liveTrainAccuracy: current?.liveTrainAccuracy ?? null,
+      liveValidationLoss: current?.liveValidationLoss ?? null,
+      liveValidationAccuracy: current?.liveValidationAccuracy ?? null,
+      error: message,
+    }));
+    setCurrentJobId(null);
+  };
 
   useEffect(() => {
     return () => {
@@ -113,10 +144,9 @@ export function BuilderShell() {
                   current ? { ...current, status: 'running' } : current,
                 );
               } catch (error) {
-                setTrainingError(
+                surfaceTrainingError(
                   error instanceof Error ? error.message : 'Resume failed unexpectedly',
                 );
-                setIsTraining(false);
               }
               return;
             }
@@ -232,8 +262,7 @@ export function BuilderShell() {
                     missingStatusRetries += 1;
                     return null;
                   }
-                  setTrainingError(message);
-                  setIsTraining(false);
+                  surfaceTrainingError(message, jobId);
                   stopPolling();
                   stopStreaming();
                   return null;
@@ -264,16 +293,16 @@ export function BuilderShell() {
                   }
                   usingPollingFallback = true;
                   stopStreaming();
+                  void pollStatus();
                   pollingRef.current = window.setInterval(() => {
                     void pollStatus();
                   }, 250);
                 },
               });
             } catch (error) {
-              setTrainingError(
+              surfaceTrainingError(
                 error instanceof Error ? error.message : 'Training failed unexpectedly',
               );
-              setIsTraining(false);
             }
           })();
         }}
@@ -287,7 +316,9 @@ export function BuilderShell() {
               setIsTraining(false);
               setTrainingStatus((current) => (current ? { ...current, status: 'paused' } : current));
             } catch (error) {
-              setTrainingError(error instanceof Error ? error.message : 'Pause failed unexpectedly');
+              surfaceTrainingError(
+                error instanceof Error ? error.message : 'Pause failed unexpectedly',
+              );
             }
           })();
         }}
@@ -324,7 +355,9 @@ export function BuilderShell() {
               });
               liveBatchKeyRef.current = null;
             } catch (error) {
-              setTrainingError(error instanceof Error ? error.message : 'Stop failed unexpectedly');
+              surfaceTrainingError(
+                error instanceof Error ? error.message : 'Stop failed unexpectedly',
+              );
             }
           })();
         }}
@@ -332,7 +365,7 @@ export function BuilderShell() {
         onReset={resetBoard}
       />
 
-      <div className="grid min-h-0 gap-2.5 px-4 py-1.5 xl:grid-cols-[280px_minmax(0,1fr)_340px] xl:px-5">
+      <div className="grid min-h-0 gap-2.5 px-4 py-1.5 xl:grid-cols-[minmax(260px,2fr)_minmax(0,5fr)_minmax(0,3fr)] xl:px-5">
         <Sidebar
           selectedDatasetId={selectedDatasetId}
           onDatasetSelect={setSelectedDatasetId}
@@ -347,6 +380,7 @@ export function BuilderShell() {
           onRemoveNode={removeNode}
           onUpdateNodeField={updateNodeField}
           onUpdateNodeActivation={updateNodeActivation}
+          onMoveNode={moveNode}
           onDropBlock={(type, index) => {
             addNode(type, index);
             setDraggingBlock(null);
