@@ -3,6 +3,7 @@ import type { CanvasNode } from '@/types/builder';
 
 function activationToTorch(name: string) {
   const mapping: Record<string, string> = {
+    None: 'nn.Identity()',
     ReLU: 'nn.ReLU()',
     'Leaky ReLU': 'nn.LeakyReLU()',
     GELU: 'nn.GELU()',

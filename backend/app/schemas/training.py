@@ -37,6 +37,18 @@ class EpochMetrics(BaseModel):
     validationAccuracy: float
 
 
+class DecisionBoundaryPoint(BaseModel):
+    x: float
+    y: float
+    z: float
+    label: int
+
+
+class DecisionBoundaryEpoch(BaseModel):
+    epoch: int
+    points: list[DecisionBoundaryPoint]
+
+
 class TrainModelResponse(BaseModel):
     datasetId: str
     epochs: int
@@ -49,11 +61,22 @@ class TrainModelResponse(BaseModel):
     architecture: list[str]
     metrics: list[EpochMetrics]
     bestValidationAccuracy: float
+    decisionBoundaryEpochs: list[DecisionBoundaryEpoch] = []
 
 
 class StartTrainingResponse(BaseModel):
     jobId: str
     status: str
+
+
+class PredictDigitRequest(BaseModel):
+    pixels: list[float] = Field(..., min_length=28 * 28, max_length=28 * 28)
+
+
+class PredictDigitResponse(BaseModel):
+    predictedLabel: int
+    confidence: float
+    probabilities: list[float]
 
 
 class TrainingJobStatusResponse(BaseModel):
@@ -76,4 +99,5 @@ class TrainingJobStatusResponse(BaseModel):
     stage: str | None = None
     liveTrainLoss: float | None = None
     liveTrainAccuracy: float | None = None
+    decisionBoundaryEpochs: list[DecisionBoundaryEpoch] = []
     error: str | None = None

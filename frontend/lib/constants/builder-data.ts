@@ -48,7 +48,7 @@ export const libraryBlocks: LibraryBlock[] = [
         { label: 'Output', value: '128' },
       ],
       activation: 'ReLU',
-      activationOptions: ['ReLU', 'Leaky ReLU', 'GELU', 'Sigmoid', 'Tanh', 'Softplus'],
+      activationOptions: ['None', 'ReLU', 'Leaky ReLU', 'GELU', 'Sigmoid', 'Tanh', 'Softplus'],
     },
   },
   {
@@ -66,7 +66,7 @@ export const libraryBlocks: LibraryBlock[] = [
         { label: 'Stride', value: '1' },
       ],
       activation: 'ReLU',
-      activationOptions: ['ReLU', 'ELU', 'SELU', 'GELU', 'Swish', 'Tanh'],
+      activationOptions: ['None', 'ReLU', 'ELU', 'SELU', 'GELU', 'Swish', 'Tanh'],
     },
   },
 ];

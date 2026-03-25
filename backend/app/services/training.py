@@ -8,10 +8,12 @@ from uuid import uuid4
 
 import numpy as np
 import torch
+import torch.nn.functional as F
+from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from torch import nn
 from torch.optim import Adagrad, Adam, RMSprop, SGD
-from torch.utils.data import DataLoader, Subset, TensorDataset
+from torch.utils.data import DataLoader, Dataset, Subset, TensorDataset
 
 from app.schemas.training import CanvasNodePayload, EpochMetrics, TrainModelRequest
 from app.services.datasets import DATA_DIR, ensure_mnist_downloaded, get_dataset_runtime_spec
@@ -20,6 +22,7 @@ from app.services.datasets import DATA_DIR, ensure_mnist_downloaded, get_dataset
 BATCH_SIZE = 32
 RANDOM_STATE = 42
 TRAINING_JOBS: dict[str, dict[str, object]] = {}
+TRAINED_CLASSIFIERS: dict[str, tuple[nn.Module, torch.device, str]] = {}
 TRAINING_LOCK = Lock()
 
 
@@ -27,6 +30,70 @@ TRAINING_LOCK = Lock()
 class CompiledModel:
     model: nn.Module
     architecture: list[str]
+
+
+class TripletSubsetDataset(Dataset):
+    def __init__(self, subset: Subset):
+        self.subset = subset
+        dataset = subset.dataset
+        if not isinstance(dataset, TensorDataset):
+            raise ValueError("Triplet training expects a TensorDataset")
+
+        _, labels = dataset.tensors
+        subset_indices = np.array(subset.indices)
+        subset_labels = labels[subset_indices].numpy()
+
+        self.label_to_indices: dict[int, np.ndarray] = {}
+        for label in np.unique(subset_labels):
+            self.label_to_indices[int(label)] = subset_indices[subset_labels == label]
+
+        self.available_labels = sorted(self.label_to_indices.keys())
+
+    def __len__(self) -> int:
+        return len(self.subset)
+
+    def __getitem__(self, index: int):
+        anchor_image, anchor_label = self.subset[index]
+        anchor_label_int = int(anchor_label.item())
+        dataset = self.subset.dataset
+        if not isinstance(dataset, TensorDataset):
+            raise ValueError("Triplet training expects a TensorDataset")
+
+        anchor_global_index = int(self.subset.indices[index])
+        positive_index = anchor_global_index
+        while positive_index == anchor_global_index:
+            positive_index = int(np.random.choice(self.label_to_indices[anchor_label_int]))
+        positive_image = dataset[positive_index][0]
+
+        negative_labels = [label for label in self.available_labels if label != anchor_label_int]
+        negative_label = int(np.random.choice(negative_labels))
+        negative_index = int(np.random.choice(self.label_to_indices[negative_label]))
+        negative_image = dataset[negative_index][0]
+
+        return anchor_image, positive_image, negative_image, anchor_label
+
+
+class TripletEmbeddingNet(nn.Module):
+    def __init__(self, embedding_dim: int = 64):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(1, 16, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(16, 32, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+        )
+        self.projection = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(32 * 7 * 7, 128),
+            nn.ReLU(),
+            nn.Linear(128, embedding_dim),
+        )
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        projected = self.projection(self.features(inputs))
+        return F.normalize(projected, p=2, dim=1)
 
 
 def _read_idx_images(path: Path) -> torch.Tensor:
@@ -65,7 +132,7 @@ def load_mnist_dataset() -> TensorDataset:
     return TensorDataset(images, labels)
 
 
-def build_stratified_loaders() -> tuple[DataLoader, DataLoader, int, int]:
+def build_stratified_loaders() -> tuple[DataLoader, DataLoader, int, int, Subset, Subset]:
     dataset = load_mnist_dataset()
     _, labels = dataset.tensors
 
@@ -78,18 +145,19 @@ def build_stratified_loaders() -> tuple[DataLoader, DataLoader, int, int]:
         stratify=labels.numpy(),
     )
 
-    train_loader = DataLoader(
-        Subset(dataset, train_indices.tolist()),
-        batch_size=BATCH_SIZE,
-        shuffle=True,
-    )
-    validation_loader = DataLoader(
-        Subset(dataset, validation_indices.tolist()),
-        batch_size=BATCH_SIZE,
-        shuffle=False,
-    )
+    train_subset = Subset(dataset, train_indices.tolist())
+    validation_subset = Subset(dataset, validation_indices.tolist())
+    train_loader = DataLoader(train_subset, batch_size=BATCH_SIZE, shuffle=True)
+    validation_loader = DataLoader(validation_subset, batch_size=BATCH_SIZE, shuffle=False)
 
-    return train_loader, validation_loader, len(train_indices), len(validation_indices)
+    return (
+        train_loader,
+        validation_loader,
+        len(train_indices),
+        len(validation_indices),
+        train_subset,
+        validation_subset,
+    )
 
 
 def _parse_int(field_map: dict[str, str], label: str) -> int:
@@ -113,6 +181,7 @@ def _parse_kernel_size(value: str) -> int:
 
 def _activation_module(name: str) -> nn.Module:
     activations: dict[str, nn.Module] = {
+        "None": nn.Identity(),
         "ReLU": nn.ReLU(),
         "Leaky ReLU": nn.LeakyReLU(),
         "GELU": nn.GELU(),
@@ -335,9 +404,90 @@ def _run_epoch(
     return loss_sum / total, correct / total
 
 
+def _run_triplet_epoch(
+    model: nn.Module,
+    loader: DataLoader,
+    criterion: nn.Module,
+    device: torch.device,
+    optimizer: torch.optim.Optimizer,
+) -> float:
+    model.train(True)
+    loss_sum = 0.0
+    total = 0
+
+    for anchors, positives, negatives, _ in loader:
+        anchors = anchors.to(device)
+        positives = positives.to(device)
+        negatives = negatives.to(device)
+
+        optimizer.zero_grad()
+        loss = criterion(model(anchors), model(positives), model(negatives))
+        loss.backward()
+        optimizer.step()
+
+        batch_size = anchors.size(0)
+        loss_sum += loss.item() * batch_size
+        total += batch_size
+
+    return loss_sum / max(total, 1)
+
+
+def _collect_embeddings(
+    model: nn.Module,
+    loader: DataLoader,
+    device: torch.device,
+) -> tuple[np.ndarray, np.ndarray]:
+    model.eval()
+    embeddings: list[np.ndarray] = []
+    labels: list[np.ndarray] = []
+
+    with torch.no_grad():
+        for inputs, targets in loader:
+            outputs = model(inputs.to(device))
+            embeddings.append(outputs.cpu().numpy())
+            labels.append(targets.numpy())
+
+    return np.vstack(embeddings), np.concatenate(labels)
+
+
+def _build_decision_boundary_points(
+    pca_values: np.ndarray,
+    labels: np.ndarray,
+    epoch: int,
+    max_points: int = 1200,
+) -> dict[str, object]:
+    per_class_budget = max(max_points // 10, 1)
+    rng = np.random.default_rng(RANDOM_STATE + epoch)
+    selected_indices: list[int] = []
+
+    for label in sorted(np.unique(labels)):
+        label_indices = np.where(labels == label)[0]
+        if len(label_indices) <= per_class_budget:
+            picked = label_indices
+        else:
+            picked = rng.choice(label_indices, size=per_class_budget, replace=False)
+        selected_indices.extend(int(index) for index in picked)
+
+    if len(selected_indices) > max_points:
+        selected_indices = selected_indices[:max_points]
+
+    points = [
+        {
+            "x": round(float(pca_values[index, 0]), 4),
+            "y": round(float(pca_values[index, 1]), 4),
+            "z": round(float(pca_values[index, 2]), 4),
+            "label": int(labels[index]),
+        }
+        for index in selected_indices
+    ]
+
+    return {"epoch": epoch, "points": points}
+
+
 def train_model(
     payload: TrainModelRequest,
     progress_callback=None,
+    model_store_id: str | None = None,
 ) -> dict[str, object]:
     dataset_spec = get_dataset_runtime_spec(payload.datasetId)
     compiled = compile_model(
@@ -349,14 +499,32 @@ def train_model(
         starts_flattened=dataset_spec.starts_flattened,
         input_features=dataset_spec.input_features,
     )
-    train_loader, validation_loader, train_size, validation_size = build_stratified_loaders()
+    (
+        train_loader,
+        validation_loader,
+        train_size,
+        validation_size,
+        train_subset,
+        validation_subset,
+    ) = build_stratified_loaders()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = compiled.model.to(device)
     optimizer = build_optimizer(model, payload)
     criterion = nn.CrossEntropyLoss()
+    triplet_model = TripletEmbeddingNet(embedding_dim=64).to(device)
+    triplet_optimizer = Adam(triplet_model.parameters(), lr=payload.learningRate)
+    triplet_criterion = nn.TripletMarginLoss(margin=1.0, p=2)
+
+    triplet_loader = DataLoader(
+        TripletSubsetDataset(train_subset),
+        batch_size=BATCH_SIZE,
+        shuffle=True,
+    )
+    triplet_eval_loader = DataLoader(validation_subset, batch_size=BATCH_SIZE, shuffle=False)
 
     metrics: list[EpochMetrics] = []
+    decision_boundary_epochs: list[dict[str, object]] = []
     best_validation_accuracy = 0.0
 
     for epoch in range(1, payload.epochs + 1):
@@ -376,6 +544,7 @@ def train_model(
                     },
                     metrics,
                     best_validation_accuracy,
+                    decision_boundary_epochs,
                 )
                 if progress_callback is not None
                 else None
@@ -398,6 +567,28 @@ def train_model(
                 validationAccuracy=round(validation_accuracy, 4),
             )
         )
+        _run_triplet_epoch(
+            model=triplet_model,
+            loader=triplet_loader,
+            criterion=triplet_criterion,
+            device=device,
+            optimizer=triplet_optimizer,
+        )
+        epoch_embeddings, epoch_labels = _collect_embeddings(
+            model=triplet_model,
+            loader=triplet_eval_loader,
+            device=device,
+        )
+        pca = PCA(n_components=3)
+        pca_result = pca.fit_transform(epoch_embeddings)
+        decision_boundary_epochs.append(
+            _build_decision_boundary_points(
+                pca_values=pca_result,
+                labels=epoch_labels,
+                epoch=epoch,
+            )
+        )
+
         if progress_callback is not None:
             progress_callback(
                 {
@@ -405,13 +596,18 @@ def train_model(
                     "currentEpoch": epoch,
                     "currentBatch": len(train_loader),
                     "totalBatches": len(train_loader),
-                    "stage": "validation",
+                    "stage": "triplet",
                     "liveTrainLoss": round(train_loss, 4),
                     "liveTrainAccuracy": round(train_accuracy, 4),
                 },
                 metrics,
                 best_validation_accuracy,
+                decision_boundary_epochs,
             )
+
+    if model_store_id is not None:
+        with TRAINING_LOCK:
+            TRAINED_CLASSIFIERS[model_store_id] = (model, device, payload.datasetId)
 
     return {
         "datasetId": payload.datasetId,
@@ -425,6 +621,7 @@ def train_model(
         "architecture": compiled.architecture,
         "metrics": [metric.model_dump() for metric in metrics],
         "bestValidationAccuracy": round(best_validation_accuracy, 4),
+        "decisionBoundaryEpochs": decision_boundary_epochs,
     }
 
 
@@ -448,20 +645,23 @@ def _run_training_job(job_id: str, payload: TrainModelRequest) -> None:
                 "metrics": [],
                 "architecture": [],
                 "bestValidationAccuracy": 0.0,
+                "decisionBoundaryEpochs": [],
                 "error": None,
             },
         )
 
         result = train_model(
             payload,
-            progress_callback=lambda live_update, metrics, best_accuracy: _update_job(
+            progress_callback=lambda live_update, metrics, best_accuracy, boundary_epochs: _update_job(
                 job_id,
                 {
                     **live_update,
                     "metrics": [metric.model_dump() for metric in metrics],
                     "bestValidationAccuracy": round(best_accuracy, 4),
+                    "decisionBoundaryEpochs": boundary_epochs,
                 },
             ),
+            model_store_id=job_id,
         )
         _update_job(job_id, {"status": "completed", **result})
     except Exception as error:  # pragma: no cover - background failures still need surfacing
@@ -487,6 +687,7 @@ def start_training_job(payload: TrainModelRequest) -> dict[str, str]:
             "status": "queued",
             "metrics": [],
             "architecture": [],
+            "decisionBoundaryEpochs": [],
             "error": None,
         }
 
@@ -502,3 +703,27 @@ def get_training_job(job_id: str) -> dict[str, object] | None:
         if job is None:
             return None
         return dict(job)
+
+
+def predict_mnist_digit(job_id: str, pixels: list[float]) -> dict[str, object]:
+    with TRAINING_LOCK:
+        trained = TRAINED_CLASSIFIERS.get(job_id)
+    if trained is None:
+        raise ValueError("No trained model found for this job")
+
+    model, device, dataset_id = trained
+    if dataset_id != "mnist":
+        raise ValueError("Digit canvas prediction is supported only for MNIST")
+
+    model.eval()
+    tensor = torch.tensor(pixels, dtype=torch.float32).view(1, 1, 28, 28).to(device)
+    with torch.no_grad():
+        logits = model(tensor)
+        probabilities = torch.softmax(logits, dim=1).squeeze(0).cpu().tolist()
+        predicted_label = int(torch.argmax(logits, dim=1).item())
+
+    return {
+        "predictedLabel": predicted_label,
+        "confidence": round(float(probabilities[predicted_label]), 4),
+        "probabilities": [round(float(probability), 4) for probability in probabilities],
+    }

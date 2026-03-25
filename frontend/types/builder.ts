@@ -40,6 +40,18 @@ export type TrainingRunMetric = {
   validationAccuracy: number;
 };
 
+export type DecisionBoundaryPoint = {
+  x: number;
+  y: number;
+  z: number;
+  label: number;
+};
+
+export type DecisionBoundaryEpoch = {
+  epoch: number;
+  points: DecisionBoundaryPoint[];
+};
+
 export type TrainingRunResult = {
   datasetId: string;
   epochs: number;
@@ -52,6 +64,7 @@ export type TrainingRunResult = {
   architecture: string[];
   metrics: TrainingRunMetric[];
   bestValidationAccuracy: number;
+  decisionBoundaryEpochs: DecisionBoundaryEpoch[];
 };
 
 export type TrainingJobStatus = {
@@ -74,6 +87,7 @@ export type TrainingJobStatus = {
   stage?: string | null;
   liveTrainLoss?: number | null;
   liveTrainAccuracy?: number | null;
+  decisionBoundaryEpochs?: DecisionBoundaryEpoch[];
   error?: string | null;
 };
 

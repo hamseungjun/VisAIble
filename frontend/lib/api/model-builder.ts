@@ -46,6 +46,16 @@ export async function getTrainingStatus(jobId: string) {
   return apiClient<TrainingJobStatus>(`/training/status/${jobId}`);
 }
 
+export async function predictDigit(jobId: string, pixels: number[]) {
+  return apiClient<{ predictedLabel: number; confidence: number; probabilities: number[] }>(
+    `/training/predict/${jobId}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ pixels }),
+    },
+  );
+}
+
 export function subscribeTrainingStatus(
   jobId: string,
   handlers: {
