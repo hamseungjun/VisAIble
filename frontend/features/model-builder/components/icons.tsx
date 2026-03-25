@@ -57,6 +57,13 @@ const paths: Record<IconName, ReactNode> = {
       <rect x="13" y="13" width="7" height="7" rx="1.5" />
     </>
   ),
+  pool: (
+    <>
+      <path d="M5 7h14" />
+      <path d="M7 7v4.5c0 2.9 2.2 5.3 5 5.3s5-2.4 5-5.3V7" />
+      <path d="M10 17.2v2.3M14 17.2v2.3" />
+    </>
+  ),
   settings: (
     <>
       <path d="M12 3.8 13.8 5l2.2-.3.8 2 2 1-.4 2.3 1.3 1.7-1.3 1.7.4 2.3-2 1-.8 2-2.2-.3-1.8 1.2-1.8-1.2-2.2.3-.8-2-2-1 .4-2.3L3.7 12l1.3-1.7-.4-2.3 2-1 .8-2 2.2.3L12 3.8Z" />
@@ -82,6 +89,13 @@ const paths: Record<IconName, ReactNode> = {
     </>
   ),
   play: <path d="m9 7 8 5-8 5V7Z" />,
+  pause: (
+    <>
+      <rect x="8" y="6.5" width="2.8" height="11" rx="1" />
+      <rect x="13.2" y="6.5" width="2.8" height="11" rx="1" />
+    </>
+  ),
+  stop: <rect x="7.5" y="7.5" width="9" height="9" rx="1.6" />,
   reset: (
     <>
       <path d="M12 5a7 7 0 1 0 6.2 10.2" />

@@ -1,107 +1,157 @@
 import { useState } from 'react';
-import { stats } from '@/lib/constants/builder-data';
 import type { TrainingJobStatus } from '@/types/builder';
 
 type InspectorProps = {
   trainingStatus: TrainingJobStatus | null;
+  liveHistory: {
+    loss: number[];
+    accuracy: number[];
+    validationLoss: number[];
+    validationAccuracy: number[];
+  };
 };
 
-function buildPath(values: number[], width: number, height: number) {
+const GRAPH_WIDTH = 320;
+const GRAPH_HEIGHT = 180;
+const GRAPH_PADDING_X = 14;
+const GRAPH_PADDING_Y = 12;
+const MAX_GRAPH_POINTS = 120;
+
+function compressSeries(values: number[], maxPoints: number) {
+  if (values.length <= maxPoints) {
+    return values;
+  }
+
+  const bucketSize = values.length / maxPoints;
+  const compressed: number[] = [];
+
+  for (let index = 0; index < maxPoints; index += 1) {
+    const start = Math.floor(index * bucketSize);
+    const end = Math.max(start + 1, Math.floor((index + 1) * bucketSize));
+    const bucket = values.slice(start, end);
+    const average = bucket.reduce((sum, value) => sum + value, 0) / bucket.length;
+    compressed.push(average);
+  }
+
+  return compressed;
+}
+
+function buildPath(values: number[], width: number, height: number, domain: [number, number]) {
   if (values.length === 0) {
     return '';
   }
 
-  const max = Math.max(...values);
-  const min = Math.min(...values);
+  const [min, max] = domain;
   const range = max - min || 1;
 
   return values
     .map((value, index) => {
-      const x = (index / Math.max(values.length - 1, 1)) * width;
-      const y = height - ((value - min) / range) * (height - 16) - 8;
+      const x =
+        GRAPH_PADDING_X +
+        (index / Math.max(values.length - 1, 1)) * (width - GRAPH_PADDING_X * 2);
+      const y =
+        height -
+        GRAPH_PADDING_Y -
+        ((value - min) / range) * (height - GRAPH_PADDING_Y * 2);
       return `${index === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`;
     })
     .join(' ');
 }
 
-export function Inspector({ trainingStatus }: InspectorProps) {
+function buildSinglePointY(values: number[], height: number, domain: [number, number]) {
+  if (values.length !== 1) {
+    return null;
+  }
+
+  const [min, max] = domain;
+  const range = max - min || 1;
+  return (
+    height -
+    GRAPH_PADDING_Y -
+    ((values[0] - min) / range) * (height - GRAPH_PADDING_Y * 2)
+  );
+}
+
+export function Inspector({
+  trainingStatus,
+  liveHistory = { loss: [], accuracy: [], validationLoss: [], validationAccuracy: [] },
+}: InspectorProps) {
+  const safeLiveHistory = {
+    loss: liveHistory.loss ?? [],
+    accuracy: liveHistory.accuracy ?? [],
+    validationLoss: liveHistory.validationLoss ?? [],
+    validationAccuracy: liveHistory.validationAccuracy ?? [],
+  };
   const [metricMode, setMetricMode] = useState<'loss' | 'accuracy'>('loss');
-  const [seriesMode, setSeriesMode] = useState<'train' | 'val'>('train');
   const metrics = trainingStatus?.metrics ?? [];
   const latestMetric = metrics.at(-1);
   const displayTrainLoss = [
     ...metrics.map((item) => item.trainLoss),
-    ...(trainingStatus?.status === 'running' && trainingStatus.liveTrainLoss != null
-      ? [trainingStatus.liveTrainLoss]
-      : []),
+    ...safeLiveHistory.loss,
   ];
   const displayTrainAccuracy = [
     ...metrics.map((item) => item.trainAccuracy),
-    ...(trainingStatus?.status === 'running' && trainingStatus.liveTrainAccuracy != null
-      ? [trainingStatus.liveTrainAccuracy]
-      : []),
+    ...safeLiveHistory.accuracy,
   ];
-  const validationLossValues = metrics.map((item) => item.validationLoss);
-  const validationAccuracyValues = metrics.map((item) => item.validationAccuracy);
-  const activeValues =
-    metricMode === 'loss'
-      ? seriesMode === 'train'
-        ? displayTrainLoss
-        : validationLossValues
-      : seriesMode === 'train'
-        ? displayTrainAccuracy
-        : validationAccuracyValues;
-  const activePath = buildPath(activeValues, 320, 180);
-  const summaryLabel = `${seriesMode === 'train' ? 'Train' : 'Val'} ${metricMode === 'loss' ? 'Loss' : 'Accuracy'}`;
+  const validationLossValues = [
+    ...metrics.map((item) => item.validationLoss),
+    ...safeLiveHistory.validationLoss,
+  ];
+  const validationAccuracyValues = [
+    ...metrics.map((item) => item.validationAccuracy),
+    ...safeLiveHistory.validationAccuracy,
+  ];
+  const rawTrainValues = metricMode === 'loss' ? displayTrainLoss : displayTrainAccuracy;
+  const rawValidationValues =
+    metricMode === 'loss' ? validationLossValues : validationAccuracyValues;
+  const trainValues = compressSeries(rawTrainValues, MAX_GRAPH_POINTS);
+  const validationValues = compressSeries(rawValidationValues, MAX_GRAPH_POINTS);
+  const allValues = [...trainValues, ...validationValues];
+  const domain: [number, number] =
+    allValues.length > 0
+      ? [Math.min(...allValues), Math.max(...allValues)]
+      : [0, 1];
+  const trainPath = buildPath(trainValues, GRAPH_WIDTH, GRAPH_HEIGHT, domain);
+  const validationPath = buildPath(validationValues, GRAPH_WIDTH, GRAPH_HEIGHT, domain);
+  const trainSinglePointY = buildSinglePointY(trainValues, GRAPH_HEIGHT, domain);
+  const validationSinglePointY = buildSinglePointY(validationValues, GRAPH_HEIGHT, domain);
+  const summaryLabel = `Train ${metricMode === 'loss' ? 'Loss' : 'Accuracy'}`;
   const summaryValue =
     metricMode === 'loss'
-      ? seriesMode === 'train'
-        ? trainingStatus?.status === 'running' && trainingStatus.liveTrainLoss != null
-          ? trainingStatus.liveTrainLoss.toFixed(4)
-          : latestMetric
-            ? latestMetric.trainLoss.toFixed(4)
-            : '--'
+      ? trainingStatus?.status === 'running' && trainingStatus.liveTrainLoss != null
+        ? trainingStatus.liveTrainLoss.toFixed(4)
+        : latestMetric
+          ? latestMetric.trainLoss.toFixed(4)
+          : '--'
+      : trainingStatus?.status === 'running' && trainingStatus.liveTrainAccuracy != null
+        ? `${(trainingStatus.liveTrainAccuracy * 100).toFixed(2)}%`
+        : latestMetric
+          ? `${(latestMetric.trainAccuracy * 100).toFixed(2)}%`
+          : '--';
+  const secondaryLabel = `Val ${metricMode === 'loss' ? 'Loss' : 'Accuracy'}`;
+  const secondaryValue =
+    metricMode === 'loss'
+      ? trainingStatus?.status === 'running' && trainingStatus.liveValidationLoss != null
+        ? trainingStatus.liveValidationLoss.toFixed(4)
         : latestMetric
           ? latestMetric.validationLoss.toFixed(4)
           : '--'
-      : seriesMode === 'train'
-        ? trainingStatus?.status === 'running' && trainingStatus.liveTrainAccuracy != null
-          ? `${(trainingStatus.liveTrainAccuracy * 100).toFixed(2)}%`
-          : latestMetric
-            ? `${(latestMetric.trainAccuracy * 100).toFixed(2)}%`
-            : '--'
+      : trainingStatus?.status === 'running' && trainingStatus.liveValidationAccuracy != null
+        ? `${(trainingStatus.liveValidationAccuracy * 100).toFixed(2)}%`
         : latestMetric
           ? `${(latestMetric.validationAccuracy * 100).toFixed(2)}%`
           : '--';
-  const secondaryLabel = `${seriesMode === 'train' ? 'Val' : 'Train'} ${metricMode === 'loss' ? 'Loss' : 'Accuracy'}`;
-  const secondaryValue =
-    metricMode === 'loss'
-      ? seriesMode === 'train'
-        ? latestMetric
-          ? latestMetric.validationLoss.toFixed(4)
-          : '--'
-        : trainingStatus?.status === 'running' && trainingStatus.liveTrainLoss != null
-          ? trainingStatus.liveTrainLoss.toFixed(4)
-          : latestMetric
-            ? latestMetric.trainLoss.toFixed(4)
-            : '--'
-      : seriesMode === 'train'
-        ? latestMetric
-          ? `${(latestMetric.validationAccuracy * 100).toFixed(2)}%`
-          : '--'
-        : trainingStatus?.status === 'running' && trainingStatus.liveTrainAccuracy != null
-          ? `${(trainingStatus.liveTrainAccuracy * 100).toFixed(2)}%`
-          : latestMetric
-            ? `${(latestMetric.trainAccuracy * 100).toFixed(2)}%`
-            : '--';
-  const activeStroke =
-    metricMode === 'loss'
-      ? seriesMode === 'train'
-        ? '#1151ff'
-        : '#0a607f'
-      : seriesMode === 'train'
-        ? '#1151ff'
-        : '#0a607f';
+  const statusLines = trainingStatus?.error
+    ? [trainingStatus.error]
+    : latestMetric
+      ? [
+          `Val Acc ${Math.round(latestMetric.validationAccuracy * 10000) / 100}%`,
+          `Val Loss ${latestMetric.validationLoss}`,
+          trainingStatus?.device ? `Device ${trainingStatus.device}` : null,
+        ].filter((value): value is string => value !== null)
+      : [
+          trainingStatus?.device ? `Device ${trainingStatus.device}` : 'Run training to see validation metrics.',
+        ];
   const progressPercent =
     trainingStatus?.epochs && trainingStatus.currentEpoch
       ? Math.min(
@@ -174,34 +224,39 @@ export function Inspector({ trainingStatus }: InspectorProps) {
           </div>
         </div>
 
-        <div className="mb-3 flex items-center justify-end">
-          <div className="flex gap-3 text-xs font-extrabold uppercase tracking-[0.16em]">
-            <button
-              type="button"
-              onClick={() => setSeriesMode('train')}
-              className={seriesMode === 'train' ? 'text-primary' : 'text-muted'}
-            >
-              Train
-            </button>
-            <button
-              type="button"
-              onClick={() => setSeriesMode('val')}
-              className={seriesMode === 'val' ? 'text-tertiary' : 'text-muted'}
-            >
-              Val
-            </button>
-          </div>
+        <div className="mb-3 flex items-center justify-end gap-4 text-[11px] font-extrabold uppercase tracking-[0.16em]">
+          <span className="flex items-center gap-2 text-primary">
+            <i className="h-2.5 w-2.5 rounded-full bg-primary" />
+            Train
+          </span>
+          <span className="flex items-center gap-2 text-tertiary">
+            <i className="h-2.5 w-2.5 rounded-full bg-tertiary" />
+            Val
+          </span>
         </div>
 
         <div className="rounded-[18px] bg-white/85 p-3">
-          <svg viewBox="0 0 320 180" preserveAspectRatio="none" className="h-[160px] w-full">
+          <svg
+            viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`}
+            preserveAspectRatio="none"
+            className="h-[160px] w-full overflow-visible"
+          >
             <path
-              d="M0 36H320M0 90H320M0 144H320"
+              d={`M${GRAPH_PADDING_X} 36H${GRAPH_WIDTH - GRAPH_PADDING_X}M${GRAPH_PADDING_X} 90H${GRAPH_WIDTH - GRAPH_PADDING_X}M${GRAPH_PADDING_X} 144H${GRAPH_WIDTH - GRAPH_PADDING_X}`}
               fill="none"
               stroke="rgba(129,149,188,0.26)"
             />
-            {activePath ? (
-              <path d={activePath} fill="none" stroke={activeStroke} strokeWidth="4" />
+            {trainPath ? (
+              <path d={trainPath} fill="none" stroke="#1151ff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+            ) : null}
+            {trainSinglePointY != null ? (
+              <circle cx={GRAPH_PADDING_X} cy={trainSinglePointY} r="4" fill="#1151ff" />
+            ) : null}
+            {validationPath ? (
+              <path d={validationPath} fill="none" stroke="#0a607f" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+            ) : null}
+            {validationSinglePointY != null ? (
+              <circle cx={GRAPH_PADDING_X} cy={validationSinglePointY} r="4" fill="#0a607f" />
             ) : null}
           </svg>
         </div>
@@ -224,6 +279,22 @@ export function Inspector({ trainingStatus }: InspectorProps) {
             </strong>
           </div>
         </div>
+
+        <div className="mt-4 rounded-[16px] bg-[linear-gradient(135deg,rgba(17,81,255,0.05),rgba(10,96,127,0.08))] px-3.5 py-3">
+          <div className="mb-2 text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
+            Training Status
+          </div>
+          <div className="grid gap-1 text-[13px] font-semibold text-ink">
+            {statusLines.map((line) => (
+              <span
+                key={line}
+                className={trainingStatus?.error ? 'break-words text-[#b54708]' : undefined}
+              >
+                {line}
+              </span>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="grid gap-4 px-1 pt-1">
@@ -239,21 +310,6 @@ export function Inspector({ trainingStatus }: InspectorProps) {
             />
           </div>
         </div>
-
-        {stats.map((item) => (
-          <div key={item.label} className="flex items-center justify-between gap-6">
-            <span className="text-base text-[#364761]">{item.label}</span>
-            <strong className="font-display text-base font-bold text-ink">
-              {item.label === 'Epochs Completed' && trainingStatus?.epochs
-                ? `${trainingStatus.currentEpoch ?? metrics.length} / ${trainingStatus.epochs}`
-                : item.label === 'Batch Size'
-                  ? '128'
-                  : item.label === 'Total Parameters' && trainingStatus?.architecture.length
-                    ? `${trainingStatus.architecture.length} blocks`
-                    : item.value}
-            </strong>
-          </div>
-        ))}
       </section>
     </aside>
   );

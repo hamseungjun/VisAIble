@@ -46,6 +46,24 @@ export async function getTrainingStatus(jobId: string) {
   return apiClient<TrainingJobStatus>(`/training/status/${jobId}`);
 }
 
+export async function pauseTraining(jobId: string) {
+  return apiClient<{ jobId: string; status: string }>(`/training/pause/${jobId}`, {
+    method: 'POST',
+  });
+}
+
+export async function resumeTraining(jobId: string) {
+  return apiClient<{ jobId: string; status: string }>(`/training/resume/${jobId}`, {
+    method: 'POST',
+  });
+}
+
+export async function stopTraining(jobId: string) {
+  return apiClient<{ jobId: string; status: string }>(`/training/stop/${jobId}`, {
+    method: 'POST',
+  });
+}
+
 export function subscribeTrainingStatus(
   jobId: string,
   handlers: {

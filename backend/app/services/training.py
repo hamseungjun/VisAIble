@@ -4,11 +4,11 @@ import struct
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock, Thread
+from time import sleep
 from uuid import uuid4
 
 import numpy as np
 import torch
-from sklearn.model_selection import train_test_split
 from torch import nn
 from torch.optim import Adagrad, Adam, RMSprop, SGD
 from torch.utils.data import DataLoader, Subset, TensorDataset
@@ -17,10 +17,14 @@ from app.schemas.training import CanvasNodePayload, EpochMetrics, TrainModelRequ
 from app.services.datasets import DATA_DIR, ensure_mnist_downloaded, get_dataset_runtime_spec
 
 
-BATCH_SIZE = 32
+BATCH_SIZE = 128
 RANDOM_STATE = 42
 TRAINING_JOBS: dict[str, dict[str, object]] = {}
 TRAINING_LOCK = Lock()
+
+
+class TrainingStoppedError(Exception):
+    pass
 
 
 @dataclass
@@ -69,14 +73,21 @@ def build_stratified_loaders() -> tuple[DataLoader, DataLoader, int, int]:
     dataset = load_mnist_dataset()
     _, labels = dataset.tensors
 
-    indices = np.arange(len(labels))
-    train_indices, validation_indices = train_test_split(
-        indices,
-        test_size=0.2,
-        random_state=RANDOM_STATE,
-        shuffle=True,
-        stratify=labels.numpy(),
-    )
+    generator = np.random.default_rng(RANDOM_STATE)
+    train_index_parts: list[np.ndarray] = []
+    validation_index_parts: list[np.ndarray] = []
+
+    for class_id in torch.unique(labels).tolist():
+        class_indices = np.where(labels.numpy() == class_id)[0]
+        shuffled = generator.permutation(class_indices)
+        split_index = int(len(shuffled) * 0.8)
+        train_index_parts.append(shuffled[:split_index])
+        validation_index_parts.append(shuffled[split_index:])
+
+    train_indices = np.concatenate(train_index_parts)
+    validation_indices = np.concatenate(validation_index_parts)
+    train_indices = generator.permutation(train_indices)
+    validation_indices = generator.permutation(validation_indices)
 
     train_loader = DataLoader(
         Subset(dataset, train_indices.tolist()),
@@ -135,6 +146,23 @@ def _conv_output_size(size: int, kernel_size: int, padding: int, stride: int) ->
     if next_size <= 0:
         raise ValueError("Convolution settings shrink the feature map to zero")
     return next_size
+
+
+def _pooling_module(pool_type: str, kernel_size: int, stride: int, padding: int) -> nn.Module:
+    if pool_type == "AdaptiveAvgPool":
+        return nn.AdaptiveAvgPool2d((1, 1))
+    if pool_type == "AvgPool":
+        return nn.AvgPool2d(kernel_size=kernel_size, stride=stride, padding=padding)
+    if pool_type == "MaxPool":
+        return nn.MaxPool2d(kernel_size=kernel_size, stride=stride, padding=padding)
+    raise ValueError(f"Unsupported pooling type: {pool_type}")
+
+
+def _parse_pooling_stride(field_map: dict[str, str], kernel_size: int) -> int:
+    value = field_map.get("Stride", "").strip().lower()
+    if value == "" or value == "none":
+        return kernel_size
+    return int(value)
 
 
 def compile_model(
@@ -204,6 +232,31 @@ def compile_model(
             current_width = _conv_output_size(current_width, kernel_size, padding, stride)
             continue
 
+        if node.type == "pooling":
+            if flattened:
+                raise ValueError("Pooling blocks must come before Linear blocks")
+
+            pool_type = field_map.get("Pool Type", "MaxPool")
+            if pool_type == "AdaptiveAvgPool":
+                layers.append(_pooling_module(pool_type, 1, 1, 0))
+                architecture.append(f"{node.title}: AdaptiveAvgPool2d((1, 1))")
+                current_height = 1
+                current_width = 1
+                continue
+
+            padding = _parse_int(field_map, "Padding")
+            kernel_size = _parse_kernel_size(field_map.get("Kernel Size", "2"))
+            stride = _parse_pooling_stride(field_map, kernel_size)
+
+            layers.append(_pooling_module(pool_type, kernel_size, stride, padding))
+            architecture.append(
+                f"{node.title}: {pool_type}(kernel={kernel_size}, stride={stride}, padding={padding})",
+            )
+
+            current_height = _conv_output_size(current_height, kernel_size, padding, stride)
+            current_width = _conv_output_size(current_width, kernel_size, padding, stride)
+            continue
+
         if node.type != "linear":
             raise ValueError(f"Unsupported block type: {node.type}")
 
@@ -262,8 +315,6 @@ def build_optimizer(model: nn.Module, payload: TrainModelRequest):
     rho = float(payload.optimizerParams.rho)
 
     if payload.optimizer == "SGD":
-        return SGD(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    if payload.optimizer == "SGD+Momentum":
         return SGD(
             model.parameters(),
             lr=learning_rate,
@@ -285,36 +336,104 @@ def build_optimizer(model: nn.Module, payload: TrainModelRequest):
     raise ValueError(f"Unsupported optimizer: {payload.optimizer}")
 
 
-def _run_epoch(
+def _get_training_device() -> torch.device:
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+
+    mps_backend = getattr(torch.backends, "mps", None)
+    if mps_backend is not None and mps_backend.is_available():
+        return torch.device("mps")
+
+    return torch.device("cpu")
+
+
+def _wait_for_job(job_id: str | None) -> None:
+    if job_id is None:
+        return
+
+    while True:
+        job = get_training_job(job_id)
+        if job is None:
+            raise TrainingStoppedError("Training job not found")
+
+        status = job.get("status")
+        if status == "stopped":
+            raise TrainingStoppedError("Training stopped")
+        if status != "paused":
+            return
+
+        sleep(0.15)
+
+
+def _train_one_epoch(
     model: nn.Module,
     loader: DataLoader,
     criterion: nn.Module,
     device: torch.device,
-    optimizer=None,
+    optimizer,
+    job_id: str | None = None,
     batch_progress_callback=None,
 ) -> tuple[float, float]:
-    is_training = optimizer is not None
-    model.train(is_training)
+    model.train(True)
 
     loss_sum = 0.0
     correct = 0
     total = 0
 
-    context = torch.enable_grad() if is_training else torch.no_grad()
-    with context:
+    for batch_index, (inputs, targets) in enumerate(loader, start=1):
+        _wait_for_job(job_id)
+
+        inputs = inputs.to(device)
+        targets = targets.to(device)
+
+        optimizer.zero_grad()
+
+        logits = model(inputs)
+        loss = criterion(logits, targets)
+        loss.backward()
+        optimizer.step()
+
+        batch_size = targets.size(0)
+        loss_sum += loss.item() * batch_size
+        predictions = logits.argmax(dim=1)
+        correct += (predictions == targets).sum().item()
+        total += batch_size
+
+        if batch_progress_callback is not None:
+            batch_progress_callback(
+                {
+                    "currentBatch": batch_index,
+                    "totalBatches": len(loader),
+                    "liveTrainLoss": round(loss_sum / total, 4),
+                    "liveTrainAccuracy": round(correct / total, 4),
+                }
+            )
+
+    return loss_sum / total, correct / total
+
+
+def _evaluate_model(
+    model: nn.Module,
+    loader: DataLoader,
+    criterion: nn.Module,
+    device: torch.device,
+    job_id: str | None = None,
+    batch_progress_callback=None,
+) -> tuple[float, float]:
+    model.eval()
+
+    loss_sum = 0.0
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
         for batch_index, (inputs, targets) in enumerate(loader, start=1):
+            _wait_for_job(job_id)
+
             inputs = inputs.to(device)
             targets = targets.to(device)
-
-            if is_training:
-                optimizer.zero_grad()
-
             logits = model(inputs)
             loss = criterion(logits, targets)
-
-            if is_training:
-                loss.backward()
-                optimizer.step()
 
             batch_size = targets.size(0)
             loss_sum += loss.item() * batch_size
@@ -327,16 +446,44 @@ def _run_epoch(
                     {
                         "currentBatch": batch_index,
                         "totalBatches": len(loader),
-                        "liveTrainLoss": round(loss_sum / total, 4),
-                        "liveTrainAccuracy": round(correct / total, 4),
                     }
                 )
 
     return loss_sum / total, correct / total
 
 
+def _evaluate_validation_snapshot(
+    model: nn.Module,
+    validation_iterator,
+    loader: DataLoader,
+    criterion: nn.Module,
+    device: torch.device,
+    job_id: str | None = None,
+) -> tuple[float, float, object]:
+    try:
+        inputs, targets = next(validation_iterator)
+    except StopIteration:
+        validation_iterator = iter(loader)
+        inputs, targets = next(validation_iterator)
+
+    _wait_for_job(job_id)
+
+    was_training = model.training
+    model.eval()
+    with torch.no_grad():
+        inputs = inputs.to(device)
+        targets = targets.to(device)
+        logits = model(inputs)
+        loss = criterion(logits, targets)
+        accuracy = (logits.argmax(dim=1) == targets).float().mean().item()
+
+    model.train(was_training)
+    return loss.item(), accuracy, validation_iterator
+
+
 def train_model(
     payload: TrainModelRequest,
+    job_id: str | None = None,
     progress_callback=None,
 ) -> dict[str, object]:
     dataset_spec = get_dataset_runtime_spec(payload.datasetId)
@@ -351,7 +498,7 @@ def train_model(
     )
     train_loader, validation_loader, train_size, validation_size = build_stratified_loaders()
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = _get_training_device()
     model = compiled.model.to(device)
     optimizer = build_optimizer(model, payload)
     criterion = nn.CrossEntropyLoss()
@@ -360,32 +507,59 @@ def train_model(
     best_validation_accuracy = 0.0
 
     for epoch in range(1, payload.epochs + 1):
-        train_loss, train_accuracy = _run_epoch(
+        validation_iter_ref = [iter(validation_loader)]
+        train_step_loss, train_step_accuracy = _train_one_epoch(
             model=model,
             loader=train_loader,
             criterion=criterion,
             device=device,
             optimizer=optimizer,
+            job_id=job_id,
             batch_progress_callback=(
-                lambda update, current_epoch=epoch: progress_callback(
-                    {
-                        "status": "running",
-                        "currentEpoch": current_epoch,
-                        "stage": "train",
-                        **update,
-                    },
-                    metrics,
-                    best_validation_accuracy,
+                lambda update, current_epoch=epoch: (
+                    lambda validation_snapshot: (
+                        progress_callback(
+                            {
+                                "status": "running",
+                                "currentEpoch": current_epoch,
+                                "stage": "train",
+                                **update,
+                                "liveValidationLoss": round(validation_snapshot[0], 4),
+                                "liveValidationAccuracy": round(validation_snapshot[1], 4),
+                            },
+                            metrics,
+                            best_validation_accuracy,
+                        ),
+                        validation_iter_ref.__setitem__(0, validation_snapshot[2]),
+                    )
+                )(
+                    _evaluate_validation_snapshot(
+                        model=model,
+                        validation_iterator=validation_iter_ref[0],
+                        loader=validation_loader,
+                        criterion=criterion,
+                        device=device,
+                        job_id=job_id,
+                    )
                 )
                 if progress_callback is not None
                 else None
             ),
         )
-        validation_loss, validation_accuracy = _run_epoch(
+
+        train_loss, train_accuracy = _evaluate_model(
+            model=model,
+            loader=train_loader,
+            criterion=criterion,
+            device=device,
+            job_id=job_id,
+        )
+        validation_loss, validation_accuracy = _evaluate_model(
             model=model,
             loader=validation_loader,
             criterion=criterion,
             device=device,
+            job_id=job_id,
         )
 
         best_validation_accuracy = max(best_validation_accuracy, validation_accuracy)
@@ -408,6 +582,8 @@ def train_model(
                     "stage": "validation",
                     "liveTrainLoss": round(train_loss, 4),
                     "liveTrainAccuracy": round(train_accuracy, 4),
+                    "liveValidationLoss": round(validation_loss, 4),
+                    "liveValidationAccuracy": round(validation_accuracy, 4),
                 },
                 metrics,
                 best_validation_accuracy,
@@ -454,6 +630,7 @@ def _run_training_job(job_id: str, payload: TrainModelRequest) -> None:
 
         result = train_model(
             payload,
+            job_id=job_id,
             progress_callback=lambda live_update, metrics, best_accuracy: _update_job(
                 job_id,
                 {
@@ -464,6 +641,8 @@ def _run_training_job(job_id: str, payload: TrainModelRequest) -> None:
             ),
         )
         _update_job(job_id, {"status": "completed", **result})
+    except TrainingStoppedError:
+        _update_job(job_id, {"status": "stopped"})
     except Exception as error:  # pragma: no cover - background failures still need surfacing
         _update_job(job_id, {"status": "failed", "error": str(error)})
 
@@ -502,3 +681,32 @@ def get_training_job(job_id: str) -> dict[str, object] | None:
         if job is None:
             return None
         return dict(job)
+
+
+def pause_training_job(job_id: str) -> dict[str, str] | None:
+    with TRAINING_LOCK:
+        job = TRAINING_JOBS.get(job_id)
+        if job is None:
+            return None
+        if job.get("status") == "running":
+            job["status"] = "paused"
+        return {"jobId": job_id, "status": str(job.get("status"))}
+
+
+def resume_training_job(job_id: str) -> dict[str, str] | None:
+    with TRAINING_LOCK:
+        job = TRAINING_JOBS.get(job_id)
+        if job is None:
+            return None
+        if job.get("status") == "paused":
+            job["status"] = "running"
+        return {"jobId": job_id, "status": str(job.get("status"))}
+
+
+def stop_training_job(job_id: str) -> dict[str, str] | None:
+    with TRAINING_LOCK:
+        job = TRAINING_JOBS.get(job_id)
+        if job is None:
+            return None
+        job["status"] = "stopped"
+        return {"jobId": job_id, "status": "stopped"}

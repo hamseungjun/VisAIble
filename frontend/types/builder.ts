@@ -7,7 +7,7 @@ export type DatasetItem = {
   domain?: string;
 };
 
-export type BlockType = 'linear' | 'cnn';
+export type BlockType = 'linear' | 'cnn' | 'pooling';
 
 export type LibraryBlock = {
   id: BlockType;
@@ -56,7 +56,7 @@ export type TrainingRunResult = {
 
 export type TrainingJobStatus = {
   jobId: string;
-  status: 'queued' | 'running' | 'completed' | 'failed';
+  status: 'queued' | 'running' | 'paused' | 'stopped' | 'completed' | 'failed';
   datasetId?: string | null;
   epochs?: number | null;
   learningRate?: number | null;
@@ -74,6 +74,8 @@ export type TrainingJobStatus = {
   stage?: string | null;
   liveTrainLoss?: number | null;
   liveTrainAccuracy?: number | null;
+  liveValidationLoss?: number | null;
+  liveValidationAccuracy?: number | null;
   error?: string | null;
 };
 
@@ -95,11 +97,14 @@ export type IconName =
   | 'file'
   | 'layers'
   | 'panel'
+  | 'pool'
   | 'settings'
   | 'bell'
   | 'zoomIn'
   | 'zoomOut'
   | 'play'
+  | 'pause'
+  | 'stop'
   | 'reset'
   | 'rocket'
   | 'help'

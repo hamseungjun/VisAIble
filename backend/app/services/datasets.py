@@ -1,7 +1,6 @@
 from dataclasses import dataclass
+import gzip
 from pathlib import Path
-
-import requests
 
 
 @dataclass(frozen=True)
@@ -75,6 +74,8 @@ MNIST_SPEC = DatasetRuntimeSpec(
 
 
 def ensure_mnist_downloaded() -> dict[str, object]:
+    import requests
+
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     downloaded: list[str] = []
@@ -83,13 +84,19 @@ def ensure_mnist_downloaded() -> dict[str, object]:
     for filename, url in MNIST_FILES.items():
         target_path = DATA_DIR / filename
 
-        if target_path.exists():
+        if target_path.exists() and _is_valid_mnist_file(target_path):
             existing.append(filename)
             continue
+
+        if target_path.exists():
+            target_path.unlink()
 
         response = requests.get(url, timeout=60)
         response.raise_for_status()
         target_path.write_bytes(response.content)
+        if not _is_valid_mnist_file(target_path):
+            target_path.unlink(missing_ok=True)
+            raise ValueError(f"Downloaded MNIST file is invalid: {filename}")
         downloaded.append(filename)
 
     return {
@@ -108,3 +115,16 @@ def get_dataset_runtime_spec(dataset_id: str) -> DatasetRuntimeSpec:
         return MNIST_SPEC
 
     raise ValueError(f"Dataset '{dataset_id}' is not implemented yet")
+
+
+def _is_valid_mnist_file(path: Path) -> bool:
+    try:
+        with gzip.open(path, "rb") as handle:
+            if "images" in path.name:
+                return len(handle.read(16)) == 16
+            if "labels" in path.name:
+                return len(handle.read(8)) == 8
+    except OSError:
+        return False
+
+    return False

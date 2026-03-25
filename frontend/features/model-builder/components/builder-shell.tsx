@@ -9,7 +9,10 @@ import { TopBar } from '@/features/model-builder/components/top-bar';
 import { useBuilderBoard } from '@/features/model-builder/hooks/use-builder-board';
 import {
   getTrainingStatus,
+  pauseTraining,
+  resumeTraining,
   startTraining,
+  stopTraining,
   subscribeTrainingStatus,
 } from '@/lib/api/model-builder';
 import { datasets } from '@/lib/constants/builder-data';
@@ -36,7 +39,7 @@ export function BuilderShell() {
   const [learningRate, setLearningRate] = useState(optimizerConfigs.ADAM.defaultLearningRate);
   const [epochs, setEpochs] = useState('3');
   const [optimizerParams, setOptimizerParams] = useState<OptimizerParams>({
-    momentum: optimizerConfigs['SGD+Momentum'].parameter.defaultValue,
+    momentum: optimizerConfigs.SGD.parameter.defaultValue,
     weightDecay: optimizerConfigs.ADAM.parameter.defaultValue,
     rho: optimizerConfigs['RMS Prop'].parameter.defaultValue,
   });
@@ -45,8 +48,21 @@ export function BuilderShell() {
   const [trainingError, setTrainingError] = useState<string | null>(null);
   const [latestTrainingResult, setLatestTrainingResult] = useState<TrainingRunResult | null>(null);
   const [trainingStatus, setTrainingStatus] = useState<TrainingJobStatus | null>(null);
+  const [liveHistory, setLiveHistory] = useState<{
+    loss: number[];
+    accuracy: number[];
+    validationLoss: number[];
+    validationAccuracy: number[];
+  }>({
+    loss: [],
+    accuracy: [],
+    validationLoss: [],
+    validationAccuracy: [],
+  });
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const pollingRef = useRef<number | null>(null);
   const streamRef = useRef<EventSource | null>(null);
+  const liveBatchKeyRef = useRef<string | null>(null);
   const selectedDataset = datasets.find((dataset) => dataset.id === selectedDatasetId) ?? datasets[0];
 
   useEffect(() => {
@@ -67,8 +83,9 @@ export function BuilderShell() {
         optimizerParams={optimizerParams}
         selectedDatasetLabel={selectedDataset?.label ?? 'Dataset'}
         layerCount={nodes.length}
-        latestTrainingResult={latestTrainingResult}
-        trainingError={trainingError}
+        nodes={nodes}
+        trainingStatus={trainingStatus}
+        hasActiveJob={currentJobId !== null}
         isTraining={isTraining}
         onLearningRateChange={setLearningRate}
         onEpochChange={setEpochs}
@@ -87,8 +104,28 @@ export function BuilderShell() {
         onTrainingStart={() => {
           void (async () => {
             setTrainingError(null);
+
+            if (currentJobId && trainingStatus?.status === 'paused') {
+              try {
+                await resumeTraining(currentJobId);
+                setIsTraining(true);
+                setTrainingStatus((current) =>
+                  current ? { ...current, status: 'running' } : current,
+                );
+              } catch (error) {
+                setTrainingError(
+                  error instanceof Error ? error.message : 'Resume failed unexpectedly',
+                );
+                setIsTraining(false);
+              }
+              return;
+            }
+
             setIsTraining(true);
             setTrainingStatus(null);
+            setLatestTrainingResult(null);
+            setLiveHistory({ loss: [], accuracy: [], validationLoss: [], validationAccuracy: [] });
+            liveBatchKeyRef.current = null;
             if (pollingRef.current !== null) {
               window.clearInterval(pollingRef.current);
               pollingRef.current = null;
@@ -105,6 +142,7 @@ export function BuilderShell() {
                 optimizerParams,
                 nodes,
               });
+              setCurrentJobId(jobId);
 
               let missingStatusRetries = 0;
               let usingPollingFallback = false;
@@ -128,16 +166,60 @@ export function BuilderShell() {
                   setTrainingError(result.error ?? 'Training failed unexpectedly');
                 }
                 setIsTraining(false);
+                if (result.status === 'completed' || result.status === 'failed' || result.status === 'stopped') {
+                  setCurrentJobId(null);
+                  liveBatchKeyRef.current = null;
+                  setLiveHistory({
+                    loss: [],
+                    accuracy: [],
+                    validationLoss: [],
+                    validationAccuracy: [],
+                  });
+                }
                 stopPolling();
                 stopStreaming();
+              };
+              const syncLiveHistory = (result: TrainingJobStatus) => {
+                if (result.status !== 'running' || result.stage !== 'train') {
+                  return;
+                }
+                if (result.currentEpoch == null || result.currentBatch == null) {
+                  return;
+                }
+
+                const batchKey = `${result.currentEpoch}:${result.currentBatch}`;
+                if (liveBatchKeyRef.current === batchKey) {
+                  return;
+                }
+                liveBatchKeyRef.current = batchKey;
+
+                setLiveHistory((current) => ({
+                  loss:
+                    result.liveTrainLoss != null
+                      ? [...current.loss, result.liveTrainLoss]
+                      : current.loss,
+                  accuracy:
+                    result.liveTrainAccuracy != null
+                      ? [...current.accuracy, result.liveTrainAccuracy]
+                      : current.accuracy,
+                  validationLoss:
+                    result.liveValidationLoss != null
+                      ? [...current.validationLoss, result.liveValidationLoss]
+                      : current.validationLoss,
+                  validationAccuracy:
+                    result.liveValidationAccuracy != null
+                      ? [...current.validationAccuracy, result.liveValidationAccuracy]
+                      : current.validationAccuracy,
+                }));
               };
               const pollStatus = async () => {
                 try {
                   const result = await getTrainingStatus(jobId);
                   missingStatusRetries = 0;
                   setTrainingStatus(result);
+                  syncLiveHistory(result);
 
-                  if (result.status === 'completed' || result.status === 'failed') {
+                  if (result.status === 'completed' || result.status === 'failed' || result.status === 'stopped') {
                     finishTraining(result);
                     return result;
                   }
@@ -165,7 +247,14 @@ export function BuilderShell() {
               streamRef.current = subscribeTrainingStatus(jobId, {
                 onMessage: (result) => {
                   setTrainingStatus(result);
-                  if (result.status === 'completed' || result.status === 'failed') {
+                  syncLiveHistory(result);
+                  if (result.status === 'paused') {
+                    setIsTraining(false);
+                  }
+                  if (result.status === 'running') {
+                    setIsTraining(true);
+                  }
+                  if (result.status === 'completed' || result.status === 'failed' || result.status === 'stopped') {
                     finishTraining(result);
                   }
                 },
@@ -188,11 +277,62 @@ export function BuilderShell() {
             }
           })();
         }}
+        onTrainingPause={() => {
+          void (async () => {
+            if (!currentJobId) {
+              return;
+            }
+            try {
+              await pauseTraining(currentJobId);
+              setIsTraining(false);
+              setTrainingStatus((current) => (current ? { ...current, status: 'paused' } : current));
+            } catch (error) {
+              setTrainingError(error instanceof Error ? error.message : 'Pause failed unexpectedly');
+            }
+          })();
+        }}
+        onTrainingStop={() => {
+          void (async () => {
+            if (!currentJobId) {
+              return;
+            }
+            try {
+              await stopTraining(currentJobId);
+              setIsTraining(false);
+              setCurrentJobId(null);
+              streamRef.current?.close();
+              streamRef.current = null;
+              if (pollingRef.current !== null) {
+                window.clearInterval(pollingRef.current);
+                pollingRef.current = null;
+              }
+              setTrainingStatus((current) =>
+                current
+                  ? {
+                      ...current,
+                      status: 'stopped',
+                      currentBatch: null,
+                    }
+                  : null,
+              );
+              setLatestTrainingResult(null);
+              setLiveHistory({
+                loss: [],
+                accuracy: [],
+                validationLoss: [],
+                validationAccuracy: [],
+              });
+              liveBatchKeyRef.current = null;
+            } catch (error) {
+              setTrainingError(error instanceof Error ? error.message : 'Stop failed unexpectedly');
+            }
+          })();
+        }}
         onModelPreview={() => setIsPreviewOpen(true)}
         onReset={resetBoard}
       />
 
-      <div className="grid min-h-0 gap-3 px-4 py-3 xl:grid-cols-[280px_minmax(0,1fr)_340px] xl:px-5">
+      <div className="grid min-h-0 gap-2.5 px-4 py-1.5 xl:grid-cols-[280px_minmax(0,1fr)_340px] xl:px-5">
         <Sidebar
           selectedDatasetId={selectedDatasetId}
           onDatasetSelect={setSelectedDatasetId}
@@ -212,7 +352,10 @@ export function BuilderShell() {
             setDraggingBlock(null);
           }}
         />
-        <Inspector trainingStatus={trainingStatus ?? (latestTrainingResult as TrainingJobStatus | null)} />
+        <Inspector
+          trainingStatus={trainingStatus ?? (latestTrainingResult as TrainingJobStatus | null)}
+          liveHistory={liveHistory}
+        />
       </div>
 
       {isPreviewOpen ? (

@@ -7,7 +7,7 @@ import {
   type OptimizerName,
   type OptimizerParams,
 } from '@/lib/constants/training-controls';
-import type { TrainingRunResult } from '@/types/builder';
+import type { CanvasNode, TrainingJobStatus } from '@/types/builder';
 
 type TopBarProps = {
   learningRate: string;
@@ -16,14 +16,17 @@ type TopBarProps = {
   optimizerParams: OptimizerParams;
   selectedDatasetLabel: string;
   layerCount: number;
-  latestTrainingResult: TrainingRunResult | null;
-  trainingError: string | null;
+  nodes: CanvasNode[];
+  trainingStatus: TrainingJobStatus | null;
+  hasActiveJob: boolean;
   isTraining: boolean;
   onLearningRateChange: (value: string) => void;
   onEpochChange: (value: string) => void;
   onOptimizerChange: (value: OptimizerName) => void;
   onOptimizerParamChange: (key: keyof OptimizerParams, value: string) => void;
   onTrainingStart: () => void;
+  onTrainingPause: () => void;
+  onTrainingStop: () => void;
   onModelPreview: () => void;
   onReset: () => void;
 };
@@ -35,14 +38,17 @@ export function TopBar({
   optimizerParams,
   selectedDatasetLabel,
   layerCount,
-  latestTrainingResult,
-  trainingError,
+  nodes = [],
+  trainingStatus,
+  hasActiveJob,
   isTraining,
   onLearningRateChange,
   onEpochChange,
   onOptimizerChange,
   onOptimizerParamChange,
   onTrainingStart,
+  onTrainingPause,
+  onTrainingStop,
   onModelPreview,
   onReset,
 }: TopBarProps) {
@@ -54,23 +60,95 @@ export function TopBar({
     0,
     optimizerField.values.indexOf(optimizerParams[optimizerField.key]),
   );
+  const totalParameters = estimateTotalParameters(nodes);
   const summaryItems = [
     { label: 'Dataset', value: selectedDatasetLabel },
     { label: 'Layers', value: `${layerCount}` },
     { label: 'Epochs', value: epochs },
     { label: 'Optimizer', value: optimizer },
+    { label: 'Batch Size', value: '128' },
+    { label: 'Total Parameters', value: totalParameters.toLocaleString() },
   ];
-  const latestMetric = latestTrainingResult?.metrics.at(-1);
+  const trainingState = trainingStatus?.status ?? (isTraining ? 'running' : 'idle');
+  const statusChipClassName =
+    trainingState === 'failed'
+      ? 'bg-[#ffe4e1] text-[#c2412d]'
+      : trainingState === 'paused'
+        ? 'bg-[#eef3ff] text-primary'
+        : trainingState === 'running'
+          ? 'bg-[#e9f7ef] text-[#15803d]'
+          : 'bg-[rgba(17,81,255,0.08)] text-primary';
+  const statusLabel = trainingState === 'failed' ? 'error' : trainingState;
+  const primaryTrainingLabel =
+    trainingState === 'paused' ? 'Resume' : isTraining ? 'Running' : 'Start';
+  const actionButtons = [
+    {
+      key: 'start',
+      label: primaryTrainingLabel,
+      hint: trainingState === 'paused' ? 'Continue current job' : 'Run training',
+      icon: trainingState === 'paused' ? 'play' : isTraining ? 'rocket' : 'play',
+      onClick: onTrainingStart,
+      disabled: trainingState === 'running',
+      className:
+        'bg-[linear-gradient(135deg,#1151ff,#2d66ff)] text-white shadow-float',
+      iconWrapClassName: 'bg-white/16 text-white',
+    },
+    {
+      key: 'pause',
+      label: 'Pause',
+      hint: 'Temporarily hold',
+      icon: 'pause',
+      onClick: onTrainingPause,
+      disabled: !hasActiveJob || trainingState === 'paused' || trainingState === 'stopped',
+      className:
+        'bg-[#edf3ff] text-primary shadow-[inset_0_0_0_1px_rgba(17,81,255,0.08)]',
+      iconWrapClassName: 'bg-white text-primary',
+    },
+    {
+      key: 'stop',
+      label: 'Stop',
+      hint: 'End and reset job',
+      icon: 'stop',
+      onClick: onTrainingStop,
+      disabled: !hasActiveJob || trainingState === 'stopped',
+      className:
+        'bg-[#fff1e8] text-[#c4683b] shadow-[inset_0_0_0_1px_rgba(196,104,59,0.08)]',
+      iconWrapClassName: 'bg-white text-[#c4683b]',
+    },
+    {
+      key: 'preview',
+      label: 'Preview',
+      hint: 'Model code and figure',
+      icon: 'architecture',
+      onClick: onModelPreview,
+      disabled: false,
+      className:
+        'bg-white text-primary shadow-[inset_0_0_0_1px_rgba(17,81,255,0.08)]',
+      iconWrapClassName: 'bg-[#edf3ff] text-primary',
+    },
+    {
+      key: 'reset',
+      label: 'Reset',
+      hint: 'Clear board',
+      icon: 'reset',
+      onClick: onReset,
+      disabled: false,
+      className:
+        'bg-[#d6e2f8] text-navy shadow-[inset_0_0_0_1px_rgba(54,71,97,0.08)]',
+      iconWrapClassName: 'bg-white/85 text-navy',
+      wide: true,
+    },
+  ] as const;
 
   return (
-    <header className="border-b border-line bg-white/80 px-4 py-3 backdrop-blur-xl lg:px-5 lg:py-3.5">
-      <div className="grid gap-3 xl:grid-cols-[minmax(280px,1.1fr)_minmax(420px,1.35fr)_minmax(260px,0.95fr)]">
-        <section className="glass-panel ghost-border flex min-w-0 flex-col justify-between gap-3 rounded-[24px] px-5 py-3 shadow-panel">
+    <header className="border-b border-line bg-white/80 px-4 py-2.5 backdrop-blur-xl lg:px-5 lg:py-3">
+      <div className="grid gap-2.5 xl:grid-cols-[minmax(280px,1.1fr)_minmax(420px,1.35fr)_minmax(260px,0.95fr)]">
+        <section className="glass-panel ghost-border flex min-w-0 flex-col justify-start gap-2 rounded-[24px] px-5 py-3 shadow-panel">
           <div className="font-display text-[2rem] font-bold tracking-[-0.06em] text-primary">
             VisAIble
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {summaryItems.map((item) => (
               <div
                 key={item.label}
@@ -87,7 +165,7 @@ export function TopBar({
           </div>
         </section>
 
-        <section className="glass-panel ghost-border grid min-w-0 gap-3 rounded-[24px] px-4 py-3 shadow-panel sm:grid-cols-2">
+        <section className="glass-panel ghost-border grid min-w-0 gap-2.5 rounded-[24px] px-4 py-3 shadow-panel sm:grid-cols-2">
           <div className="rounded-[20px] bg-white/75 px-4 py-2.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
             <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
               Learning Rate
@@ -177,56 +255,88 @@ export function TopBar({
           </div>
         </section>
 
-        <section className="glass-panel ghost-border flex min-w-0 flex-col justify-between gap-3 rounded-[24px] px-4 py-3 shadow-panel">
-          <div className="rounded-[20px] bg-[linear-gradient(135deg,rgba(17,81,255,0.08),rgba(10,96,127,0.12))] px-4 py-2.5">
-            <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
-              Training Status
-            </div>
-            {trainingError ? (
-              <p className="mt-2 break-words text-[13px] font-semibold leading-5 text-[#b54708]">
-                {trainingError}
-              </p>
-            ) : latestMetric ? (
-              <div className="mt-2 grid gap-1 text-[13px] font-semibold text-ink">
-                <span>
-                  Val Acc {Math.round(latestMetric.validationAccuracy * 10000) / 100}%
-                </span>
-                <span>Val Loss {latestMetric.validationLoss}</span>
-                <span className="text-muted">Device {latestTrainingResult?.device}</span>
-              </div>
-            ) : (
-              <p className="mt-2 text-[13px] font-semibold leading-5 text-muted">
-                Run training to see validation metrics here.
-              </p>
-            )}
+        <section className="glass-panel ghost-border flex min-w-0 flex-col gap-2 rounded-[24px] px-4 py-3 shadow-panel">
+          <div className="mb-0.5 flex items-center justify-between px-1">
+            <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
+              Quick Actions
+            </span>
+            <span
+              className={[
+                'rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em]',
+                statusChipClassName,
+              ].join(' ')}
+            >
+              {statusLabel}
+            </span>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
-            <button
-              type="button"
-              onClick={onTrainingStart}
-              disabled={isTraining}
-              className="rounded-[18px] bg-button-primary px-4 py-3 font-display text-sm font-bold text-white shadow-float transition-transform hover:-translate-y-0.5"
-            >
-              {isTraining ? 'Training...' : 'Training Start'}
-            </button>
-            <button
-              type="button"
-              onClick={onModelPreview}
-              className="rounded-[18px] bg-white px-4 py-3 font-display text-sm font-bold text-primary shadow-panel transition-transform hover:-translate-y-0.5"
-            >
-              Model Preview
-            </button>
-            <button
-              type="button"
-              onClick={onReset}
-              className="sm:col-span-2 xl:col-span-1 rounded-[18px] bg-[#d6e2f8] px-4 py-3 font-display text-sm font-bold text-navy shadow-panel transition-transform hover:-translate-y-0.5"
-            >
-              Reset Board
-            </button>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-2">
+            {actionButtons.map((action) => (
+              <button
+                key={action.key}
+                type="button"
+                onClick={action.onClick}
+                disabled={action.disabled}
+                className={[
+                  'group flex items-center gap-3 rounded-[18px] px-3.5 py-3 text-left transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50',
+                  action.wide ? 'sm:col-span-2 xl:col-span-2' : '',
+                  action.className,
+                ].join(' ')}
+              >
+                <span
+                  className={[
+                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px]',
+                    action.iconWrapClassName,
+                  ].join(' ')}
+                >
+                  <Icon name={action.icon} className="h-4.5 w-4.5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-display text-sm font-bold leading-none">
+                    {action.label}
+                  </span>
+                  <span className="mt-1 block text-[11px] font-semibold leading-none opacity-70">
+                    {action.hint}
+                  </span>
+                </span>
+              </button>
+            ))}
           </div>
         </section>
       </div>
     </header>
   );
+}
+
+function fieldValue(node: CanvasNode, label: string, fallback: string) {
+  return node.fields.find((field) => field.label === label)?.value ?? fallback;
+}
+
+function parseKernelSize(value: string) {
+  if (value.toLowerCase().includes('x')) {
+    return Number(value.toLowerCase().split('x')[0]?.trim() ?? '1');
+  }
+  return Number(value);
+}
+
+function estimateTotalParameters(nodes: CanvasNode[]) {
+  let total = 0;
+
+  nodes.forEach((node) => {
+    if (node.type === 'cnn') {
+      const channelIn = Number(fieldValue(node, 'Channel In', '1'));
+      const channelOut = Number(fieldValue(node, 'Channel Out', '1'));
+      const kernel = parseKernelSize(fieldValue(node, 'Kernel Size', '3x3'));
+      total += channelOut * channelIn * kernel * kernel + channelOut;
+      return;
+    }
+
+    if (node.type === 'linear') {
+      const input = Number(fieldValue(node, 'Input', '1'));
+      const output = Number(fieldValue(node, 'Output', '1'));
+      total += input * output + output;
+    }
+  });
+
+  return total;
 }

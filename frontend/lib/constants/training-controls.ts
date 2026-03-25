@@ -1,4 +1,4 @@
-export const optimizerOrder = ['SGD', 'AdaGrad', 'SGD+Momentum', 'RMS Prop', 'ADAM'] as const;
+export const optimizerOrder = ['SGD', 'AdaGrad', 'RMS Prop', 'ADAM'] as const;
 
 export type OptimizerName = (typeof optimizerOrder)[number];
 
@@ -9,6 +9,25 @@ export type OptimizerParams = {
   weightDecay: string;
   rho: string;
 };
+
+const sharedLearningRates = [
+  '0.00001',
+  '0.00002',
+  '0.00003',
+  '0.00004',
+  '0.00005',
+  '0.0001',
+  '0.0002',
+  '0.0003',
+  '0.0004',
+  '0.0005',
+  '0.001',
+  '0.002',
+  '0.003',
+  '0.004',
+  '0.005',
+  '0.01',
+];
 
 export const optimizerConfigs: Record<
   OptimizerName,
@@ -24,27 +43,7 @@ export const optimizerConfigs: Record<
   }
 > = {
   SGD: {
-    learningRates: ['0.0005', '0.001', '0.003', '0.005', '0.01'],
-    defaultLearningRate: '0.01',
-    parameter: {
-      key: 'weightDecay',
-      label: 'Weight Decay',
-      values: ['0', '0.0001', '0.0005', '0.001', '0.003'],
-      defaultValue: '0.0005',
-    },
-  },
-  AdaGrad: {
-    learningRates: ['0.0005', '0.001', '0.003', '0.005', '0.01'],
-    defaultLearningRate: '0.01',
-    parameter: {
-      key: 'weightDecay',
-      label: 'Weight Decay',
-      values: ['0', '0.0001', '0.0005', '0.001', '0.003'],
-      defaultValue: '0.0001',
-    },
-  },
-  'SGD+Momentum': {
-    learningRates: ['0.0005', '0.001', '0.003', '0.005', '0.01'],
+    learningRates: sharedLearningRates,
     defaultLearningRate: '0.01',
     parameter: {
       key: 'momentum',
@@ -53,8 +52,18 @@ export const optimizerConfigs: Record<
       defaultValue: '0.90',
     },
   },
+  AdaGrad: {
+    learningRates: sharedLearningRates,
+    defaultLearningRate: '0.01',
+    parameter: {
+      key: 'weightDecay',
+      label: 'Weight Decay',
+      values: ['0', '0.0001', '0.0005', '0.001', '0.003'],
+      defaultValue: '0.0001',
+    },
+  },
   'RMS Prop': {
-    learningRates: ['0.0001', '0.0003', '0.0005', '0.001', '0.003'],
+    learningRates: sharedLearningRates,
     defaultLearningRate: '0.001',
     parameter: {
       key: 'rho',
@@ -64,7 +73,7 @@ export const optimizerConfigs: Record<
     },
   },
   ADAM: {
-    learningRates: ['0.00001', '0.0001', '0.0003', '0.0005', '0.001'],
+    learningRates: sharedLearningRates,
     defaultLearningRate: '0.001',
     parameter: {
       key: 'weightDecay',

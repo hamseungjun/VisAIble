@@ -2,7 +2,7 @@ type RequestOptions = RequestInit & {
   query?: Record<string, string | number | boolean | undefined>;
 };
 
-const rawApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8001';
+const rawApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
 export const API_BASE_URL = rawApiBaseUrl.endsWith('/api')
   ? rawApiBaseUrl
   : `${rawApiBaseUrl.replace(/\/$/, '')}/api`;

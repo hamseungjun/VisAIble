@@ -6,11 +6,19 @@ from fastapi.responses import StreamingResponse
 
 from app.schemas.training import (
     StartTrainingResponse,
+    TrainingControlResponse,
     TrainModelRequest,
     TrainModelResponse,
     TrainingJobStatusResponse,
 )
-from app.services.training import get_training_job, start_training_job, train_model
+from app.services.training import (
+    get_training_job,
+    pause_training_job,
+    resume_training_job,
+    start_training_job,
+    stop_training_job,
+    train_model,
+)
 
 router = APIRouter(tags=["training"])
 
@@ -18,7 +26,7 @@ router = APIRouter(tags=["training"])
 @router.post("/training/run", response_model=TrainModelResponse)
 def run_training(payload: TrainModelRequest) -> TrainModelResponse:
     try:
-        result = train_model(payload)
+        result = train_model(payload, job_id=None)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
@@ -44,6 +52,30 @@ def get_training_status(job_id: str) -> TrainingJobStatusResponse:
     return TrainingJobStatusResponse(**job)
 
 
+@router.post("/training/pause/{job_id}", response_model=TrainingControlResponse)
+def pause_training(job_id: str) -> TrainingControlResponse:
+    result = pause_training_job(job_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Training job not found")
+    return TrainingControlResponse(**result)
+
+
+@router.post("/training/resume/{job_id}", response_model=TrainingControlResponse)
+def resume_training(job_id: str) -> TrainingControlResponse:
+    result = resume_training_job(job_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Training job not found")
+    return TrainingControlResponse(**result)
+
+
+@router.post("/training/stop/{job_id}", response_model=TrainingControlResponse)
+def stop_training(job_id: str) -> TrainingControlResponse:
+    result = stop_training_job(job_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Training job not found")
+    return TrainingControlResponse(**result)
+
+
 @router.get("/training/stream/{job_id}")
 async def stream_training_status(job_id: str) -> StreamingResponse:
     if get_training_job(job_id) is None:
@@ -62,7 +94,7 @@ async def stream_training_status(job_id: str) -> StreamingResponse:
                 previous_payload = payload
                 yield f"data: {payload}\n\n"
 
-            if job.get("status") in {"completed", "failed"}:
+            if job.get("status") in {"completed", "failed", "stopped"}:
                 break
 
             await asyncio.sleep(0.1)

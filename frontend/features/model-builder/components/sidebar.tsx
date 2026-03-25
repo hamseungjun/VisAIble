@@ -56,10 +56,11 @@ export function Sidebar({
               onDragStart={(event) => {
                 event.dataTransfer.effectAllowed = 'copy';
                 event.dataTransfer.setData('application/x-builder-block', block.id);
+                event.dataTransfer.setData('text/plain', block.id);
                 onBlockDragStart(block.id);
               }}
               onDragEnd={onBlockDragEnd}
-              className="ghost-border flex items-start gap-3 rounded-[20px] bg-white/85 px-3.5 py-4 text-left shadow-[0_12px_28px_rgba(13,27,51,0.05)] transition-transform hover:-translate-y-0.5"
+              className="ghost-border flex cursor-grab items-start gap-3 rounded-[20px] bg-white/85 px-3.5 py-4 text-left shadow-[0_12px_28px_rgba(13,27,51,0.05)] transition-transform hover:-translate-y-0.5 active:cursor-grabbing"
             >
               <div
                 className={[

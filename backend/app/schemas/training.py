@@ -56,6 +56,11 @@ class StartTrainingResponse(BaseModel):
     status: str
 
 
+class TrainingControlResponse(BaseModel):
+    jobId: str
+    status: str
+
+
 class TrainingJobStatusResponse(BaseModel):
     jobId: str
     status: str
@@ -76,4 +81,6 @@ class TrainingJobStatusResponse(BaseModel):
     stage: str | None = None
     liveTrainLoss: float | None = None
     liveTrainAccuracy: float | None = None
+    liveValidationLoss: float | None = None
+    liveValidationAccuracy: float | None = None
     error: str | None = None

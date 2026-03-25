@@ -69,10 +69,27 @@ export const libraryBlocks: LibraryBlock[] = [
       activationOptions: ['ReLU', 'ELU', 'SELU', 'GELU', 'Swish', 'Tanh'],
     },
   },
+  {
+    id: 'pooling',
+    title: 'Pooling Layer',
+    description: 'Downsample feature maps with max or average pooling.',
+    icon: 'pool',
+    accent: 'tertiary',
+    defaults: {
+      fields: [
+        { label: 'Pool Type', value: 'MaxPool' },
+        { label: 'Kernel Size', value: '2x2' },
+        { label: 'Stride', value: '' },
+        { label: 'Padding', value: '0' },
+      ],
+      activation: 'None',
+      activationOptions: ['None'],
+    },
+  },
 ];
 
 export const stats: StatItem[] = [
   { label: 'Total Parameters', value: '142,501' },
-  { label: 'Batch Size', value: '32' },
+  { label: 'Batch Size', value: '128' },
   { label: 'Epochs Completed', value: '48 / 100' },
 ];
