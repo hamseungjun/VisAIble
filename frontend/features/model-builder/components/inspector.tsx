@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Icon } from '@/features/model-builder/components/icons';
+import { predictDigit } from '@/lib/api/model-builder';
 import type { TrainingJobStatus } from '@/types/builder';
 
 type InspectorProps = {
@@ -73,6 +74,25 @@ function buildSinglePointY(values: number[], height: number, domain: [number, nu
   );
 }
 
+function extractMnistPixels(canvas: HTMLCanvasElement) {
+  const downsampled = document.createElement('canvas');
+  downsampled.width = 28;
+  downsampled.height = 28;
+  const context = downsampled.getContext('2d');
+  if (!context) {
+    return [];
+  }
+  context.imageSmoothingEnabled = true;
+  context.drawImage(canvas, 0, 0, 28, 28);
+  const imageData = context.getImageData(0, 0, 28, 28).data;
+
+  const pixels: number[] = [];
+  for (let index = 0; index < imageData.length; index += 4) {
+    pixels.push(imageData[index] / 255);
+  }
+  return pixels;
+}
+
 export function Inspector({
   trainingStatus,
   liveHistory = { loss: [], accuracy: [], validationLoss: [], validationAccuracy: [] },
@@ -85,6 +105,14 @@ export function Inspector({
   };
   const [metricMode, setMetricMode] = useState<'loss' | 'accuracy'>('loss');
   const [replayEpochCount, setReplayEpochCount] = useState<number | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [isPredicting, setIsPredicting] = useState(false);
+  const [predictError, setPredictError] = useState<string | null>(null);
+  const [digitPrediction, setDigitPrediction] = useState<{
+    predictedLabel: number;
+    confidence: number;
+  } | null>(null);
+  const drawingCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const metrics = trainingStatus?.metrics ?? [];
   const isReplayAvailable =
     (trainingStatus?.status === 'completed' ||
@@ -206,6 +234,118 @@ export function Inspector({
   const epochLabel = trainingStatus?.epochs
     ? `${progressEpochCount} / ${trainingStatus.epochs} epochs`
     : '0 / 0 epochs';
+  const showMnistCanvas =
+    trainingStatus?.status === 'completed' &&
+    trainingStatus.datasetId === 'mnist' &&
+    !!trainingStatus.jobId;
+
+  useEffect(() => {
+    if (!showMnistCanvas) {
+      return;
+    }
+    const canvas = drawingCanvasRef.current;
+    if (!canvas) {
+      return;
+    }
+    const context = canvas.getContext('2d');
+    if (!context) {
+      return;
+    }
+    context.fillStyle = '#000000';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.lineWidth = 18;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    context.strokeStyle = '#ffffff';
+  }, [showMnistCanvas, trainingStatus?.jobId]);
+
+  const startDrawing = (event: PointerEvent<HTMLCanvasElement>) => {
+    const canvas = drawingCanvasRef.current;
+    if (!canvas) {
+      return;
+    }
+    const context = canvas.getContext('2d');
+    if (!context) {
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * canvas.width;
+    const y = ((event.clientY - rect.top) / rect.height) * canvas.height;
+    setIsDrawing(true);
+    context.beginPath();
+    context.moveTo(x, y);
+  };
+
+  const drawDigit = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) {
+      return;
+    }
+    const canvas = drawingCanvasRef.current;
+    if (!canvas) {
+      return;
+    }
+    const context = canvas.getContext('2d');
+    if (!context) {
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * canvas.width;
+    const y = ((event.clientY - rect.top) / rect.height) * canvas.height;
+    context.lineTo(x, y);
+    context.stroke();
+  };
+
+  const clearDrawing = () => {
+    const canvas = drawingCanvasRef.current;
+    if (!canvas) {
+      return;
+    }
+    const context = canvas.getContext('2d');
+    if (!context) {
+      return;
+    }
+    context.fillStyle = '#000000';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    setDigitPrediction(null);
+    setPredictError(null);
+  };
+
+  const runDigitPrediction = async () => {
+    if (!trainingStatus?.jobId) {
+      return;
+    }
+    const canvas = drawingCanvasRef.current;
+    if (!canvas) {
+      return;
+    }
+
+    const pixels = extractMnistPixels(canvas);
+    if (pixels.length !== 28 * 28) {
+      return;
+    }
+
+    setIsPredicting(true);
+    setPredictError(null);
+    try {
+      const result = await predictDigit(trainingStatus.jobId, pixels);
+      setDigitPrediction({
+        predictedLabel: result.predictedLabel,
+        confidence: result.confidence,
+      });
+    } catch (error) {
+      setPredictError(error instanceof Error ? error.message : 'Prediction failed');
+    } finally {
+      setIsPredicting(false);
+    }
+  };
+
+  const stopDrawing = () => {
+    if (!isDrawing) {
+      return;
+    }
+    setIsDrawing(false);
+    void runDigitPrediction();
+  };
 
   return (
     <aside className="grid content-start gap-4 bg-[linear-gradient(180deg,#fbfcff_0%,#f7f9ff_100%)] p-4">
@@ -236,6 +376,62 @@ export function Inspector({
           </div>
         </div>
       </section>
+
+      {showMnistCanvas ? (
+        <section className="rounded-[22px] bg-panel/80 p-3.5">
+          <div className="mb-3 flex items-center justify-between">
+            <strong className="font-display text-lg font-bold text-ink">MNIST Canvas</strong>
+            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">
+              Draw & Predict
+            </span>
+          </div>
+
+          <div className="grid gap-3">
+            <canvas
+              ref={drawingCanvasRef}
+              width={280}
+              height={280}
+              className="h-[220px] w-full touch-none rounded-[14px] bg-black"
+              onPointerDown={startDrawing}
+              onPointerMove={drawDigit}
+              onPointerUp={stopDrawing}
+              onPointerLeave={stopDrawing}
+            />
+
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={clearDrawing}
+                className="rounded-full border border-[#c7d6ef] px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.12em] text-muted"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void runDigitPrediction();
+                }}
+                disabled={isPredicting}
+                className="rounded-full bg-primary px-4 py-1.5 text-xs font-extrabold uppercase tracking-[0.12em] text-white disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isPredicting ? 'Predicting...' : 'Predict'}
+              </button>
+            </div>
+
+            {digitPrediction ? (
+              <div className="rounded-[14px] bg-white/80 px-3 py-2 text-sm text-ink">
+                Predicted Digit: <strong>{digitPrediction.predictedLabel}</strong> (
+                {(digitPrediction.confidence * 100).toFixed(1)}%)
+              </div>
+            ) : null}
+            {predictError ? (
+              <div className="rounded-[14px] bg-[#ffeef1] px-3 py-2 text-sm text-[#a4384f]">
+                {predictError}
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
       <section className="rounded-[22px] bg-panel/80 p-3.5">
         <div className="mb-3 flex items-start justify-between">

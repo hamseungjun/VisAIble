@@ -34,6 +34,7 @@ COMPACT_TINY_IMAGENET_VAL_PER_CLASS = 5
 COMPACT_COCO_TRAIN_PER_CLASS = 32
 COMPACT_COCO_VAL_PER_CLASS = 8
 TRAINING_JOBS: dict[str, dict[str, object]] = {}
+TRAINED_CLASSIFIERS: dict[str, tuple[nn.Module, torch.device, str]] = {}
 TRAINING_LOCK = Lock()
 
 
@@ -367,6 +368,7 @@ def _parse_kernel_size(value: str) -> int:
 
 def _activation_module(name: str) -> nn.Module:
     activations: dict[str, nn.Module] = {
+        "None": nn.Identity(),
         "ReLU": nn.ReLU(),
         "Leaky ReLU": nn.LeakyReLU(),
         "GELU": nn.GELU(),
@@ -743,6 +745,7 @@ def train_model(
     payload: TrainModelRequest,
     job_id: str | None = None,
     progress_callback=None,
+    trained_model_sink=None,
 ) -> dict[str, object]:
     dataset_spec = get_dataset_runtime_spec(payload.datasetId)
     if dataset_spec.task != "classification":
@@ -871,6 +874,9 @@ def train_model(
                 best_validation_accuracy,
             )
 
+    if trained_model_sink is not None:
+        trained_model_sink(model, device, payload.datasetId)
+
     return {
         "datasetId": payload.datasetId,
         "epochs": payload.epochs,
@@ -913,6 +919,10 @@ def _run_training_job(job_id: str, payload: TrainModelRequest) -> None:
         result = train_model(
             payload,
             job_id=job_id,
+            trained_model_sink=lambda model, device, dataset_id: TRAINED_CLASSIFIERS.__setitem__(
+                job_id,
+                (model, device, dataset_id),
+            ),
             progress_callback=lambda live_update, metrics, best_accuracy: _update_job(
                 job_id,
                 {
@@ -997,3 +1007,28 @@ def stop_training_job(job_id: str) -> dict[str, str] | None:
             return None
         job["status"] = "stopped"
         return {"jobId": job_id, "status": "stopped"}
+
+
+def predict_mnist_digit(job_id: str, pixels: list[float]) -> dict[str, object]:
+    with TRAINING_LOCK:
+        trained = TRAINED_CLASSIFIERS.get(job_id)
+
+    if trained is None:
+        raise ValueError("No trained model found for this job")
+
+    model, device, dataset_id = trained
+    if dataset_id != "mnist":
+        raise ValueError("Canvas prediction is only supported for MNIST jobs")
+
+    input_tensor = torch.tensor(pixels, dtype=torch.float32).view(1, 1, 28, 28).to(device)
+    model.eval()
+    with torch.no_grad():
+        logits = model(input_tensor)
+        probabilities = torch.softmax(logits, dim=1).squeeze(0).cpu().tolist()
+        predicted_label = int(torch.argmax(logits, dim=1).item())
+
+    return {
+        "predictedLabel": predicted_label,
+        "confidence": round(float(probabilities[predicted_label]), 4),
+        "probabilities": [round(float(value), 4) for value in probabilities],
+    }

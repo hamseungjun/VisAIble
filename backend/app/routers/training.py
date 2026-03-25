@@ -5,6 +5,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.schemas.training import (
+    PredictDigitRequest,
+    PredictDigitResponse,
     StartTrainingResponse,
     TrainingControlResponse,
     TrainModelRequest,
@@ -14,6 +16,7 @@ from app.schemas.training import (
 from app.services.training import (
     get_training_job,
     pause_training_job,
+    predict_mnist_digit,
     resume_training_job,
     start_training_job,
     stop_training_job,
@@ -108,3 +111,13 @@ async def stream_training_status(job_id: str) -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/training/predict/{job_id}", response_model=PredictDigitResponse)
+def predict_digit(job_id: str, payload: PredictDigitRequest) -> PredictDigitResponse:
+    try:
+        result = predict_mnist_digit(job_id, payload.pixels)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+    return PredictDigitResponse(**result)

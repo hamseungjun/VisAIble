@@ -56,6 +56,16 @@ class StartTrainingResponse(BaseModel):
     status: str
 
 
+class PredictDigitRequest(BaseModel):
+    pixels: list[float] = Field(..., min_length=28 * 28, max_length=28 * 28)
+
+
+class PredictDigitResponse(BaseModel):
+    predictedLabel: int
+    confidence: float
+    probabilities: list[float]
+
+
 class TrainingControlResponse(BaseModel):
     jobId: str
     status: str
