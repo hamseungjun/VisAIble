@@ -55,6 +55,23 @@ export function useBuilderBoard() {
     );
   };
 
+  const updateNodeFields = (id: string, values: Record<string, string>) => {
+    setNodes((current) =>
+      current.map((node) =>
+        node.id !== id
+          ? node
+          : {
+              ...node,
+              fields: node.fields.map((field) =>
+                values[field.label] === undefined
+                  ? field
+                  : { ...field, value: values[field.label] ?? field.value },
+              ),
+            },
+      ),
+    );
+  };
+
   const updateNodeActivation = (id: string, activation: string) => {
     setNodes((current) =>
       current.map((node) => (node.id === id ? { ...node, activation } : node)),
@@ -93,6 +110,7 @@ export function useBuilderBoard() {
     addNode,
     removeNode,
     updateNodeField,
+    updateNodeFields,
     updateNodeActivation,
     moveNode,
     resetBoard,

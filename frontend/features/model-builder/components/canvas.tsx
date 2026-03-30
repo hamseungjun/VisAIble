@@ -1,7 +1,9 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import type { DragEvent, HTMLAttributes } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/features/model-builder/components/icons';
+import { analyzeModelNodes, type NodeAdviceInfo, type NodeDimensionInfo } from '@/lib/model-advice';
 import type { BlockAccent, BlockType, CanvasNode, DatasetItem } from '@/types/builder';
 
 type CanvasProps = {
@@ -16,12 +18,7 @@ type CanvasProps = {
   onDropBlock: (type: BlockType, index?: number) => void;
 };
 
-type NodeDimensionInfo = {
-  inputLabel: string;
-  outputLabel: string;
-};
-
-function getDroppedBlockType(event: React.DragEvent, fallback: BlockType | null) {
+function getDroppedBlockType(event: DragEvent, fallback: BlockType | null) {
   const droppedBlock =
     event.dataTransfer.getData('application/x-builder-block') ||
     event.dataTransfer.getData('text/plain');
@@ -38,13 +35,13 @@ function getDroppedBlockType(event: React.DragEvent, fallback: BlockType | null)
   return fallback;
 }
 
-function getDraggedNodeId(event: React.DragEvent) {
+function getDraggedNodeId(event: DragEvent) {
   const nodeId = event.dataTransfer.getData('application/x-builder-node');
   return nodeId || null;
 }
 
 function getInsertionIndex(
-  event: React.DragEvent<HTMLElement>,
+  event: DragEvent<HTMLElement>,
   container: HTMLDivElement | null,
   count: number,
 ) {
@@ -64,146 +61,6 @@ function getInsertionIndex(
   }
 
   return count;
-}
-
-function fieldValue(node: CanvasNode, label: string, fallback: string) {
-  return node.fields.find((field) => field.label === label)?.value ?? fallback;
-}
-
-function parseDatasetShape(dataset: DatasetItem) {
-  const dims = dataset.inputShape?.split('x').map((item) => Number(item.trim())) ?? [1, 1, 1];
-
-  if (dims.length === 3) {
-    return {
-      channels: dims[0] ?? 1,
-      height: dims[1] ?? 1,
-      width: dims[2] ?? 1,
-      flattened: false,
-      features: null as number | null,
-    };
-  }
-
-  return {
-    channels: 1,
-    height: 1,
-    width: dims.at(-1) ?? 1,
-    flattened: true,
-    features: dims.at(-1) ?? 1,
-  };
-}
-
-function parseKernelSize(value: string) {
-  if (value.toLowerCase().includes('x')) {
-    return Number(value.toLowerCase().split('x')[0]?.trim() ?? '3');
-  }
-
-  return Number(value);
-}
-
-function parsePoolingStride(value: string, kernelSize: number) {
-  const normalized = value.trim().toLowerCase();
-  if (normalized === '' || normalized === 'none') {
-    return kernelSize;
-  }
-  return Number(value);
-}
-
-function convOutputSize(size: number, kernelSize: number, padding: number, stride: number) {
-  return Math.floor(((size + 2 * padding - kernelSize) / stride) + 1);
-}
-
-function poolingOutputSize(size: number, kernelSize: number, padding: number, stride: number) {
-  return Math.floor(((size + 2 * padding - kernelSize) / stride) + 1);
-}
-
-function getNodeDimensions(selectedDataset: DatasetItem, nodes: CanvasNode[]): Record<string, NodeDimensionInfo> {
-  const dimensionMap: Record<string, NodeDimensionInfo> = {};
-  const current = parseDatasetShape(selectedDataset);
-
-  nodes.forEach((node) => {
-    if (node.type === 'cnn') {
-      const channelIn = Number(fieldValue(node, 'Channel In', String(current.channels)));
-      const channelOut = Number(fieldValue(node, 'Channel Out', String(channelIn)));
-      const kernelSize = parseKernelSize(fieldValue(node, 'Kernel Size', '3x3'));
-      const padding = Number(fieldValue(node, 'Padding', '1'));
-      const stride = Number(fieldValue(node, 'Stride', '1'));
-      const outputHeight = convOutputSize(current.height, kernelSize, padding, stride);
-      const outputWidth = convOutputSize(current.width, kernelSize, padding, stride);
-
-      dimensionMap[node.id] = {
-        inputLabel: `${channelIn} x ${current.height} x ${current.width}`,
-        outputLabel: `${channelOut} x ${outputHeight} x ${outputWidth}`,
-      };
-
-      current.channels = channelOut;
-      current.height = outputHeight;
-      current.width = outputWidth;
-      current.features = null;
-      current.flattened = false;
-      return;
-    }
-
-    if (node.type === 'pooling') {
-      const poolType = fieldValue(node, 'Pool Type', 'MaxPool');
-      if (poolType === 'AdaptiveAvgPool') {
-        dimensionMap[node.id] = {
-          inputLabel: `${current.channels} x ${current.height} x ${current.width}`,
-          outputLabel: `${current.channels} x 1 x 1`,
-        };
-
-        current.height = 1;
-        current.width = 1;
-        current.features = null;
-        current.flattened = false;
-        return;
-      }
-
-      const kernelSize = parseKernelSize(fieldValue(node, 'Kernel Size', '2x2'));
-      const padding = Number(fieldValue(node, 'Padding', '0'));
-      const stride = parsePoolingStride(fieldValue(node, 'Stride', ''), kernelSize);
-      const outputHeight = poolingOutputSize(current.height, kernelSize, padding, stride);
-      const outputWidth = poolingOutputSize(current.width, kernelSize, padding, stride);
-
-      dimensionMap[node.id] = {
-        inputLabel: `${current.channels} x ${current.height} x ${current.width}`,
-        outputLabel: `${current.channels} x ${outputHeight} x ${outputWidth}`,
-      };
-
-      current.height = outputHeight;
-      current.width = outputWidth;
-      current.features = null;
-      current.flattened = false;
-      return;
-    }
-
-    if (node.type === 'dropout') {
-      dimensionMap[node.id] = current.flattened
-        ? {
-            inputLabel: `${current.features ?? current.width}`,
-            outputLabel: `${current.features ?? current.width}`,
-          }
-        : {
-            inputLabel: `${current.channels} x ${current.height} x ${current.width}`,
-            outputLabel: `${current.channels} x ${current.height} x ${current.width}`,
-          };
-      return;
-    }
-
-    const inputFeatures = current.flattened
-      ? (current.features ?? current.width)
-      : current.channels * current.height * current.width;
-    const outputFeatures = Number(fieldValue(node, 'Output', '128'));
-
-    dimensionMap[node.id] = {
-      inputLabel: `${inputFeatures}`,
-      outputLabel: `${outputFeatures}`,
-    };
-
-    current.features = outputFeatures;
-    current.flattened = true;
-  });
-
-  return dimensionMap;
 }
 
 function blockTone(accent: BlockAccent) {
@@ -257,9 +114,99 @@ function blockTone(accent: BlockAccent) {
   return palette[accent];
 }
 
+function fieldValue(node: CanvasNode, label: string, fallback: string) {
+  return node.fields.find((field) => field.label === label)?.value ?? fallback;
+}
+
+function advisedFieldClassName(hasFieldError: boolean) {
+  if (!hasFieldError) {
+    return '';
+  }
+
+  return '!border-[#dc2626] !bg-[#fff5f5] !text-[#b91c1c] !shadow-[0_0_0_3px_rgba(220,38,38,0.08)] focus:!border-[#dc2626] focus:!text-[#b91c1c] focus:!shadow-[0_0_0_3px_rgba(220,38,38,0.14)]';
+}
+
+function advisedSelectClassName(hasError: boolean) {
+  if (!hasError) {
+    return '';
+  }
+
+  return '!border-[#dc2626] !bg-[#fff5f5] !text-[#b91c1c] !shadow-[0_0_0_3px_rgba(220,38,38,0.08)] focus:!border-[#dc2626] focus:!text-[#b91c1c] focus:!shadow-[0_0_0_3px_rgba(220,38,38,0.14)]';
+}
+
+function NodeFieldInput({
+  fieldLabel,
+  value,
+  suggestedValue,
+  hasFieldError,
+  inputMode,
+  placeholder,
+  className,
+  onChange,
+}: {
+  fieldLabel: string;
+  value: string;
+  suggestedValue?: string;
+  hasFieldError: boolean;
+  inputMode?: HTMLAttributes<HTMLInputElement>['inputMode'];
+  placeholder?: string;
+  className: string;
+  onChange: (value: string) => void;
+}) {
+  const showHint = hasFieldError && suggestedValue;
+  const [hintDigits, setHintDigits] = useState('');
+
+  useEffect(() => {
+    if (!showHint) {
+      setHintDigits('');
+      return;
+    }
+
+    setHintDigits((current) =>
+      current.slice(0, Math.max((suggestedValue?.length ?? 1) - 1, 0)),
+    );
+  }, [showHint, suggestedValue]);
+
+  const displayValue =
+    showHint && suggestedValue
+      ? `${suggestedValue[0] ?? ''}${hintDigits}${'_'.repeat(
+          Math.max(suggestedValue.length - 1 - hintDigits.length, 0),
+        )}`
+      : value;
+
+  return (
+    <input
+      value={displayValue}
+      onChange={(event) => {
+        if (showHint && suggestedValue) {
+          const fixedPrefix = suggestedValue[0] ?? '';
+          const typedDigits = event.target.value
+            .replace(/\D/g, '')
+            .replace(new RegExp(`^${fixedPrefix}`), '')
+            .slice(0, Math.max(suggestedValue.length - 1, 0));
+
+          setHintDigits(typedDigits);
+          onChange(`${fixedPrefix}${typedDigits}`);
+          return;
+        }
+
+        onChange(event.target.value);
+      }}
+      inputMode={inputMode}
+      placeholder={showHint ? undefined : placeholder}
+      className={[
+        className,
+        advisedFieldClassName(hasFieldError),
+      ].join(' ')}
+      aria-label={fieldLabel}
+    />
+  );
+}
+
 function NodeCard({
   node,
   dimensions,
+  advice,
   onRemove,
   onFieldChange,
   onActivationChange,
@@ -268,10 +215,11 @@ function NodeCard({
 }: {
   node: CanvasNode;
   dimensions?: NodeDimensionInfo;
+  advice?: NodeAdviceInfo;
   onRemove: () => void;
   onFieldChange: (fieldLabel: string, value: string) => void;
   onActivationChange: (activation: string) => void;
-  onDragStart: (event: React.DragEvent<HTMLButtonElement>) => void;
+  onDragStart: (event: DragEvent<HTMLButtonElement>) => void;
   onDragEnd: () => void;
 }) {
   const isCnn = node.type === 'cnn';
@@ -285,22 +233,35 @@ function NodeCard({
       ? `p=${fieldValue(node, 'Probability', '0.30')}`
       : node.activation;
   const tone = blockTone(node.accent);
+  const showAdvice = Boolean(advice?.hasError);
+  const showAdviceBanner = showAdvice && advice?.message;
+  const showActivationHintChip = Boolean(advice?.activationError && advice.activationHint);
+  const cardClassName = showAdvice
+    ? 'bg-[#fff0f0] shadow-[0_16px_32px_rgba(220,38,38,0.14)] ring-1 ring-[#fca5a5]'
+    : tone.card;
+  const barClassName = showAdvice ? 'bg-[#dc2626]' : tone.bar;
 
   return (
     <article
       className={[
         'relative w-full rounded-[28px] px-3.5 pb-2.5 pt-3 shadow-[0_12px_24px_rgba(13,27,51,0.08)]',
-        tone.card,
+        cardClassName,
       ].join(' ')}
     >
       <div
         className={[
           'absolute inset-x-3 top-0 h-[7px] rounded-b-[10px] rounded-t-[999px]',
-          tone.bar,
+          barClassName,
         ].join(' ')}
       />
       <div className="pointer-events-none absolute left-1/2 top-0 h-[14px] w-[72px] -translate-x-1/2 -translate-y-[35%] rounded-full border-[3px] border-background bg-white/82 shadow-[0_6px_14px_rgba(13,27,51,0.06)]" />
       <div className="pointer-events-none absolute left-1/2 bottom-[-8px] h-[16px] w-[52px] -translate-x-1/2 rounded-b-[14px] bg-background/92 shadow-[inset_0_2px_0_rgba(129,149,188,0.14)]" />
+
+      {showAdviceBanner && advice?.message ? (
+        <div className="mb-2 rounded-[16px] bg-[#fee2e2] px-3 py-2 text-[11px] font-bold text-[#b91c1c] shadow-[inset_0_0_0_1px_rgba(239,68,68,0.14)]">
+          {advice.message}
+        </div>
+      ) : null}
 
       <div className="flex items-start gap-3 border-b border-line pb-1.5">
         <div className="min-w-0 flex-1 grid gap-0.5">
@@ -314,6 +275,11 @@ function NodeCard({
             <span className="rounded-full bg-white/72 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-muted">
               {poolingTypeLabel}
             </span>
+            {showActivationHintChip ? (
+              <span className="rounded-full bg-[#fee2e2] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-[#b91c1c]">
+                {advice?.activationHint}
+              </span>
+            ) : null}
           </div>
         </div>
 
@@ -402,13 +368,16 @@ function NodeCard({
                 <span className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
                   {field.label}
                 </span>
-              <input
+              <NodeFieldInput
+                fieldLabel={field.label}
                 value={field.value}
-                onChange={(event) => onFieldChange(field.label, event.target.value)}
+                suggestedValue={advice?.suggestedFields[field.label]}
+                hasFieldError={Boolean(advice?.fieldErrors.includes(field.label))}
                 className={[
                   'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                   tone.focus,
                 ].join(' ')}
+                onChange={(nextValue) => onFieldChange(field.label, nextValue)}
               />
             </label>
           ))}
@@ -423,10 +392,13 @@ function NodeCard({
                 <span className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
                   {field.label}
                 </span>
-                <input
+                <NodeFieldInput
+                  fieldLabel={field.label}
                   value={field.value}
-                  onChange={(event) => onFieldChange(field.label, event.target.value)}
+                  suggestedValue={advice?.suggestedFields[field.label]}
+                  hasFieldError={Boolean(advice?.fieldErrors.includes(field.label))}
                   className="w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow focus:border-primary/30 focus:shadow-[0_0_0_3px_rgba(17,81,255,0.12)]"
+                  onChange={(nextValue) => onFieldChange(field.label, nextValue)}
                 />
               </label>
             ))}
@@ -442,6 +414,7 @@ function NodeCard({
                   className={[
                     'w-full appearance-none rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                     tone.focus,
+                    advisedSelectClassName(Boolean(advice?.activationError)),
                   ].join(' ')}
                 >
                   {node.activationOptions.map((option) => (
@@ -496,15 +469,18 @@ function NodeCard({
                       />
                     </div>
                   ) : (
-                  <input
-                    value={field.value}
-                    onChange={(event) => onFieldChange(field.label, event.target.value)}
-                    placeholder={field.label === 'Stride' ? 'None' : undefined}
-                    className={[
-                      'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
-                      tone.focus,
-                      isCompactField ? 'text-center' : '',
+                    <NodeFieldInput
+                      fieldLabel={field.label}
+                      value={field.value}
+                      suggestedValue={advice?.suggestedFields[field.label]}
+                      hasFieldError={Boolean(advice?.fieldErrors.includes(field.label))}
+                      placeholder={field.label === 'Stride' ? 'None' : undefined}
+                      className={[
+                        'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
+                        tone.focus,
+                        isCompactField ? 'text-center' : '',
                       ].join(' ')}
+                      onChange={(nextValue) => onFieldChange(field.label, nextValue)}
                     />
                   )}
                 </label>
@@ -534,14 +510,17 @@ function NodeCard({
               <span className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
                 {field.label}
               </span>
-              <input
+              <NodeFieldInput
+                fieldLabel={field.label}
                 value={field.value}
-                onChange={(event) => onFieldChange(field.label, event.target.value)}
+                suggestedValue={advice?.suggestedFields[field.label]}
+                hasFieldError={Boolean(advice?.fieldErrors.includes(field.label))}
                 inputMode="decimal"
                 className={[
                   'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-center text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                   tone.focus,
                 ].join(' ')}
+                onChange={(nextValue) => onFieldChange(field.label, nextValue)}
               />
             </label>
           ))}
@@ -562,14 +541,17 @@ function NodeCard({
               <span className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
                 {field.label}
               </span>
-              <input
+              <NodeFieldInput
+                fieldLabel={field.label}
                 value={field.value}
-                onChange={(event) => onFieldChange(field.label, event.target.value)}
+                suggestedValue={advice?.suggestedFields[field.label]}
+                hasFieldError={Boolean(advice?.fieldErrors.includes(field.label))}
                 inputMode="numeric"
                 className={[
                   'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-center text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                   tone.focus,
                 ].join(' ')}
+                onChange={(nextValue) => onFieldChange(field.label, nextValue)}
               />
             </label>
           ))}
@@ -585,6 +567,7 @@ function NodeCard({
                 className={[
                   'w-full appearance-none rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                   tone.focus,
+                  advisedSelectClassName(Boolean(advice?.activationError)),
                 ].join(' ')}
               >
                 {node.activationOptions.map((option) => (
@@ -661,7 +644,7 @@ export function Canvas({
   const stackRef = useRef<HTMLDivElement>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
-  const nodeDimensions = getNodeDimensions(selectedDataset, nodes);
+  const { dimensions: nodeDimensions, advice: nodeAdvice } = analyzeModelNodes(selectedDataset, nodes);
 
   return (
     <main className="relative min-h-[840px] overflow-hidden bg-background">
@@ -738,6 +721,7 @@ export function Canvas({
                     <NodeCard
                       node={node}
                       dimensions={nodeDimensions[node.id]}
+                      advice={nodeAdvice[node.id]}
                       onRemove={() => onRemoveNode(node.id)}
                       onFieldChange={(fieldLabel, value) =>
                         onUpdateNodeField(node.id, fieldLabel, value)

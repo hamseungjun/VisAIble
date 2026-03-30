@@ -279,7 +279,7 @@ export function TopBar({
         </section>
 
         <section className="glass-panel ghost-border flex min-w-0 flex-col gap-2 rounded-[24px] px-4 py-3 shadow-panel">
-          <div className="mb-0.5 flex items-center justify-between px-1">
+          <div className="relative mb-0.5 flex items-center justify-between px-1">
             <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
               Quick Actions
             </span>
