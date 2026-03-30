@@ -61,26 +61,6 @@ export const datasets: DatasetItem[] = [
     ],
   },
   {
-    id: 'imagenet',
-    icon: 'panel',
-    label: 'Tiny ImageNet',
-    inputShape: '3 x 64 x 64',
-    records: '100,000 train / 10,000 val',
-    domain: 'Compact ImageNet-style classification',
-    classCount: 200,
-    descriptionKo:
-      'ImageNet 계열 구조를 가볍게 실험할 수 있는 축소판 데이터셋입니다. 원본보다 훨씬 작지만 다양한 사물 클래스를 유지합니다.',
-    shapeDescriptionKo: '입력 텐서 형태는 RGB 3채널 64x64 이미지입니다.',
-    classesDescriptionKo:
-      '클래스는 총 200개입니다. 동물, 탈것, 생활 물체 등 ImageNet 계열의 다양한 카테고리로 구성됩니다.',
-    sampleClasses: [
-      { label: '금붕어', imageSrc: '/dataset-samples/imagenet/n01443537.jpg' },
-      { label: '불도롱뇽', imageSrc: '/dataset-samples/imagenet/n01629819.jpg' },
-      { label: '황소개구리', imageSrc: '/dataset-samples/imagenet/n01641577.jpg' },
-      { label: '꼬리개구리', imageSrc: '/dataset-samples/imagenet/n01644900.jpg' },
-    ],
-  },
-  {
     id: 'coco',
     icon: 'grid',
     label: 'COCO 2017',
