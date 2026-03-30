@@ -1,5 +1,12 @@
 import { apiClient, buildApiUrl } from '@/lib/api/client';
-import type { CanvasNode, TrainingJobStatus, TrainingRunResult } from '@/types/builder';
+import type {
+  CanvasNode,
+  CompetitionLeaderboard,
+  CompetitionRoomSession,
+  CompetitionSubmissionResult,
+  TrainingJobStatus,
+  TrainingRunResult,
+} from '@/types/builder';
 
 export type SaveArchitecturePayload = {
   datasetId: string;
@@ -12,6 +19,7 @@ export type TrainModelPayload = {
   datasetId: string;
   learningRate: number;
   epochs: number;
+  batchSize: number;
   optimizer: string;
   optimizerParams: {
     momentum: string;
@@ -30,6 +38,57 @@ export async function saveArchitecture(payload: SaveArchitecturePayload) {
 
 export async function trainModel(payload: TrainModelPayload) {
   return apiClient<TrainingRunResult>('/training/run', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createCompetitionRoom(payload: {
+  hostName: string;
+  title: string;
+  datasetId: string;
+  roomCode?: string;
+  password?: string;
+  startsAt?: string;
+  endsAt?: string;
+}) {
+  return apiClient<CompetitionRoomSession>('/competition/rooms/create', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function enterCompetitionRoom(payload: {
+  roomCode: string;
+  password: string;
+  participantName: string;
+}) {
+  return apiClient<CompetitionRoomSession>('/competition/rooms/enter', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getCompetitionRoom(roomCode: string, participantId?: number) {
+  return apiClient<CompetitionRoomSession>(`/competition/rooms/${roomCode}`, {
+    query: { participant_id: participantId },
+  });
+}
+
+export async function getCompetitionLeaderboard(roomCode: string, participantId?: number) {
+  return apiClient<CompetitionLeaderboard>(`/competition/rooms/${roomCode}/leaderboard`, {
+    query: { participant_id: participantId },
+  });
+}
+
+export async function submitCompetitionRun(payload: {
+  roomCode: string;
+  participantId: number;
+  jobId: string;
+  optimizer: string;
+  batchSize: number;
+}) {
+  return apiClient<CompetitionSubmissionResult>('/competition/submissions', {
     method: 'POST',
     body: JSON.stringify(payload),
   });

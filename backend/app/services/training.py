@@ -204,7 +204,7 @@ def _load_combined_torchvision_dataset(dataset_id: str) -> tuple[Dataset, np.nda
     return ConcatDataset([train_split, test_split]), labels
 
 
-def _build_stratified_loaders(dataset_id: str) -> tuple[DataLoader, DataLoader, int, int]:
+def _build_stratified_loaders(dataset_id: str, batch_size: int) -> tuple[DataLoader, DataLoader, int, int]:
     dataset, labels = _load_combined_torchvision_dataset(dataset_id)
     train_limit_per_class: int | None = None
     validation_limit_per_class: int | None = None
@@ -237,19 +237,19 @@ def _build_stratified_loaders(dataset_id: str) -> tuple[DataLoader, DataLoader, 
 
     train_loader = DataLoader(
         Subset(dataset, train_indices.tolist()),
-        batch_size=BATCH_SIZE,
+        batch_size=batch_size,
         shuffle=True,
     )
     validation_loader = DataLoader(
         Subset(dataset, validation_indices.tolist()),
-        batch_size=BATCH_SIZE,
+        batch_size=batch_size,
         shuffle=False,
     )
 
     return train_loader, validation_loader, len(train_indices), len(validation_indices)
 
 
-def _build_imagenet_loaders() -> tuple[DataLoader, DataLoader, int, int]:
+def _build_imagenet_loaders(batch_size: int) -> tuple[DataLoader, DataLoader, int, int]:
     from torchvision import datasets
 
     imagenet_root = ensure_tiny_imagenet_downloaded()
@@ -268,12 +268,12 @@ def _build_imagenet_loaders() -> tuple[DataLoader, DataLoader, int, int]:
         COMPACT_TINY_IMAGENET_VAL_PER_CLASS,
     )
 
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    validation_loader = DataLoader(validation_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False)
     return train_loader, validation_loader, len(train_dataset), len(validation_dataset)
 
 
-def _build_coco_loaders() -> tuple[DataLoader, DataLoader, int, int]:
+def _build_coco_loaders(batch_size: int) -> tuple[DataLoader, DataLoader, int, int]:
     coco_root = ensure_coco_compact_downloaded()
     val_dir = coco_root / "val2017"
     val_annotations = coco_root / "annotations" / "instances_val2017.json"
@@ -286,20 +286,20 @@ def _build_coco_loaders() -> tuple[DataLoader, DataLoader, int, int]:
     )
     train_dataset, validation_dataset = _split_coco_dataset(source_dataset)
 
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    validation_loader = DataLoader(validation_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False)
     return train_loader, validation_loader, len(train_dataset), len(validation_dataset)
 
 
-def build_dataset_loaders(dataset_id: str) -> tuple[DataLoader, DataLoader, int, int]:
+def build_dataset_loaders(dataset_id: str, batch_size: int = BATCH_SIZE) -> tuple[DataLoader, DataLoader, int, int]:
     if dataset_id in {"mnist", "fashion_mnist", "cifar10"}:
-        return _build_stratified_loaders(dataset_id)
+        return _build_stratified_loaders(dataset_id, batch_size)
 
     if dataset_id == "imagenet":
-        return _build_imagenet_loaders()
+        return _build_imagenet_loaders(batch_size)
 
     if dataset_id == "coco":
-        return _build_coco_loaders()
+        return _build_coco_loaders(batch_size)
 
     raise ValueError(f"Dataset '{dataset_id}' is not implemented for training yet")
 
@@ -764,6 +764,7 @@ def train_model(
     )
     train_loader, validation_loader, train_size, validation_size = build_dataset_loaders(
         payload.datasetId,
+        payload.batchSize,
     )
 
     device = _get_training_device()
@@ -881,6 +882,7 @@ def train_model(
         "datasetId": payload.datasetId,
         "epochs": payload.epochs,
         "learningRate": payload.learningRate,
+        "batchSize": payload.batchSize,
         "optimizer": payload.optimizer,
         "trainSize": train_size,
         "validationSize": validation_size,
@@ -908,6 +910,7 @@ def _run_training_job(job_id: str, payload: TrainModelRequest) -> None:
                 "datasetId": payload.datasetId,
                 "epochs": payload.epochs,
                 "learningRate": payload.learningRate,
+                "batchSize": payload.batchSize,
                 "optimizer": payload.optimizer,
                 "metrics": [],
                 "architecture": [],

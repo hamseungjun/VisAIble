@@ -40,6 +40,27 @@ export function useBuilderBoard() {
     setNodes((current) => current.filter((node) => node.id !== id));
   };
 
+  const replaceNode = (id: string, type: BlockType) => {
+    setNodes((current) =>
+      current.map((node) => {
+        if (node.id !== id) {
+          return node;
+        }
+
+        const nextNode = makeNode(type, current.length + 1);
+        return {
+          ...node,
+          type: nextNode.type,
+          title: nextNode.title,
+          accent: nextNode.accent,
+          fields: nextNode.fields,
+          activation: nextNode.activation,
+          activationOptions: nextNode.activationOptions,
+        };
+      }),
+    );
+  };
+
   const updateNodeField = (id: string, fieldLabel: string, value: string) => {
     setNodes((current) =>
       current.map((node) =>
@@ -109,6 +130,7 @@ export function useBuilderBoard() {
     setDraggingBlock,
     addNode,
     removeNode,
+    replaceNode,
     updateNodeField,
     updateNodeFields,
     updateNodeActivation,

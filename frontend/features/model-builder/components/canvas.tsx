@@ -3,6 +3,7 @@
 import type { DragEvent, HTMLAttributes } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/features/model-builder/components/icons';
+import { libraryBlocks } from '@/lib/constants/builder-data';
 import { analyzeModelNodes, type NodeAdviceInfo, type NodeDimensionInfo } from '@/lib/model-advice';
 import type { BlockAccent, BlockType, CanvasNode, DatasetItem } from '@/types/builder';
 
@@ -15,6 +16,7 @@ type CanvasProps = {
   onUpdateNodeField: (id: string, fieldLabel: string, value: string) => void;
   onUpdateNodeActivation: (id: string, activation: string) => void;
   onMoveNode: (id: string, index: number) => void;
+  onReplaceNode: (id: string, type: BlockType) => void;
   onDropBlock: (type: BlockType, index?: number) => void;
 };
 
@@ -134,6 +136,18 @@ function advisedSelectClassName(hasError: boolean) {
   return '!border-[#dc2626] !bg-[#fff5f5] !text-[#b91c1c] !shadow-[0_0_0_3px_rgba(220,38,38,0.08)] focus:!border-[#dc2626] focus:!text-[#b91c1c] focus:!shadow-[0_0_0_3px_rgba(220,38,38,0.14)]';
 }
 
+function accentTextClassName(accent: BlockAccent) {
+  const palette: Record<BlockAccent, string> = {
+    blue: 'text-[#2456c9]',
+    amber: 'text-[#b95b16]',
+    violet: 'text-[#6846bd]',
+    rose: 'text-[#b43b5c]',
+    emerald: 'text-[#0b7d6f]',
+  };
+
+  return palette[accent];
+}
+
 function NodeFieldInput({
   fieldLabel,
   value,
@@ -244,7 +258,7 @@ function NodeCard({
   return (
     <article
       className={[
-        'relative w-full rounded-[28px] px-3.5 pb-2.5 pt-3 shadow-[0_12px_24px_rgba(13,27,51,0.08)]',
+        'relative w-full max-w-[clamp(900px,72vw,1480px)] rounded-[clamp(28px,2.2vw,34px)] px-[clamp(14px,1.2vw,20px)] pb-[clamp(12px,1vw,18px)] pt-[clamp(14px,1.1vw,18px)] shadow-[0_12px_24px_rgba(13,27,51,0.08)]',
         cardClassName,
       ].join(' ')}
     >
@@ -258,25 +272,25 @@ function NodeCard({
       <div className="pointer-events-none absolute left-1/2 bottom-[-8px] h-[16px] w-[52px] -translate-x-1/2 rounded-b-[14px] bg-background/92 shadow-[inset_0_2px_0_rgba(129,149,188,0.14)]" />
 
       {showAdviceBanner && advice?.message ? (
-        <div className="mb-2 rounded-[16px] bg-[#fee2e2] px-3 py-2 text-[11px] font-bold text-[#b91c1c] shadow-[inset_0_0_0_1px_rgba(239,68,68,0.14)]">
+        <div className="mb-2 rounded-[18px] bg-[#fee2e2] px-[clamp(12px,1vw,14px)] py-[clamp(8px,0.8vw,10px)] text-[clamp(12px,0.95vw,13px)] font-bold text-[#b91c1c] shadow-[inset_0_0_0_1px_rgba(239,68,68,0.14)]">
           {advice.message}
         </div>
       ) : null}
 
-      <div className="flex items-start gap-3 border-b border-line pb-1.5">
+      <div className="flex items-start gap-[clamp(12px,1vw,16px)] border-b border-line pb-[clamp(8px,0.8vw,10px)]">
         <div className="min-w-0 flex-1 grid gap-0.5">
-          <strong className="truncate font-display text-[13px] font-bold uppercase tracking-[-0.02em] text-ink">
+          <strong className="truncate font-display text-[clamp(15px,1.15vw,18px)] font-bold uppercase tracking-[-0.02em] text-ink">
             {node.title}
           </strong>
           <div className="flex flex-wrap gap-1">
-            <span className="rounded-full bg-white/72 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-muted">
+            <span className="rounded-full bg-white/72 px-[clamp(8px,0.8vw,10px)] py-[clamp(3px,0.35vw,5px)] text-[clamp(10px,0.75vw,11px)] font-bold uppercase tracking-[0.12em] text-muted">
               {fieldCountLabel}
             </span>
-            <span className="rounded-full bg-white/72 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-muted">
+            <span className="rounded-full bg-white/72 px-[clamp(8px,0.8vw,10px)] py-[clamp(3px,0.35vw,5px)] text-[clamp(10px,0.75vw,11px)] font-bold uppercase tracking-[0.12em] text-muted">
               {poolingTypeLabel}
             </span>
             {showActivationHintChip ? (
-              <span className="rounded-full bg-[#fee2e2] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-[#b91c1c]">
+              <span className="rounded-full bg-[#fee2e2] px-[clamp(8px,0.8vw,10px)] py-[clamp(3px,0.35vw,5px)] text-[clamp(10px,0.75vw,11px)] font-bold uppercase tracking-[0.12em] text-[#b91c1c]">
                 {advice?.activationHint}
               </span>
             ) : null}
@@ -285,20 +299,20 @@ function NodeCard({
 
         {dimensions ? (
           <div className="hidden min-w-0 flex-[1.2] items-center justify-end xl:flex">
-            <div className="flex w-full max-w-[460px] items-center gap-3 rounded-[12px] bg-[rgba(255,255,255,0.42)] px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.10)]">
-              <div className="shrink-0 text-[7px] font-extrabold uppercase tracking-[0.14em] text-muted">
+            <div className="flex w-full max-w-[clamp(460px,32vw,560px)] items-center gap-3 rounded-[14px] bg-[rgba(255,255,255,0.42)] px-[clamp(10px,0.9vw,12px)] py-[clamp(7px,0.6vw,9px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.10)]">
+              <div className="shrink-0 text-[clamp(10px,0.75vw,11px)] font-extrabold uppercase tracking-[0.14em] text-muted">
                 Tensor Size
               </div>
-              <div className="flex min-w-0 flex-1 items-center gap-3 text-[10px] font-semibold text-ink">
+              <div className="flex min-w-0 flex-1 items-center gap-3 text-[clamp(11px,0.85vw,12px)] font-semibold text-ink">
                 <div className="min-w-0 font-mono">
-                  <span className="mr-1 text-[8px] font-extrabold uppercase tracking-[0.12em] text-muted">
+                  <span className="mr-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-muted">
                     In
                   </span>
                   {dimensions.inputLabel}
                 </div>
                 <div className="text-muted/70">→</div>
                 <div className="min-w-0 font-mono">
-                  <span className="mr-1 text-[8px] font-extrabold uppercase tracking-[0.12em] text-muted">
+                  <span className="mr-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-muted">
                     Out
                   </span>
                   {dimensions.outputLabel}
@@ -334,20 +348,20 @@ function NodeCard({
 
       {dimensions ? (
         <div className="mt-2 xl:hidden">
-          <div className="flex w-full items-center gap-3 rounded-[12px] bg-[rgba(255,255,255,0.42)] px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.10)]">
-            <div className="shrink-0 text-[7px] font-extrabold uppercase tracking-[0.14em] text-muted">
+          <div className="flex w-full items-center gap-3 rounded-[14px] bg-[rgba(255,255,255,0.42)] px-[clamp(10px,0.9vw,12px)] py-[clamp(7px,0.6vw,9px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.10)]">
+            <div className="shrink-0 text-[clamp(10px,0.75vw,11px)] font-extrabold uppercase tracking-[0.14em] text-muted">
               Tensor Size
             </div>
-            <div className="flex min-w-0 flex-1 items-center gap-3 text-[10px] font-semibold text-ink">
+            <div className="flex min-w-0 flex-1 items-center gap-3 text-[clamp(11px,0.85vw,12px)] font-semibold text-ink">
               <div className="min-w-0 font-mono">
-                <span className="mr-1 text-[8px] font-extrabold uppercase tracking-[0.12em] text-muted">
+                <span className="mr-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-muted">
                   In
                 </span>
                 {dimensions.inputLabel}
               </div>
               <div className="text-muted/70">→</div>
               <div className="min-w-0 font-mono">
-                <span className="mr-1 text-[8px] font-extrabold uppercase tracking-[0.12em] text-muted">
+                <span className="mr-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-muted">
                   Out
                 </span>
                 {dimensions.outputLabel}
@@ -363,9 +377,9 @@ function NodeCard({
             {node.fields.slice(0, 3).map((field) => (
               <label
                 key={field.label}
-                className="grid min-w-0 gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
+                className="grid min-w-0 gap-0.5 rounded-[18px] bg-white/72 px-[clamp(10px,0.9vw,12px)] py-[clamp(8px,0.75vw,10px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
               >
-                <span className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
+                <span className="text-[clamp(10px,0.75vw,11px)] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
                   {field.label}
                 </span>
               <NodeFieldInput
@@ -374,7 +388,7 @@ function NodeCard({
                 suggestedValue={advice?.suggestedFields[field.label]}
                 hasFieldError={Boolean(advice?.fieldErrors.includes(field.label))}
                 className={[
-                  'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
+                  'w-full min-w-0 rounded-[14px] border border-transparent bg-white px-[clamp(12px,1vw,14px)] py-[clamp(8px,0.75vw,10px)] text-[clamp(13px,0.95vw,14px)] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                   tone.focus,
                 ].join(' ')}
                 onChange={(nextValue) => onFieldChange(field.label, nextValue)}
@@ -387,9 +401,9 @@ function NodeCard({
             {node.fields.slice(3).map((field) => (
               <label
                 key={field.label}
-                className="grid min-w-0 gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
+                className="grid min-w-0 gap-0.5 rounded-[18px] bg-white/72 px-[clamp(10px,0.9vw,12px)] py-[clamp(8px,0.75vw,10px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
               >
-                <span className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
+                <span className="text-[clamp(10px,0.75vw,11px)] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
                   {field.label}
                 </span>
                 <NodeFieldInput
@@ -397,14 +411,14 @@ function NodeCard({
                   value={field.value}
                   suggestedValue={advice?.suggestedFields[field.label]}
                   hasFieldError={Boolean(advice?.fieldErrors.includes(field.label))}
-                  className="w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow focus:border-primary/30 focus:shadow-[0_0_0_3px_rgba(17,81,255,0.12)]"
+                  className="w-full min-w-0 rounded-[14px] border border-transparent bg-white px-[clamp(12px,1vw,14px)] py-[clamp(8px,0.75vw,10px)] text-[clamp(13px,0.95vw,14px)] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow focus:border-primary/30 focus:shadow-[0_0_0_3px_rgba(17,81,255,0.12)]"
                   onChange={(nextValue) => onFieldChange(field.label, nextValue)}
                 />
               </label>
             ))}
 
-            <label className="grid gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
-              <span className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
+            <label className="grid gap-0.5 rounded-[18px] bg-white/72 px-[clamp(10px,0.9vw,12px)] py-[clamp(8px,0.75vw,10px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
+              <span className="text-[clamp(10px,0.75vw,11px)] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
                 Activation Function
               </span>
               <div className="relative">
@@ -412,7 +426,7 @@ function NodeCard({
                   value={node.activation}
                   onChange={(event) => onActivationChange(event.target.value)}
                   className={[
-                    'w-full appearance-none rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
+                    'w-full appearance-none rounded-[14px] border border-transparent bg-white px-[clamp(12px,1vw,14px)] py-[clamp(8px,0.75vw,10px)] text-[clamp(13px,0.95vw,14px)] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                     tone.focus,
                     advisedSelectClassName(Boolean(advice?.activationError)),
                   ].join(' ')}
@@ -446,7 +460,7 @@ function NodeCard({
                     isCompactField ? 'xl:max-w-[170px]' : '',
                   ].join(' ')}
                 >
-                  <span className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
+                  <span className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
                     {field.label}
                   </span>
                   {isPoolType ? (
@@ -455,7 +469,7 @@ function NodeCard({
                         value={field.value}
                         onChange={(event) => onFieldChange(field.label, event.target.value)}
                         className={[
-                          'w-full appearance-none rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
+                          'w-full appearance-none rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[13px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                           tone.focus,
                         ].join(' ')}
                       >
@@ -476,7 +490,7 @@ function NodeCard({
                       hasFieldError={Boolean(advice?.fieldErrors.includes(field.label))}
                       placeholder={field.label === 'Stride' ? 'None' : undefined}
                       className={[
-                        'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
+                        'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[13px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                         tone.focus,
                         isCompactField ? 'text-center' : '',
                       ].join(' ')}
@@ -507,7 +521,7 @@ function NodeCard({
               key={field.label}
               className="grid min-w-0 gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
             >
-              <span className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
                 {field.label}
               </span>
               <NodeFieldInput
@@ -517,7 +531,7 @@ function NodeCard({
                 hasFieldError={Boolean(advice?.fieldErrors.includes(field.label))}
                 inputMode="decimal"
                 className={[
-                  'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-center text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
+                  'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-center text-[14px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                   tone.focus,
                 ].join(' ')}
                 onChange={(nextValue) => onFieldChange(field.label, nextValue)}
@@ -538,7 +552,7 @@ function NodeCard({
               key={field.label}
               className="grid min-w-0 gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
             >
-              <span className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
                 {field.label}
               </span>
               <NodeFieldInput
@@ -548,7 +562,7 @@ function NodeCard({
                 hasFieldError={Boolean(advice?.fieldErrors.includes(field.label))}
                 inputMode="numeric"
                 className={[
-                  'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-center text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
+                  'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-center text-[14px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                   tone.focus,
                 ].join(' ')}
                 onChange={(nextValue) => onFieldChange(field.label, nextValue)}
@@ -557,7 +571,7 @@ function NodeCard({
           ))}
 
           <label className="grid gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
-            <span className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
+            <span className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
               Activation Function
             </span>
             <div className="relative">
@@ -565,7 +579,7 @@ function NodeCard({
                 value={node.activation}
                 onChange={(event) => onActivationChange(event.target.value)}
                 className={[
-                  'w-full appearance-none rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
+                  'w-full appearance-none rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[13px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                   tone.focus,
                   advisedSelectClassName(Boolean(advice?.activationError)),
                 ].join(' ')}
@@ -589,39 +603,39 @@ function DataBlockCard({ dataset }: { dataset: DatasetItem }) {
   const tone = blockTone('emerald');
 
   return (
-    <article className={['relative w-full rounded-[28px] px-3.5 pb-2.5 pt-3 shadow-[0_12px_24px_rgba(13,27,51,0.08)]', tone.card].join(' ')}>
+    <article className={['relative w-full max-w-[clamp(900px,72vw,1480px)] rounded-[clamp(28px,2.2vw,34px)] px-[clamp(14px,1.2vw,20px)] pb-[clamp(12px,1vw,18px)] pt-[clamp(14px,1.1vw,18px)] shadow-[0_12px_24px_rgba(13,27,51,0.08)]', tone.card].join(' ')}>
       <div className={['absolute inset-x-3 top-0 h-[7px] rounded-b-[10px] rounded-t-[999px]', tone.bar].join(' ')} />
       <div className="pointer-events-none absolute left-1/2 bottom-[-8px] h-[16px] w-[52px] -translate-x-1/2 rounded-b-[14px] bg-background/92 shadow-[inset_0_2px_0_rgba(129,149,188,0.14)]" />
 
-      <div className="flex items-start justify-between gap-2 border-b border-line pb-1.5">
+      <div className="flex items-start justify-between gap-2 border-b border-line pb-[clamp(8px,0.8vw,10px)]">
         <div className="min-w-0 grid gap-0.5">
-          <strong className="truncate font-display text-[13px] font-bold uppercase tracking-[-0.02em] text-ink">
+          <strong className="truncate font-display text-[clamp(15px,1.15vw,18px)] font-bold uppercase tracking-[-0.02em] text-ink">
             Data
           </strong>
-          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
+          <span className="text-[clamp(11px,0.85vw,12px)] font-semibold uppercase tracking-[0.14em] text-muted">
             Fixed source block
           </span>
         </div>
-        <div className={['shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em]', tone.chip].join(' ')}>
+        <div className={['shrink-0 rounded-full px-[clamp(8px,0.8vw,10px)] py-[clamp(3px,0.35vw,5px)] text-[clamp(10px,0.75vw,11px)] font-bold uppercase tracking-[0.12em]', tone.chip].join(' ')}>
           locked
         </div>
       </div>
 
-      <div className="mt-2 grid gap-1.5 lg:grid-cols-[minmax(0,1fr)_180px]">
-        <label className="grid gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
-          <span className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
+      <div className="mt-2 grid gap-1.5 lg:grid-cols-[minmax(0,1fr)_clamp(180px,16vw,240px)]">
+        <label className="grid gap-0.5 rounded-[18px] bg-white/72 px-[clamp(10px,0.9vw,12px)] py-[clamp(8px,0.75vw,10px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
+          <span className="text-[clamp(10px,0.75vw,11px)] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
             Dataset
           </span>
-          <div className="rounded-[12px] bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)]">
+          <div className="rounded-[14px] bg-white px-[clamp(12px,1vw,14px)] py-[clamp(8px,0.75vw,10px)] text-[clamp(13px,0.95vw,14px)] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)]">
             {dataset.label}
           </div>
         </label>
 
-        <label className="grid gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
-          <span className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
+        <label className="grid gap-0.5 rounded-[18px] bg-white/72 px-[clamp(10px,0.9vw,12px)] py-[clamp(8px,0.75vw,10px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
+          <span className="text-[clamp(10px,0.75vw,11px)] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
             Input shape
           </span>
-          <div className="rounded-[12px] bg-white px-3 py-1.5 text-[12px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)]">
+          <div className="rounded-[14px] bg-white px-[clamp(12px,1vw,14px)] py-[clamp(8px,0.75vw,10px)] text-[clamp(13px,0.95vw,14px)] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)]">
             {dataset.inputShape ?? '-'}
           </div>
         </label>
@@ -639,15 +653,19 @@ export function Canvas({
   onUpdateNodeField,
   onUpdateNodeActivation,
   onMoveNode,
+  onReplaceNode,
   onDropBlock,
 }: CanvasProps) {
   const stackRef = useRef<HTMLDivElement>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const [replaceTargetId, setReplaceTargetId] = useState<string | null>(null);
+  const [trashHover, setTrashHover] = useState(false);
   const { dimensions: nodeDimensions, advice: nodeAdvice } = analyzeModelNodes(selectedDataset, nodes);
+  const starterBlocks = libraryBlocks.slice(0, 4);
 
   return (
-    <main className="relative min-h-[840px] overflow-hidden bg-background">
+    <main className="relative min-h-[clamp(840px,76vh,1240px)] overflow-hidden bg-background">
       <div className="pointer-events-none canvas-grid absolute inset-0 opacity-35" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(17,81,255,0.06),transparent_42%),radial-gradient(circle_at_78%_72%,rgba(10,96,127,0.1),transparent_26%)]" />
 
@@ -663,6 +681,9 @@ export function Canvas({
             return;
           }
 
+          if (draggedNodeId) {
+            setTrashHover(false);
+          }
           setHoverIndex(getInsertionIndex(event, stackRef.current, nodes.length));
         }}
         onDragLeave={(event) => {
@@ -680,6 +701,8 @@ export function Canvas({
           if (draggedNodeId) {
             setHoverIndex(null);
             setDraggingNodeId(null);
+            setReplaceTargetId(null);
+            setTrashHover(false);
             onMoveNode(draggedNodeId, insertionIndex);
             return;
           }
@@ -689,25 +712,73 @@ export function Canvas({
           }
 
           setHoverIndex(null);
+          setReplaceTargetId(null);
+          setTrashHover(false);
           onDropBlock(droppedBlock, insertionIndex);
         }}
         className={[
-          'relative flex min-h-[840px] flex-col items-start px-4 pb-10 pt-5 transition-colors sm:px-6',
+          'relative flex min-h-[clamp(860px,78vh,1280px)] flex-col items-center px-4 pb-10 pt-5 transition-colors sm:px-6 xl:px-[clamp(24px,2vw,40px)]',
           draggingBlock || draggingNodeId ? 'bg-primary/[0.03]' : '',
         ].join(' ')}
       >
-        <div className="relative w-full overflow-hidden rounded-[32px] border border-white/50 bg-white/28 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-sm">
-          <div className="px-5 py-6">
+        <div className="relative w-full max-w-[clamp(980px,78vw,1580px)] overflow-hidden rounded-[32px] border border-white/50 bg-white/28 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-sm">
+          <div className="px-[clamp(20px,1.6vw,24px)] py-[clamp(24px,2vw,28px)]">
             <div
               ref={stackRef}
-              className="flex w-full flex-col items-start transition-transform duration-150"
+              className="mx-auto flex w-full max-w-[clamp(920px,74vw,1480px)] flex-col items-start transition-transform duration-150"
               style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}
             >
               <DataBlockCard dataset={selectedDataset} />
 
               {nodes.length === 0 ? (
-                <div className="-mt-2 w-full rounded-b-[24px] border border-dashed border-primary/25 bg-white/72 px-5 py-6 text-left text-[13px] font-semibold text-muted">
-                  Drag a layer anywhere into this stack to attach it under the data block.
+                <div className="-mt-2 w-full rounded-b-[28px] border border-dashed border-primary/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.84),rgba(244,248,255,0.9))] px-[clamp(20px,1.8vw,28px)] py-[clamp(24px,2.2vw,32px)] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
+                  <div className="grid min-h-[clamp(220px,28vh,360px)] content-center gap-[clamp(20px,2vw,28px)]">
+                    <div className="mx-auto max-w-[clamp(560px,58vw,760px)] text-center">
+                      <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-primary/70">
+                        Builder Start
+                      </div>
+                      <div className="mt-3 font-display text-[clamp(24px,2.2vw,30px)] font-bold tracking-[-0.04em] text-ink">
+                        Build your first stack
+                      </div>
+                      <p className="mt-3 text-[clamp(14px,1.1vw,15px)] leading-[clamp(24px,1.9vw,28px)] text-[#60728d]">
+                        Drag a layer card into this canvas to attach it under the data block.
+                        Start with CNN or Linear, then add Pooling and Dropout as needed.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      {starterBlocks.map((block) => (
+                        <div
+                          key={`starter-${block.id}`}
+                          className="rounded-[22px] bg-white/88 px-4 py-4 text-left shadow-[0_18px_38px_rgba(13,27,51,0.06)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={[
+                                'grid h-10 w-10 place-items-center rounded-[14px] bg-[#f5f8ff]',
+                                accentTextClassName(block.accent),
+                              ].join(' ')}
+                            >
+                              <Icon name={block.icon} className="h-5 w-5" />
+                            </div>
+                            <div className="font-display text-[17px] font-bold text-ink">
+                              {block.title}
+                            </div>
+                          </div>
+                          <p className="mt-3 text-[13px] leading-6 text-[#677996]">
+                            {block.description}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mx-auto flex items-center gap-3 rounded-full bg-[#eef3ff] px-[clamp(16px,1.4vw,20px)] py-[clamp(10px,1vw,12px)] text-[clamp(12px,1vw,13px)] font-bold text-primary shadow-[0_14px_30px_rgba(17,81,255,0.08)]">
+                      <span className="grid h-7 w-7 place-items-center rounded-full bg-white">
+                        <Icon name="play" className="h-4 w-4" />
+                      </span>
+                      Drop a block anywhere on this area to start the architecture.
+                    </div>
+                  </div>
                 </div>
               ) : null}
 
@@ -717,7 +788,53 @@ export function Canvas({
 
               {nodes.map((node, index) => (
                 <div key={node.id} className="-mt-2.5 flex w-full flex-col items-start first:mt-0">
-                  <div data-node-card="true" className="w-full">
+                  <div
+                    data-node-card="true"
+                    onDragOver={(event) => {
+                      const droppedBlock = getDroppedBlockType(event, draggingBlock);
+                      const draggedNodeId = getDraggedNodeId(event);
+
+                      if (!droppedBlock || draggedNodeId) {
+                        return;
+                      }
+
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setHoverIndex(null);
+                      setReplaceTargetId(node.id);
+                    }}
+                    onDragLeave={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                        setReplaceTargetId((current) => (current === node.id ? null : current));
+                      }
+                    }}
+                    onDrop={(event) => {
+                      const droppedBlock = getDroppedBlockType(event, draggingBlock);
+                      const draggedNodeId = getDraggedNodeId(event);
+
+                      if (!droppedBlock || draggedNodeId) {
+                        return;
+                      }
+
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setHoverIndex(null);
+                      setReplaceTargetId(null);
+                      setTrashHover(false);
+                      onReplaceNode(node.id, droppedBlock);
+                    }}
+                    className={[
+                      'relative w-full max-w-[clamp(900px,72vw,1420px)] rounded-[36px] transition-all duration-150',
+                      replaceTargetId === node.id
+                        ? 'scale-[1.01] bg-primary/[0.045] p-1.5 shadow-[0_0_0_1px_rgba(36,99,235,0.12)] ring-2 ring-primary/35'
+                        : '',
+                    ].join(' ')}
+                  >
+                    {replaceTargetId === node.id ? (
+                      <div className="pointer-events-none absolute inset-x-8 top-4 z-10 rounded-full bg-white/92 px-4 py-2 text-center text-[12px] font-bold tracking-[0.08em] text-primary shadow-[0_12px_24px_rgba(17,81,255,0.12)]">
+                        Drop to replace with {libraryBlocks.find((block) => block.id === draggingBlock)?.title ?? 'layer'}
+                      </div>
+                    ) : null}
                     <NodeCard
                       node={node}
                       dimensions={nodeDimensions[node.id]}
@@ -733,10 +850,14 @@ export function Canvas({
                         event.dataTransfer.effectAllowed = 'move';
                         event.dataTransfer.setData('application/x-builder-node', node.id);
                         setDraggingNodeId(node.id);
+                        setReplaceTargetId(null);
+                        setTrashHover(false);
                       }}
                       onDragEnd={() => {
                         setDraggingNodeId(null);
                         setHoverIndex(null);
+                        setReplaceTargetId(null);
+                        setTrashHover(false);
                       }}
                     />
                   </div>
@@ -749,20 +870,65 @@ export function Canvas({
           </div>
 
           <div className="flex items-center justify-between border-t border-white/60 px-5 py-3.5">
-            <div className="rounded-full bg-white/80 px-3.5 py-2 text-[12px] font-semibold text-muted shadow-panel">
-              Delete: click the `×` button on the top-right of a block
+            <div className="rounded-full bg-white/80 px-3.5 py-2 text-[13px] font-semibold text-muted shadow-panel">
+              Drag a sidebar block onto an existing card to replace it in place
             </div>
-            <div className="rounded-full bg-[#edf3ff] px-3 py-1.5 text-[12px] font-bold text-primary">
+            <div className="rounded-full bg-[#edf3ff] px-3 py-1.5 text-[13px] font-bold text-primary">
               {nodes.length} blocks
             </div>
           </div>
         </div>
         {draggingBlock || draggingNodeId ? (
-          <div className="pointer-events-none absolute inset-x-5 bottom-5 rounded-2xl border border-dashed border-primary/40 bg-white/80 px-4 py-2.5 text-center text-[13px] font-semibold text-primary backdrop-blur-md">
-            {draggingNodeId
-              ? 'Drag the block handle to reorder it in the stack'
-              : `Drag anywhere on the stack to place ${draggingBlock === 'linear' ? 'Linear Layer' : draggingBlock === 'cnn' ? 'CNN Layer' : draggingBlock === 'pooling' ? 'Pooling Layer' : 'Dropout Layer'}`}
-          </div>
+          <>
+            <div className="pointer-events-none absolute inset-x-5 bottom-5 rounded-2xl border border-dashed border-primary/40 bg-white/80 px-4 py-2.5 text-center text-[14px] font-semibold text-primary backdrop-blur-md">
+              {draggingNodeId
+                ? 'Drag the block handle to reorder it, or drop it on the trash below to delete'
+                : `Drag onto the stack to add ${draggingBlock === 'linear' ? 'Linear Layer' : draggingBlock === 'cnn' ? 'CNN Layer' : draggingBlock === 'pooling' ? 'Pooling Layer' : 'Dropout Layer'}, or onto a card to replace it`}
+            </div>
+            {draggingNodeId ? (
+              <div
+                onDragOver={(event) => {
+                  if (!getDraggedNodeId(event)) {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setTrashHover(true);
+                  setHoverIndex(null);
+                  setReplaceTargetId(null);
+                }}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                    setTrashHover(false);
+                  }
+                }}
+                onDrop={(event) => {
+                  const droppedNodeId = getDraggedNodeId(event);
+                  if (!droppedNodeId) {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setTrashHover(false);
+                  setDraggingNodeId(null);
+                  setHoverIndex(null);
+                  setReplaceTargetId(null);
+                  onRemoveNode(droppedNodeId);
+                }}
+                className={[
+                  'absolute bottom-20 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-full border px-5 py-3 text-[14px] font-bold shadow-[0_18px_40px_rgba(13,27,51,0.14)] transition-all duration-150',
+                  trashHover
+                    ? 'border-[#ef4444] bg-[#fff1f2] text-[#b91c1c] ring-4 ring-[#fecdd3] scale-[1.03]'
+                    : 'border-[#fbcfe8] bg-white/94 text-[#c2416d] backdrop-blur-md',
+                ].join(' ')}
+              >
+                <span className="text-[20px] leading-none">🗑</span>
+                <span>Drop here to delete</span>
+              </div>
+            ) : null}
+          </>
         ) : null}
       </div>
     </main>

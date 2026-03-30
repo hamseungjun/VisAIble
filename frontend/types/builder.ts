@@ -54,6 +54,7 @@ export type TrainingRunResult = {
   datasetId: string;
   epochs: number;
   learningRate: number;
+  batchSize: number;
   optimizer: string;
   trainSize: number;
   validationSize: number;
@@ -70,6 +71,7 @@ export type TrainingJobStatus = {
   datasetId?: string | null;
   epochs?: number | null;
   learningRate?: number | null;
+  batchSize?: number | null;
   optimizer?: string | null;
   trainSize?: number | null;
   validationSize?: number | null;
@@ -124,3 +126,66 @@ export type IconName =
   | 'architecture'
   | 'dropout'
   | 'copy';
+
+export type CompetitionParticipant = {
+  id: number;
+  displayName: string;
+  role: 'host' | 'member';
+  joinedAt: string;
+};
+
+export type CompetitionRoomSession = {
+  roomCode: string;
+  title: string;
+  datasetId: string;
+  hostName: string;
+  hostParticipantId: number;
+  participantId: number;
+  participantName: string;
+  participantRole: 'host' | 'member';
+  startsAt?: string | null;
+  endsAt?: string | null;
+  createdAt: string;
+  isActive: boolean;
+  participants: CompetitionParticipant[];
+  generatedPassword?: string | null;
+};
+
+export type CompetitionLeaderboardEntry = {
+  participantId: number;
+  participantName: string;
+  role: 'host' | 'member';
+  rank: number;
+  publicScore: number;
+  privateScore: number | null;
+  trainAccuracy: number;
+  validationAccuracy: number;
+  optimizer: string;
+  batchSize: number;
+  isBaseline: boolean;
+  submittedAt: string;
+};
+
+export type CompetitionLeaderboard = {
+  roomCode: string;
+  title: string;
+  hostName: string;
+  datasetId: string;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  isActive: boolean;
+  entries: CompetitionLeaderboardEntry[];
+};
+
+export type CompetitionSubmissionResult = {
+  submissionId: number;
+  roomCode: string;
+  participantId: number;
+  participantName: string;
+  isBaseline: boolean;
+  trainAccuracy: number;
+  validationAccuracy: number;
+  publicScore: number;
+  privateScore: number | null;
+  submittedAt: string;
+};

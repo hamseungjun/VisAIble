@@ -11,6 +11,8 @@ type InspectorProps = {
     validationLoss: number[];
     validationAccuracy: number[];
   };
+  showDecisionBoundary?: boolean;
+  showMnistCanvas?: boolean;
 };
 
 const GRAPH_WIDTH = 320;
@@ -196,6 +198,8 @@ function extractMnistPixels(canvas: HTMLCanvasElement) {
 export function Inspector({
   trainingStatus,
   liveHistory = { loss: [], accuracy: [], validationLoss: [], validationAccuracy: [] },
+  showDecisionBoundary = true,
+  showMnistCanvas: allowMnistCanvas = true,
 }: InspectorProps) {
   const safeLiveHistory = {
     loss: liveHistory.loss ?? [],
@@ -335,6 +339,7 @@ export function Inspector({
     ? `${progressEpochCount} / ${trainingStatus.epochs} epochs`
     : '0 / 0 epochs';
   const showMnistCanvas =
+    allowMnistCanvas &&
     trainingStatus?.status === 'completed' &&
     trainingStatus.datasetId === 'mnist' &&
     !!trainingStatus.jobId;
@@ -636,24 +641,26 @@ export function Inspector({
         </div>
       </section>
 
-      <section className="rounded-[22px] bg-panel/80 p-3.5">
-        <div className="mb-3 flex items-center justify-between">
-          <strong className="font-display text-lg font-bold text-ink">Decision Boundary</strong>
-          <span className="text-muted">↗</span>
-        </div>
-        <div className="relative aspect-square overflow-hidden rounded-[18px] bg-white/85">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(194,212,251,0.28),transparent_58%)]" />
-          <div className="absolute inset-6 rounded-[20px] border border-dashed border-[rgba(129,149,188,0.28)] bg-[linear-gradient(180deg,rgba(244,247,255,0.78),rgba(236,241,252,0.48))]" />
-          <div className="absolute inset-x-6 bottom-6 rounded-[16px] bg-white/88 px-3.5 py-3 text-center shadow-[0_10px_24px_rgba(13,27,51,0.06)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
-            <div className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">
-              Frontend Placeholder
-            </div>
-            <div className="mt-2 text-[13px] font-semibold leading-6 text-[#5c6d89]">
-              Decision boundary visualization area
+      {showDecisionBoundary ? (
+        <section className="rounded-[22px] bg-panel/80 p-3.5">
+          <div className="mb-3 flex items-center justify-between">
+            <strong className="font-display text-lg font-bold text-ink">Decision Boundary</strong>
+            <span className="text-muted">↗</span>
+          </div>
+          <div className="relative aspect-square overflow-hidden rounded-[18px] bg-white/85">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(194,212,251,0.28),transparent_58%)]" />
+            <div className="absolute inset-6 rounded-[20px] border border-dashed border-[rgba(129,149,188,0.28)] bg-[linear-gradient(180deg,rgba(244,247,255,0.78),rgba(236,241,252,0.48))]" />
+            <div className="absolute inset-x-6 bottom-6 rounded-[16px] bg-white/88 px-3.5 py-3 text-center shadow-[0_10px_24px_rgba(13,27,51,0.06)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
+              <div className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">
+                Frontend Placeholder
+              </div>
+              <div className="mt-2 text-[13px] font-semibold leading-6 text-[#5c6d89]">
+                Decision boundary visualization area
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      ) : null}
     </aside>
   );
 }

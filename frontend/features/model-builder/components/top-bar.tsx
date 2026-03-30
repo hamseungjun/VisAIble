@@ -12,6 +12,7 @@ import type { CanvasNode, TrainingJobStatus } from '@/types/builder';
 type TopBarProps = {
   learningRate: string;
   epochs: string;
+  batchSize: number;
   optimizer: OptimizerName;
   optimizerParams: OptimizerParams;
   selectedDatasetLabel: string;
@@ -41,11 +42,13 @@ type ActionButton = {
   className: string;
   iconWrapClassName: string;
   wide?: boolean;
+  compact?: boolean;
 };
 
 export function TopBar({
   learningRate,
   epochs,
+  batchSize,
   optimizer,
   optimizerParams,
   selectedDatasetLabel,
@@ -79,7 +82,7 @@ export function TopBar({
     { label: 'Layers', value: `${layerCount}` },
     { label: 'Epochs', value: epochs },
     { label: 'Optimizer', value: optimizer },
-    { label: 'Batch Size', value: '128' },
+    { label: 'Batch Size', value: `${batchSize}` },
     { label: 'Total Parameters', value: totalParameters.toLocaleString() },
   ];
   const trainingState = trainingStatus?.status ?? (isTraining ? 'running' : 'idle');
@@ -116,6 +119,7 @@ export function TopBar({
       className:
         'bg-[#edf3ff] text-primary shadow-[inset_0_0_0_1px_rgba(17,81,255,0.08)]',
       iconWrapClassName: 'bg-white text-primary',
+      compact: true,
     },
     {
       key: 'stop',
@@ -127,6 +131,7 @@ export function TopBar({
       className:
         'bg-[#fff1e8] text-[#c4683b] shadow-[inset_0_0_0_1px_rgba(196,104,59,0.08)]',
       iconWrapClassName: 'bg-white text-[#c4683b]',
+      compact: true,
     },
     {
       key: 'preview',
@@ -138,6 +143,7 @@ export function TopBar({
       className:
         'bg-white text-primary shadow-[inset_0_0_0_1px_rgba(17,81,255,0.08)]',
       iconWrapClassName: 'bg-[#edf3ff] text-primary',
+      compact: true,
     },
     {
       key: 'reset',
@@ -154,9 +160,9 @@ export function TopBar({
   ];
 
   return (
-    <header className="border-b border-line bg-white/80 px-4 py-2.5 backdrop-blur-xl lg:px-5 lg:py-3">
-      <div className="grid gap-2.5 xl:grid-cols-[minmax(280px,1.1fr)_minmax(420px,1.35fr)_minmax(260px,0.95fr)]">
-        <section className="glass-panel ghost-border flex min-w-0 flex-col justify-start gap-2 rounded-[24px] px-5 py-3 shadow-panel">
+    <header className="border-b border-line bg-white/80 px-4 py-3 backdrop-blur-xl lg:px-5 lg:py-3.5 xl:px-[clamp(20px,2vw,32px)] xl:py-[clamp(14px,1.5vw,18px)]">
+      <div className="grid gap-3 xl:justify-center xl:grid-cols-[clamp(340px,24vw,620px)_minmax(0,1fr)_clamp(260px,22vw,440px)] xl:gap-[clamp(10px,1vw,18px)]">
+        <section className="glass-panel ghost-border flex min-w-0 flex-col justify-start gap-[clamp(8px,0.8vw,12px)] rounded-[24px] px-[clamp(16px,1.2vw,20px)] py-[clamp(12px,1vw,16px)] shadow-panel xl:w-full">
           <div className="flex items-start justify-between gap-3">
             <div className="font-display text-[2rem] font-bold tracking-[-0.06em] text-primary">
               VisAIble
@@ -171,16 +177,16 @@ export function TopBar({
             </div>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-[clamp(8px,0.8vw,12px)] sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
             {summaryItems.map((item) => (
               <div
                 key={item.label}
                 className="rounded-[18px] bg-[rgba(17,81,255,0.06)] px-3.5 py-2.5"
               >
-                <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
+                <div className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">
                   {item.label}
                 </div>
-                <div className="mt-1 truncate font-display text-sm font-bold text-ink">
+                <div className="mt-1 break-words font-display text-[15px] font-bold leading-[1.15] text-ink">
                   {item.value}
                 </div>
               </div>
@@ -188,9 +194,9 @@ export function TopBar({
           </div>
         </section>
 
-        <section className="glass-panel ghost-border grid min-w-0 gap-2.5 rounded-[24px] px-4 py-3 shadow-panel sm:grid-cols-2">
-          <div className="rounded-[20px] bg-white/75 px-4 py-2.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
-            <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
+        <section className="glass-panel ghost-border grid min-w-0 gap-[clamp(10px,0.9vw,14px)] rounded-[24px] px-[clamp(16px,1.2vw,20px)] py-[clamp(12px,1vw,16px)] shadow-panel sm:grid-cols-2 xl:w-full">
+          <div className="rounded-[20px] bg-white/75 px-4 py-[clamp(10px,0.9vw,12px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">
               Learning Rate
             </span>
             <div className="mt-2.5 flex items-center gap-3">
@@ -203,16 +209,16 @@ export function TopBar({
                 onChange={(event) =>
                   onLearningRateChange(learningRates[Number(event.target.value)] ?? learningRates[0])
                 }
-                className="h-1 w-full max-w-[280px] accent-primary"
+                className="h-1 w-full max-w-[clamp(260px,34vw,420px)] accent-primary"
               />
-              <code className="block min-w-[72px] text-right font-display text-xs font-bold tabular-nums text-primary">
+              <code className="block min-w-[78px] text-right font-display text-[13px] font-bold tabular-nums text-primary">
                 {learningRate}
               </code>
             </div>
           </div>
 
-          <div className="rounded-[20px] bg-white/75 px-4 py-2.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
-            <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
+          <div className="rounded-[20px] bg-white/75 px-4 py-[clamp(10px,0.9vw,12px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">
               {optimizerField.label}
             </span>
             <div className="mt-2.5 flex items-center gap-3">
@@ -228,25 +234,25 @@ export function TopBar({
                     optimizerField.values[Number(event.target.value)] ?? optimizerField.values[0],
                   )
                 }
-                className="h-1 w-full max-w-[280px] accent-primary"
+                className="h-1 w-full max-w-[clamp(260px,34vw,420px)] accent-primary"
               />
-              <code className="block min-w-[72px] text-right font-display text-xs font-bold tabular-nums text-primary">
+              <code className="block min-w-[78px] text-right font-display text-[13px] font-bold tabular-nums text-primary">
                 {optimizerParams[optimizerField.key]}
               </code>
             </div>
           </div>
 
-          <div className="rounded-[20px] bg-white/75 px-4 py-2.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)] sm:col-span-2">
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,280px)_140px]">
+          <div className="rounded-[20px] bg-white/75 px-4 py-[clamp(10px,0.9vw,12px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)] sm:col-span-2">
+            <div className="grid max-w-[clamp(500px,58vw,760px)] gap-3 lg:grid-cols-[clamp(280px,34vw,440px)_clamp(150px,18vw,220px)]">
               <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
+                <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">
                   Optimizer
                 </span>
-                <div className="relative mt-2.5 max-w-[280px]">
+                <div className="relative mt-2.5 max-w-[clamp(280px,34vw,440px)]">
                   <select
                     value={optimizer}
                     onChange={(event) => onOptimizerChange(event.target.value as OptimizerName)}
-                    className="w-full appearance-none rounded-[14px] border border-line bg-white/80 px-3 py-2.5 pr-9 font-display text-sm font-bold text-primary outline-none transition-colors focus:border-primary"
+                    className="w-full appearance-none rounded-[14px] border border-line bg-white/80 px-3 py-2.5 pr-9 font-display text-[15px] font-bold text-primary outline-none transition-colors focus:border-primary"
                   >
                     {optimizerOrder.map((option) => (
                       <option key={option} value={option}>
@@ -262,7 +268,7 @@ export function TopBar({
               </div>
 
               <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
+                <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">
                   Epochs
                 </span>
                 <input
@@ -271,14 +277,14 @@ export function TopBar({
                   max={50}
                   value={epochs}
                   onChange={(event) => onEpochChange(event.target.value)}
-                  className="mt-2.5 w-full rounded-[14px] border border-line bg-white/80 px-3 py-2.5 font-display text-sm font-bold text-primary outline-none transition-colors focus:border-primary"
+                  className="mt-2.5 w-full rounded-[14px] border border-line bg-white/80 px-3 py-2.5 font-display text-[15px] font-bold text-primary outline-none transition-colors focus:border-primary"
                 />
               </div>
             </div>
           </div>
         </section>
 
-        <section className="glass-panel ghost-border flex min-w-0 flex-col gap-2 rounded-[24px] px-4 py-3 shadow-panel">
+        <section className="glass-panel ghost-border flex min-w-0 flex-col gap-[clamp(8px,0.8vw,12px)] rounded-[24px] px-[clamp(14px,1.1vw,18px)] py-[clamp(12px,1vw,16px)] shadow-panel xl:w-full">
           <div className="relative mb-0.5 flex items-center justify-between px-1">
             <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
               Quick Actions
@@ -301,26 +307,29 @@ export function TopBar({
                 onClick={action.onClick}
                 disabled={action.disabled}
                 className={[
-                  'group flex items-center gap-3 rounded-[18px] px-3.5 py-3 text-left transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50',
+                  'group flex items-center gap-3 rounded-[18px] px-3.5 text-left transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 xl:px-4',
+                  action.compact ? 'py-2.5 xl:py-3' : 'py-3 xl:py-3.5',
                   action.wide ? 'sm:col-span-2 xl:col-span-2' : '',
                   action.className,
                 ].join(' ')}
               >
                 <span
                   className={[
-                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.08)]',
+                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.08)] xl:h-10 xl:w-10',
                     action.iconWrapClassName,
                   ].join(' ')}
                 >
-                  <Icon name={action.icon} className="h-5 w-5 shrink-0" />
+                  <Icon name={action.icon} className="h-5 w-5 shrink-0 xl:h-[22px] xl:w-[22px]" />
                 </span>
                 <span className="min-w-0">
-                  <span className="block font-display text-sm font-bold leading-none">
+                  <span className="block font-display text-[15px] font-bold leading-none xl:text-base">
                     {action.label}
                   </span>
-                  <span className="mt-1 block text-[11px] font-semibold leading-none opacity-70">
-                    {action.hint}
-                  </span>
+                  {action.compact ? null : (
+                    <span className="mt-1 block text-[12px] font-semibold leading-none opacity-70 xl:text-[12.5px]">
+                      {action.hint}
+                    </span>
+                  )}
                 </span>
               </button>
             ))}
