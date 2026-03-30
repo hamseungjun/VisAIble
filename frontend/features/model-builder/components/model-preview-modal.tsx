@@ -349,6 +349,114 @@ function figureSizeForShape(shape: string, kind: ArchitectureStep['kind']): Figu
   };
 }
 
+function formatShapeForBadge(shape: string) {
+  return shape.replaceAll(' x ', 'x');
+}
+
+function describeStepRole(step: ArchitectureStep) {
+  if (step.kind === 'input') {
+    return 'Raw input';
+  }
+
+  if (step.kind === 'cnn') {
+    return 'Feature extractor';
+  }
+
+  if (step.kind === 'pooling') {
+    return 'Spatial compression';
+  }
+
+  if (step.kind === 'flatten') {
+    return 'Vectorization';
+  }
+
+  if (step.kind === 'dropout') {
+    return 'Regularization';
+  }
+
+  return step.isOutput ? 'Final classifier' : 'Dense projection';
+}
+
+function describeShapeTransition(step: ArchitectureStep) {
+  const inputDims = parseDims(step.inShape);
+  const outputDims = parseDims(step.outShape);
+
+  if (step.kind === 'cnn') {
+    const inputChannels = inputDims[0] ?? 1;
+    const outputChannels = outputDims[0] ?? 1;
+    const outputHeight = outputDims[1] ?? 1;
+    const outputWidth = outputDims[2] ?? 1;
+    return `${inputChannels}ch -> ${outputChannels}ch, ${outputHeight}x${outputWidth} map`;
+  }
+
+  if (step.kind === 'pooling') {
+    const inputHeight = inputDims[1] ?? 1;
+    const inputWidth = inputDims[2] ?? 1;
+    const outputHeight = outputDims[1] ?? 1;
+    const outputWidth = outputDims[2] ?? 1;
+    return `${inputHeight}x${inputWidth} -> ${outputHeight}x${outputWidth}`;
+  }
+
+  if (step.kind === 'flatten') {
+    return `${inputDims.join('x')} -> vector ${step.outShape}`;
+  }
+
+  if (step.kind === 'dropout') {
+    return 'Keeps shape, drops random activations';
+  }
+
+  if (step.kind === 'linear') {
+    const outputFeatures = outputDims[0] ?? 1;
+    return step.isOutput ? `${outputFeatures} class logits` : `${outputFeatures} hidden features`;
+  }
+
+  return formatShapeForBadge(step.outShape);
+}
+
+function describeStepArtifact(step: ArchitectureStep) {
+  if (step.kind === 'input') {
+    return 'Image tensor';
+  }
+
+  if (step.kind === 'cnn') {
+    return 'Feature map';
+  }
+
+  if (step.kind === 'pooling') {
+    return 'Compressed map';
+  }
+
+  if (step.kind === 'flatten') {
+    return 'Feature vector';
+  }
+
+  if (step.kind === 'dropout') {
+    return 'Masked activations';
+  }
+
+  return step.isOutput ? 'Class logits' : 'Hidden vector';
+}
+
+function describeConnectorAction(nextStep: ArchitectureStep) {
+  if (nextStep.kind === 'cnn') {
+    return 'extract features';
+  }
+
+  if (nextStep.kind === 'pooling') {
+    return 'downsample';
+  }
+
+  if (nextStep.kind === 'flatten') {
+    return 'flatten';
+  }
+
+  if (nextStep.kind === 'dropout') {
+    return 'regularize';
+  }
+
+  return nextStep.isOutput ? 'classify' : 'project';
+}
+
 function LayerFigure({ step, index }: { step: ArchitectureStep; index: number }) {
   const colors = stepColors(step.accent, step.isOutput);
   const size = figureSizeForShape(step.outShape, step.kind);
@@ -361,12 +469,15 @@ function LayerFigure({ step, index }: { step: ArchitectureStep; index: number })
         : 1;
 
   return (
-    <div className="flex w-[180px] shrink-0 flex-col items-center">
+    <div className="flex w-[200px] shrink-0 flex-col items-center">
       <div className="rounded-full bg-[#eef3ff] px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#5b6f95]">
         Layer {index + 1}
       </div>
-      <div className="mt-3 text-center font-display text-[15px] font-bold text-ink">{step.title}</div>
+      <div className="mt-3 text-center font-display text-[16px] font-bold text-ink">{step.title}</div>
       <div className="mt-1 text-center text-[11px] font-semibold text-[#6f86ad]">{step.subtitle}</div>
+      <div className="mt-2 rounded-full border border-[rgba(129,149,188,0.16)] bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#58708f]">
+        {describeStepRole(step)}
+      </div>
 
       <div className={['mt-3 rounded-full px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em]', colors.chip].join(' ')}>
         {step.opLabel}
@@ -436,6 +547,10 @@ function LayerFigure({ step, index }: { step: ArchitectureStep; index: number })
       </div>
 
       <div className="mt-4 grid w-full gap-2">
+        <div className="rounded-[16px] border border-[rgba(129,149,188,0.12)] bg-[#f8fbff] px-3 py-2 text-center">
+          <div className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-muted">Produces</div>
+          <div className="mt-1 text-[11px] font-semibold text-[#42597a]">{describeStepArtifact(step)}</div>
+        </div>
         <div className="rounded-[16px] border border-[rgba(129,149,188,0.12)] bg-white/90 px-3 py-2 text-center">
           <div className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-muted">Input</div>
           <div className="mt-1 font-mono text-[11px] text-[#41536f]">{step.inShape}</div>
@@ -444,14 +559,21 @@ function LayerFigure({ step, index }: { step: ArchitectureStep; index: number })
           <div className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-muted">Output</div>
           <div className="mt-1 font-mono text-[11px] text-[#41536f]">{step.outShape}</div>
         </div>
+        <div className="rounded-[16px] border border-[rgba(129,149,188,0.12)] bg-[#f7f9fc] px-3 py-2 text-center">
+          <div className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-muted">Meaning</div>
+          <div className="mt-1 text-[11px] font-semibold text-[#4b5f80]">{describeShapeTransition(step)}</div>
+        </div>
       </div>
     </div>
   );
 }
 
-function FigureConnector() {
+function FigureConnector({ action }: { action: string }) {
   return (
-    <div className="flex w-[72px] shrink-0 items-center justify-center pt-[88px]">
+    <div className="flex w-[96px] shrink-0 flex-col items-center justify-center gap-2 pt-[78px]">
+      <div className="rounded-full border border-[rgba(129,149,188,0.12)] bg-white px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-[#7086aa]">
+        {action}
+      </div>
       <div className="relative h-[2px] w-full bg-[rgba(129,149,188,0.28)]">
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t border-dashed border-[rgba(129,149,188,0.4)]" />
         <div className="absolute right-[-2px] top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-45 border-r-2 border-t-2 border-[rgba(129,149,188,0.52)] bg-transparent" />
@@ -576,7 +698,7 @@ export function ModelPreviewModal({
                   <div>
                     <div className="font-display text-xl font-bold text-ink">Architecture Flow</div>
                     <div className="text-sm text-muted">
-                      Paper-style network diagram with explicit operator labels and tensor transitions.
+                      Scan left to right. Each card shows the layer role, its output, and how the tensor changes.
                     </div>
                   </div>
                   <div className="rounded-full border border-[rgba(129,149,188,0.14)] bg-white px-4 py-2 text-xs font-extrabold uppercase tracking-[0.16em] text-primary">
@@ -590,7 +712,9 @@ export function ModelPreviewModal({
                       {steps.map((step, index) => (
                         <div key={step.id} className="flex items-start">
                           <LayerFigure step={step} index={index} />
-                          {index !== steps.length - 1 ? <FigureConnector /> : null}
+                          {index !== steps.length - 1 ? (
+                            <FigureConnector action={describeConnectorAction(steps[index + 1])} />
+                          ) : null}
                         </div>
                       ))}
                     </div>
@@ -619,7 +743,7 @@ export function ModelPreviewModal({
               <section className="rounded-[28px] border border-[rgba(129,149,188,0.14)] bg-white p-5 shadow-[0_16px_32px_rgba(13,27,51,0.05)]">
                 <div className="font-display text-xl font-bold text-ink">Layer Summary</div>
                 <div className="mt-1 text-sm text-muted">
-                  Final linear layer must match the dataset class count and output raw logits.
+                  Read top to bottom to see how the model transforms the input into class logits.
                 </div>
 
                 <div className="mt-5 grid gap-3">
@@ -641,6 +765,9 @@ export function ModelPreviewModal({
                         <div className="mt-2 text-[12px] font-semibold text-[#5d6f8f]">{step.subtitle}</div>
                         <div className="mt-2 font-mono text-sm text-[#3b4b67]">
                           {step.inShape} {'->'} {step.outShape}
+                        </div>
+                        <div className="mt-2 text-[12px] font-semibold text-[#4a5f80]">
+                          {describeStepRole(step)} · {describeShapeTransition(step)}
                         </div>
                       </div>
                     );

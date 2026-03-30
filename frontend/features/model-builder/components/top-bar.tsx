@@ -31,6 +31,18 @@ type TopBarProps = {
   onReset: () => void;
 };
 
+type ActionButton = {
+  key: 'start' | 'pause' | 'stop' | 'preview' | 'reset';
+  label: string;
+  hint: string;
+  icon: 'play' | 'rocket' | 'pause' | 'stop' | 'architecture' | 'reset';
+  onClick: () => void;
+  disabled: boolean;
+  className: string;
+  iconWrapClassName: string;
+  wide?: boolean;
+};
+
 export function TopBar({
   learningRate,
   epochs,
@@ -82,7 +94,7 @@ export function TopBar({
   const statusLabel = trainingState === 'failed' ? 'error' : trainingState;
   const primaryTrainingLabel =
     trainingState === 'paused' ? 'Resume' : isTraining ? 'Running' : 'Start';
-  const actionButtons = [
+  const actionButtons: ActionButton[] = [
     {
       key: 'start',
       label: primaryTrainingLabel,
@@ -139,7 +151,7 @@ export function TopBar({
       iconWrapClassName: 'bg-white/85 text-navy',
       wide: true,
     },
-  ] as const;
+  ];
 
   return (
     <header className="border-b border-line bg-white/80 px-4 py-2.5 backdrop-blur-xl lg:px-5 lg:py-3">
@@ -296,11 +308,11 @@ export function TopBar({
               >
                 <span
                   className={[
-                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px]',
+                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.08)]',
                     action.iconWrapClassName,
                   ].join(' ')}
                 >
-                  <Icon name={action.icon} className="h-4.5 w-4.5" />
+                  <Icon name={action.icon} className="h-5 w-5 shrink-0" />
                 </span>
                 <span className="min-w-0">
                   <span className="block font-display text-sm font-bold leading-none">
