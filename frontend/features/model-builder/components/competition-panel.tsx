@@ -49,7 +49,7 @@ function formatDateValue(date: Date) {
 
 function formatDateLabel(value: string) {
   if (!value) {
-    return '날짜 선택';
+    return 'Select date';
   }
 
   const [year, month, day] = value.split('-');
@@ -60,16 +60,12 @@ function formatMonthLabel(date: Date) {
   return `${date.getFullYear()}. ${date.getMonth() + 1}`;
 }
 
-function toKstIso(date: Date) {
-  const utcTime = date.getTime() + date.getTimezoneOffset() * 60_000;
-  const kstDate = new Date(utcTime + 9 * 60 * 60 * 1000);
-  const year = kstDate.getUTCFullYear();
-  const month = `${kstDate.getUTCMonth() + 1}`.padStart(2, '0');
-  const day = `${kstDate.getUTCDate()}`.padStart(2, '0');
-  const hours = `${kstDate.getUTCHours()}`.padStart(2, '0');
-  const minutes = `${kstDate.getUTCMinutes()}`.padStart(2, '0');
-  const seconds = `${kstDate.getUTCSeconds()}`.padStart(2, '0');
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+09:00`;
+function toCompetitionDeadline(dateValue: string) {
+  if (!dateValue) {
+    return null;
+  }
+
+  return new Date(`${dateValue}T15:00:00`);
 }
 
 function isSameDay(date: Date, value: string) {
@@ -103,7 +99,9 @@ function buildCalendar(date: Date) {
 }
 
 const formInputClassName =
-  'w-full rounded-[16px] border border-[rgba(129,149,188,0.2)] bg-[linear-gradient(180deg,#ffffff,#f8fbff)] px-4 py-3 font-semibold text-ink outline-none transition-colors focus:border-primary focus:bg-white';
+  'w-full rounded-[16px] border border-[#d6e1f0] bg-white px-4 py-3 text-[14px] font-semibold text-[#12233d] outline-none transition focus:border-[#3b82f6] focus:shadow-[0_0_0_4px_rgba(59,130,246,0.12)]';
+const fieldLabelClassName =
+  'text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#71839d]';
 const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const competitionDatasets = datasets.map((dataset) => ({ id: dataset.id, label: dataset.label }));
 
@@ -127,343 +125,482 @@ export function CompetitionPanel({
 
   const helperText = useMemo(() => {
     if (mode === 'make') {
-      return '호스트는 시스템이 생성한 방 비밀번호를 공유하고, 학생은 첫 입장 때 자기 비밀번호를 만든 뒤 다음부터 그 비밀번호로 다시 들어옵니다.';
+      return 'Host creates a private competition room, shares the invite code, and students submit their best training runs to the leaderboard.';
     }
     if (mode === 'enter') {
-      return '호스트는 방 비밀번호로 들어오고, 학생은 첫 입장 때 만든 개인 비밀번호로 다시 들어옵니다.';
+      return 'Join an existing room with the invite code. Hosts use the room password, members keep their personal password for future logins.';
     }
-    return '대회 방을 만들거나 입장합니다.';
+    return 'Create a clean, deadline-based competition room or jump into an existing leaderboard.';
   }, [mode]);
 
+  const selectedDatasetLabel =
+    competitionDatasets.find((dataset) => dataset.id === datasetId)?.label ?? datasetId;
+  const selectedDeadline = endsAt ? toCompetitionDeadline(endsAt) : null;
+  const isDeadlineExpired = selectedDeadline ? selectedDeadline.getTime() <= Date.now() : false;
+  const scheduleWarning = isDeadlineExpired
+    ? 'Selected end date already passed 15:00 in your local time. Please choose a later date.'
+    : null;
+
   return (
-    <section className="glass-panel ghost-border xl:col-span-2 flex min-h-[720px] flex-col gap-6 rounded-[28px] px-6 py-6 shadow-panel">
-      <div className="max-w-[760px]">
-          <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-muted">
+    <section className="xl:col-span-2 flex min-h-[720px] flex-col gap-6 rounded-[28px] border border-[#dbe5f1] bg-[#f7fafe] px-6 py-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_320px]">
+        <div className="overflow-hidden rounded-[28px] border border-[#d5e3f2] bg-[linear-gradient(135deg,#0f172a,#173968_48%,#2563eb)] px-6 py-6 text-white shadow-[0_30px_80px_rgba(15,23,42,0.22)]">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/82">
+            <Icon name="grid" className="h-4 w-4" />
             Competition
           </div>
-          <div className="mt-2 font-display text-[34px] font-bold tracking-[-0.05em] text-ink">
-            Private Room Builder
+          <h1 className="mt-4 max-w-[560px] font-display text-[34px] font-bold tracking-[-0.05em]">
+            Kaggle-style private competitions for model building sessions.
+          </h1>
+          <p className="mt-3 max-w-[620px] text-[15px] leading-7 text-white/78">{helperText}</p>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-[20px] border border-white/12 bg-white/10 px-4 py-4 backdrop-blur">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/60">
+                Format
+              </div>
+              <div className="mt-2 text-[18px] font-bold">Hidden leaderboard</div>
+              <div className="mt-1 text-[12px] text-white/70">
+                Public score for players, private score for hosts.
+              </div>
+            </div>
+            <div className="rounded-[20px] border border-white/12 bg-white/10 px-4 py-4 backdrop-blur">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/60">
+                Access
+              </div>
+              <div className="mt-2 text-[18px] font-bold">Invite only</div>
+              <div className="mt-1 text-[12px] text-white/70">
+                Room code and password keep each classroom isolated.
+              </div>
+            </div>
+            <div className="rounded-[20px] border border-white/12 bg-white/10 px-4 py-4 backdrop-blur">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/60">
+                Deadline
+              </div>
+              <div className="mt-2 text-[18px] font-bold">{endsAt ? formatDateLabel(endsAt) : 'Open now'}</div>
+              <div className="mt-1 text-[12px] text-white/70">
+                End time is fixed to 15:00 for consistent submissions.
+              </div>
+            </div>
           </div>
-          <p className="mt-3 text-[15px] leading-7 text-[#5a6b86]">{helperText}</p>
+        </div>
+
+        <aside className="grid gap-3 rounded-[28px] border border-[#dbe5f1] bg-white px-5 py-5 shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
+          <div>
+            <div className={fieldLabelClassName}>Competition guide</div>
+            <div className="mt-2 font-display text-[24px] font-bold tracking-[-0.04em] text-[#10213b]">
+              Quick setup
+            </div>
+          </div>
+          <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4">
+            <div className="text-[12px] font-extrabold uppercase tracking-[0.16em] text-[#3b82f6]">
+              1. Create or join
+            </div>
+            <div className="mt-1 text-[13px] leading-6 text-[#52627a]">
+              Start a room as host or enter with an invite code.
+            </div>
+          </div>
+          <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4">
+            <div className="text-[12px] font-extrabold uppercase tracking-[0.16em] text-[#3b82f6]">
+              2. Train models
+            </div>
+            <div className="mt-1 text-[13px] leading-6 text-[#52627a]">
+              Build architectures, run training, and keep the best run selected.
+            </div>
+          </div>
+          <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4">
+            <div className="text-[12px] font-extrabold uppercase tracking-[0.16em] text-[#3b82f6]">
+              3. Submit leaderboard score
+            </div>
+            <div className="mt-1 text-[13px] leading-6 text-[#52627a]">
+              Members see public rank, hosts can inspect the private board.
+            </div>
+          </div>
+        </aside>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <button
-          type="button"
-          onClick={() => setMode('make')}
-          className={[
-            'rounded-[26px] px-6 py-6 text-left transition-all',
-            mode === 'make'
-              ? 'bg-[linear-gradient(135deg,#1151ff,#2d66ff)] text-white shadow-[0_24px_54px_rgba(17,81,255,0.2)]'
-              : 'bg-white/84 text-ink shadow-[0_16px_34px_rgba(13,27,51,0.06)]',
-          ].join(' ')}
-        >
-          <div className="flex items-center gap-4">
-            <div className="grid h-12 w-12 place-items-center rounded-[18px] bg-white/15">
-              <Icon name="rocket" className="h-6 w-6" />
-            </div>
-            <div>
-              <div className="font-display text-[24px] font-bold">Make Competition</div>
-              <div className={mode === 'make' ? 'text-white/75' : 'text-[#61738f]'}>
-                방 생성
-              </div>
-            </div>
-          </div>
-        </button>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-[#dbe5f1] bg-white px-4 py-4 shadow-[0_14px_32px_rgba(15,23,42,0.05)]">
+        <div className="flex flex-wrap gap-2">
+          {[
+            {
+              key: 'make',
+              title: 'Create competition',
+              description: 'New private room',
+              icon: 'rocket' as const,
+            },
+            {
+              key: 'enter',
+              title: 'Join competition',
+              description: 'Use room code',
+              icon: 'check' as const,
+            },
+          ].map((option) => {
+            const active = mode === option.key;
 
-        <button
-          type="button"
-          onClick={() => setMode('enter')}
-          className={[
-            'rounded-[26px] px-6 py-6 text-left transition-all',
-            mode === 'enter'
-              ? 'bg-[linear-gradient(135deg,#1151ff,#2d66ff)] text-white shadow-[0_24px_54px_rgba(17,81,255,0.2)]'
-              : 'bg-white/84 text-ink shadow-[0_16px_34px_rgba(13,27,51,0.06)]',
-          ].join(' ')}
-        >
-          <div className="flex items-center gap-4">
-            <div className="grid h-12 w-12 place-items-center rounded-[18px] bg-white/15">
-              <Icon name="check" className="h-6 w-6" />
-            </div>
-            <div>
-              <div className="font-display text-[24px] font-bold">Enter Room</div>
-              <div className={mode === 'enter' ? 'text-white/75' : 'text-[#61738f]'}>
-                방 입장
-              </div>
-            </div>
-          </div>
-        </button>
+            return (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => setMode(option.key)}
+                className={[
+                  'min-w-[220px] rounded-[18px] border px-4 py-4 text-left transition',
+                  active
+                    ? 'border-[#bfdbfe] bg-[#eff6ff] shadow-[0_12px_28px_rgba(59,130,246,0.12)]'
+                    : 'border-[#e4ecf5] bg-[#fbfdff] hover:border-[#c6d6ea]',
+                ].join(' ')}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={[
+                      'grid h-11 w-11 place-items-center rounded-[14px]',
+                      active ? 'bg-[#2563eb] text-white' : 'bg-[#eef4fb] text-[#2563eb]',
+                    ].join(' ')}
+                  >
+                    <Icon name={option.icon} className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="font-display text-[20px] font-bold text-[#10213b]">{option.title}</div>
+                    <div className="text-[12px] font-semibold text-[#6d7d94]">{option.description}</div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <div className="rounded-full bg-[#f5f8fd] px-4 py-2 text-[12px] font-semibold text-[#5e6d84]">
+          Host baseline is recorded on the first submission.
+        </div>
       </div>
 
       {error ? (
-        <div className="rounded-[20px] bg-[#fff1f1] px-5 py-4 text-[14px] font-semibold text-[#b42318] shadow-[inset_0_0_0_1px_rgba(220,38,38,0.14)]">
+        <div className="rounded-[20px] border border-[#f5c2c7] bg-[#fff5f5] px-5 py-4 text-[14px] font-semibold text-[#b42318]">
           {error}
         </div>
       ) : null}
 
+      {scheduleWarning ? (
+        <div className="rounded-[20px] border border-[#fed7aa] bg-[#fff7ed] px-5 py-4 text-[14px] font-semibold text-[#c2410c]">
+          {scheduleWarning}
+        </div>
+      ) : null}
+
       {mode === 'make' ? (
-        <div className="grid gap-4 rounded-[28px] bg-white/84 px-6 py-6 shadow-[0_20px_48px_rgba(13,27,51,0.06)] xl:grid-cols-2">
-          <label className="grid gap-2">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">Host Name</span>
-            <input
-              value={hostName}
-              onChange={(event) => setHostName(event.target.value)}
-              className={`${formInputClassName} font-display text-[15px] font-bold`}
-            />
-          </label>
-          <label className="grid gap-2">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">Competition Title</span>
-            <input
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              className={`${formInputClassName} font-display text-[15px] font-bold`}
-            />
-          </label>
-          <label className="grid gap-2 xl:col-span-2">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">Dataset</span>
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {competitionDatasets.map((dataset) => (
-                <button
-                  key={dataset.id}
-                  type="button"
-                  onClick={() => setDatasetId(dataset.id)}
-                  className={[
-                    'rounded-[18px] px-4 py-3 text-left transition-colors',
-                    datasetId === dataset.id
-                      ? 'bg-[linear-gradient(135deg,#1151ff,#2d66ff)] text-white shadow-[0_18px_40px_rgba(17,81,255,0.16)]'
-                      : 'bg-[#f5f8ff] text-[#41526d]',
-                  ].join(' ')}
-                >
-                  <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] opacity-70">
-                    Dataset
-                  </div>
-                  <div className="mt-1 font-display text-[15px] font-bold">{dataset.label}</div>
-                </button>
-              ))}
-            </div>
-          </label>
-          <label className="grid gap-2">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">Room Code</span>
-            <div className="flex gap-2">
-              <input
-                value={roomCode}
-                onChange={(event) => setRoomCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12))}
-                className={`${formInputClassName} flex-1 font-display text-[16px] font-bold uppercase tracking-[0.12em] text-primary`}
-              />
-              <button
-                type="button"
-                onClick={() => setRoomCode(makeRandomCode())}
-                className="rounded-[16px] bg-[#eef3ff] px-4 py-3 text-[12px] font-extrabold uppercase tracking-[0.14em] text-primary"
-              >
-                Generate
-              </button>
-            </div>
-          </label>
-          <label className="grid gap-2">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">Password</span>
-            <div className="flex gap-2">
-              <div
-                className={`${formInputClassName} flex-1 font-display text-[16px] font-bold tracking-[0.08em] text-primary`}
-              >
-                {password}
-              </div>
-              <button
-                type="button"
-                onClick={() => setPassword(makeRandomPassword())}
-                className="rounded-[16px] bg-[#eef3ff] px-4 py-3 text-[12px] font-extrabold uppercase tracking-[0.14em] text-primary"
-              >
-                Generate
-              </button>
-            </div>
-            <div className="text-[12px] font-semibold text-[#667995]">
-              이 비밀번호는 호스트 재입장용 방 비밀번호입니다. 학생은 첫 입장 때 자기 비밀번호를 직접 만들고 다음부터 그 비밀번호로 다시 들어옵니다.
-            </div>
-          </label>
-          <div className="grid gap-2 xl:col-span-2">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">
-              Competition End Date
-            </span>
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-              <div className="rounded-[20px] bg-[linear-gradient(135deg,#eef3ff,#e7f0ff)] px-5 py-4 text-left shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)] text-primary">
-                <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
-                  Starts Now
-                </div>
-                <div className="mt-2 font-display text-[22px] font-bold">
-                  지금 시작
-                </div>
-                <div className="mt-1 text-[12px] font-semibold text-[#667995]">
-                  호스트 시스템 시간 기준
-                </div>
-              </div>
-              <button
-                type="button"
-                className={[
-                  'rounded-[20px] px-5 py-4 text-left shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)] transition-colors',
-                  'bg-[linear-gradient(135deg,#eef3ff,#e7f0ff)] text-primary',
-                ].join(' ')}
-              >
-                <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
-                  Check-out
-                </div>
-                <div className="mt-2 font-display text-[22px] font-bold">
-                  {formatDateLabel(endsAt)}
-                </div>
-                <div className="mt-1 text-[12px] font-semibold text-[#667995]">
-                  15:00 종료
-                </div>
-              </button>
-            </div>
-          </div>
-
-          <div className="xl:col-span-2 rounded-[24px] bg-[linear-gradient(180deg,#fbfdff,#f5f8ff)] px-5 py-5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
-                  End Date
-                </div>
-                <div className="mt-1 text-[14px] font-semibold text-[#61738f]">
-                  종료 날짜만 고르면 됩니다. 종료 시간은 15:00으로 고정됩니다.
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCalendarMonth((current) => addMonths(current, -1))}
-                  className="rounded-full bg-white px-3 py-2 text-[12px] font-extrabold uppercase tracking-[0.14em] text-primary shadow-[0_10px_22px_rgba(13,27,51,0.05)]"
-                >
-                  Prev
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCalendarMonth((current) => addMonths(current, 1))}
-                  className="rounded-full bg-white px-3 py-2 text-[12px] font-extrabold uppercase tracking-[0.14em] text-primary shadow-[0_10px_22px_rgba(13,27,51,0.05)]"
-                >
-                  Next
-                </button>
-              </div>
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_320px]">
+          <div className="grid gap-5 rounded-[28px] border border-[#dbe5f1] bg-white px-6 py-6 shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2">
+                <span className={fieldLabelClassName}>Host name</span>
+                <input
+                  value={hostName}
+                  onChange={(event) => setHostName(event.target.value)}
+                  className={`${formInputClassName} font-display text-[15px] font-bold`}
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className={fieldLabelClassName}>Competition title</span>
+                <input
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  className={`${formInputClassName} font-display text-[15px] font-bold`}
+                />
+              </label>
             </div>
 
-            <div className="mx-auto w-full max-w-[560px] rounded-[20px] bg-white/88 px-4 py-4 shadow-[0_16px_34px_rgba(13,27,51,0.05)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
-              <div className="mb-3 font-display text-[18px] font-bold text-ink">
-                {formatMonthLabel(calendarMonth)}
-              </div>
+            <div className="grid gap-2">
+              <div className={fieldLabelClassName}>Dataset</div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {competitionDatasets.map((dataset) => {
+                  const active = datasetId === dataset.id;
 
-              <div className="mb-2 grid grid-cols-7 gap-1.5">
-                {weekdayLabels.map((label) => (
-                  <div
-                    key={`${calendarMonth.getMonth()}-${label}`}
-                    className="text-center text-[9px] font-extrabold uppercase tracking-[0.12em] text-muted"
-                  >
-                    {label}
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-1.5">
-                {buildCalendar(calendarMonth).map((cell) => {
-                  const isEnd = cell.dateValue ? isSameDay(new Date(cell.dateValue), endsAt) : false;
-
-                  return cell.day == null ? (
-                    <div key={cell.key} className="aspect-square rounded-[12px] bg-transparent" />
-                  ) : (
+                  return (
                     <button
-                      key={cell.key}
+                      key={dataset.id}
                       type="button"
-                      onClick={() => {
-                        if (!cell.dateValue) {
-                          return;
-                        }
-                        setEndsAt(cell.dateValue);
-                      }}
+                      onClick={() => setDatasetId(dataset.id)}
                       className={[
-                        'aspect-square rounded-[12px] text-center font-display text-[13px] font-bold transition-all',
-                        isEnd
-                          ? 'bg-[linear-gradient(135deg,#1151ff,#2d66ff)] text-white shadow-[0_12px_26px_rgba(17,81,255,0.18)]'
-                          : 'bg-[#f7faff] text-[#41526d] hover:bg-[#eaf1ff]',
+                        'rounded-[20px] border px-4 py-4 text-left transition',
+                        active
+                          ? 'border-[#bfdbfe] bg-[#eff6ff] shadow-[0_14px_30px_rgba(59,130,246,0.12)]'
+                          : 'border-[#e4ecf5] bg-[#fbfdff] hover:border-[#c6d6ea]',
                       ].join(' ')}
                     >
-                      {cell.day}
+                      <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">
+                        Dataset
+                      </div>
+                      <div className="mt-2 font-display text-[17px] font-bold text-[#10213b]">
+                        {dataset.label}
+                      </div>
+                      <div className="mt-1 text-[12px] text-[#61738b]">
+                        {active ? 'Selected for this leaderboard' : 'Use for all competition runs'}
+                      </div>
                     </button>
                   );
                 })}
               </div>
             </div>
-          </div>
 
-          <div className="xl:col-span-2 flex items-center justify-between gap-4 rounded-[20px] bg-[#f5f8ff] px-5 py-4">
-            <div>
-              <div className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">Room Policy</div>
-              <div className="mt-1 text-[14px] text-[#5b6d88]">
-                호스트의 첫 제출은 baseline으로 기록됩니다.
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="grid content-start gap-2 self-start">
+                <span className={fieldLabelClassName}>Room code</span>
+                <div className="grid grid-cols-[minmax(0,1fr)_112px] gap-2">
+                  <input
+                    value={roomCode}
+                    onChange={(event) =>
+                      setRoomCode(
+                        event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12),
+                      )
+                    }
+                    className={`${formInputClassName} h-[50px] flex-1 py-0 font-display text-[16px] font-bold uppercase leading-none tracking-[0.14em] text-[#2563eb]`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setRoomCode(makeRandomCode())}
+                    className="h-[50px] rounded-[16px] border border-[#dbe5f1] bg-[#f8fbff] px-4 py-3 text-center text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#2563eb]"
+                  >
+                    Generate
+                  </button>
+                </div>
+              </label>
+              <label className="grid content-start gap-2 self-start">
+                <span className={fieldLabelClassName}>Host password</span>
+                <div className="grid grid-cols-[minmax(0,1fr)_112px] gap-2">
+                  <input
+                    value={password}
+                    readOnly
+                    className={`${formInputClassName} h-[50px] py-0 font-display text-[16px] font-bold leading-none tracking-[0.06em] text-[#2563eb]`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPassword(makeRandomPassword())}
+                    className="h-[50px] rounded-[16px] border border-[#dbe5f1] bg-[#f8fbff] px-4 py-3 text-center text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#2563eb]"
+                  >
+                    Refresh
+                  </button>
+                </div>
+                <div className="text-[12px] leading-6 text-[#687a92]">
+                  This password is only for the host account. Members create their own password on first entry.
+                </div>
+              </label>
+            </div>
+
+            <div className="rounded-[24px] border border-[#dbe5f1] bg-[#f8fbff] px-5 py-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className={fieldLabelClassName}>Deadline</div>
+                  <div className="mt-2 font-display text-[24px] font-bold text-[#10213b]">
+                    {formatDateLabel(endsAt)}
+                  </div>
+                  <div className="mt-1 text-[13px] text-[#61738b]">
+                    Competition starts immediately and closes at 15:00 on the selected date.
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCalendarMonth((current) => addMonths(current, -1))}
+                    className="rounded-full border border-[#dbe5f1] bg-white px-3 py-2 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#2563eb]"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarMonth((current) => addMonths(current, 1))}
+                    className="rounded-full border border-[#dbe5f1] bg-white px-3 py-2 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#2563eb]"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-[22px] border border-[#dbe5f1] bg-white px-4 py-4 shadow-[0_14px_30px_rgba(15,23,42,0.04)]">
+                <div className="mb-3 font-display text-[18px] font-bold text-[#10213b]">
+                  {formatMonthLabel(calendarMonth)}
+                </div>
+                <div className="mb-2 grid grid-cols-7 gap-2">
+                  {weekdayLabels.map((label) => (
+                    <div
+                      key={`${calendarMonth.getMonth()}-${label}`}
+                      className="text-center text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#94a3b8]"
+                    >
+                      {label}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-2">
+                  {buildCalendar(calendarMonth).map((cell) => {
+                    const isEnd = cell.dateValue ? isSameDay(new Date(cell.dateValue), endsAt) : false;
+                    const isExpired =
+                      cell.dateValue == null
+                        ? false
+                        : (toCompetitionDeadline(cell.dateValue)?.getTime() ?? 0) <= Date.now();
+
+                    return cell.day == null ? (
+                      <div key={cell.key} className="aspect-square rounded-[12px]" />
+                    ) : (
+                      <button
+                        key={cell.key}
+                        type="button"
+                        onClick={() => {
+                          if (!cell.dateValue) {
+                            return;
+                          }
+                          if (isExpired) {
+                            return;
+                          }
+                          setEndsAt(cell.dateValue);
+                        }}
+                        disabled={isExpired}
+                        className={[
+                          'aspect-square rounded-[14px] border text-center font-display text-[13px] font-bold transition disabled:cursor-not-allowed disabled:opacity-45',
+                          isEnd
+                            ? 'border-[#3b82f6] bg-[#2563eb] text-white shadow-[0_12px_24px_rgba(37,99,235,0.24)]'
+                            : 'border-[#e7eef7] bg-[#f8fbff] text-[#29415f] hover:border-[#bfd4ef] hover:bg-[#eef5ff]',
+                        ].join(' ')}
+                      >
+                        {cell.day}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-            <button
-              type="button"
-              disabled={isLoading}
-              onClick={() =>
-                void onCreateRoom({
-                  hostName,
-                  title,
-                  datasetId,
-                  roomCode,
-                  password,
-                  startsAt: toKstIso(new Date()),
-                  endsAt: endsAt ? toKstIso(new Date(`${endsAt}T15:00:00`)) : undefined,
-                })
-              }
-              className="rounded-[18px] bg-[linear-gradient(135deg,#1151ff,#2d66ff)] px-6 py-3 text-[13px] font-extrabold uppercase tracking-[0.18em] text-white shadow-[0_18px_40px_rgba(17,81,255,0.18)] disabled:opacity-50"
-            >
-              {isLoading ? 'Creating...' : 'Create Room'}
-            </button>
+
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-[22px] border border-[#dbe5f1] bg-[#f7fafc] px-5 py-4">
+              <div>
+                <div className={fieldLabelClassName}>Publish room</div>
+                <div className="mt-1 text-[14px] leading-6 text-[#596a81]">
+                  The room opens right away with dataset <span className="font-bold text-[#10213b]">{selectedDatasetLabel}</span>.
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isLoading || isDeadlineExpired}
+                onClick={() =>
+                  void onCreateRoom({
+                    hostName,
+                    title,
+                    datasetId,
+                    roomCode,
+                    password,
+                    startsAt: new Date().toISOString(),
+                    endsAt: selectedDeadline ? selectedDeadline.toISOString() : undefined,
+                  })
+                }
+                className="rounded-[16px] bg-[#2563eb] px-6 py-3 text-[13px] font-extrabold uppercase tracking-[0.18em] text-white shadow-[0_16px_34px_rgba(37,99,235,0.24)] disabled:opacity-50"
+              >
+                {isLoading ? 'Creating...' : 'Create Competition'}
+              </button>
+            </div>
           </div>
+
+          <aside className="grid content-start gap-4 rounded-[28px] border border-[#dbe5f1] bg-white px-5 py-5 shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
+            <div>
+              <div className={fieldLabelClassName}>Overview</div>
+              <div className="mt-2 font-display text-[24px] font-bold text-[#10213b]">Competition summary</div>
+            </div>
+            <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">Title</div>
+              <div className="mt-2 text-[18px] font-bold text-[#10213b]">{title}</div>
+            </div>
+            <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">Host</div>
+              <div className="mt-2 text-[18px] font-bold text-[#10213b]">{hostName}</div>
+            </div>
+            <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">Dataset</div>
+              <div className="mt-2 text-[18px] font-bold text-[#10213b]">{selectedDatasetLabel}</div>
+            </div>
+            <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">Invite code</div>
+              <div className="mt-2 font-display text-[20px] font-bold tracking-[0.12em] text-[#2563eb]">
+                {roomCode || '------'}
+              </div>
+            </div>
+          </aside>
         </div>
       ) : null}
 
       {mode === 'enter' ? (
-        <div className="grid gap-4 rounded-[28px] bg-white/84 px-6 py-6 shadow-[0_20px_48px_rgba(13,27,51,0.06)] xl:grid-cols-2">
-          <label className="grid gap-2">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">Participant Name</span>
-            <input
-              value={participantName}
-              onChange={(event) => setParticipantName(event.target.value)}
-              className={`${formInputClassName} font-display text-[15px] font-bold`}
-            />
-          </label>
-          <label className="grid gap-2">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">Room Code</span>
-            <input
-              value={enterRoomCode}
-              onChange={(event) => setEnterRoomCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12))}
-              className={`${formInputClassName} font-display text-[16px] font-bold uppercase tracking-[0.12em] text-primary`}
-            />
-          </label>
-          <label className="grid gap-2 xl:col-span-2">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">Password</span>
-            <input
-              value={enterPassword}
-              onChange={(event) => setEnterPassword(event.target.value)}
-              className={`${formInputClassName} font-display text-[15px] font-bold`}
-            />
-          </label>
-          <div className="xl:col-span-2 flex items-center justify-between gap-4 rounded-[20px] bg-[#f5f8ff] px-5 py-4">
-            <div className="text-[14px] text-[#5b6d88]">
-              호스트는 방 비밀번호로 입장합니다. 학생은 첫 입장 때 개인 비밀번호를 만들고, 이후에는 그 비밀번호로 계속 다시 들어옵니다.
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_360px]">
+          <div className="grid gap-5 rounded-[28px] border border-[#dbe5f1] bg-white px-6 py-6 shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
+            <div>
+              <div className={fieldLabelClassName}>Join room</div>
+              <div className="mt-2 font-display text-[28px] font-bold tracking-[-0.04em] text-[#10213b]">
+                Enter a live competition
+              </div>
+              <p className="mt-2 max-w-[640px] text-[14px] leading-7 text-[#60718a]">
+                Use the invite code from the host. Members can create a personal password on first entry and reuse it later.
+              </p>
             </div>
-            <button
-              type="button"
-              disabled={isLoading}
-              onClick={() =>
-                void onEnterRoom({
-                  roomCode: enterRoomCode,
-                  password: enterPassword,
-                  participantName,
-                })
-              }
-              className="rounded-[18px] bg-[linear-gradient(135deg,#1151ff,#2d66ff)] px-6 py-3 text-[13px] font-extrabold uppercase tracking-[0.18em] text-white shadow-[0_18px_40px_rgba(17,81,255,0.18)] disabled:opacity-50"
-            >
-              {isLoading ? 'Entering...' : 'Enter Room'}
-            </button>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2">
+                <span className={fieldLabelClassName}>Participant name</span>
+                <input
+                  value={participantName}
+                  onChange={(event) => setParticipantName(event.target.value)}
+                  className={`${formInputClassName} font-display text-[15px] font-bold`}
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className={fieldLabelClassName}>Room code</span>
+                <input
+                  value={enterRoomCode}
+                  onChange={(event) =>
+                    setEnterRoomCode(
+                      event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12),
+                    )
+                  }
+                  className={`${formInputClassName} font-display text-[16px] font-bold uppercase tracking-[0.12em] text-[#2563eb]`}
+                />
+              </label>
+            </div>
+
+            <label className="grid gap-2">
+              <span className={fieldLabelClassName}>Password</span>
+              <input
+                value={enterPassword}
+                onChange={(event) => setEnterPassword(event.target.value)}
+                className={`${formInputClassName} font-display text-[15px] font-bold`}
+              />
+            </label>
+
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-[22px] border border-[#dbe5f1] bg-[#f7fafc] px-5 py-4">
+              <div className="text-[14px] leading-6 text-[#596a81]">
+                Hosts enter with the room password. Members keep their own password after the first successful login.
+              </div>
+              <button
+                type="button"
+                disabled={isLoading}
+                onClick={() =>
+                  void onEnterRoom({
+                    roomCode: enterRoomCode,
+                    password: enterPassword,
+                    participantName,
+                  })
+                }
+                className="rounded-[16px] bg-[#2563eb] px-6 py-3 text-[13px] font-extrabold uppercase tracking-[0.18em] text-white shadow-[0_16px_34px_rgba(37,99,235,0.24)] disabled:opacity-50"
+              >
+                {isLoading ? 'Entering...' : 'Join Competition'}
+              </button>
+            </div>
           </div>
+
+          <aside className="grid content-start gap-4 rounded-[28px] border border-[#dbe5f1] bg-white px-5 py-5 shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
+            <div>
+              <div className={fieldLabelClassName}>What you need</div>
+              <div className="mt-2 font-display text-[24px] font-bold text-[#10213b]">Before you join</div>
+            </div>
+            <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4 text-[13px] leading-6 text-[#52627a]">
+              The host shares the competition title, room code, and the room password.
+            </div>
+            <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4 text-[13px] leading-6 text-[#52627a]">
+              Your best completed training run can be submitted once you are inside the room.
+            </div>
+            <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4 text-[13px] leading-6 text-[#52627a]">
+              The leaderboard score may differ from validation accuracy because it uses hidden evaluation data.
+            </div>
+          </aside>
         </div>
       ) : null}
     </section>

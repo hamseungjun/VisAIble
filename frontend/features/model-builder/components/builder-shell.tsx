@@ -623,98 +623,100 @@ export function BuilderShell() {
             <>
               <div className="relative min-h-0">
                 {competitionActive ? (
-                  <div className="mb-2.5 rounded-[24px] border border-white/60 bg-[linear-gradient(135deg,#f7fbff,#eef4ff)] px-5 py-4 shadow-[0_16px_34px_rgba(13,27,51,0.05)]">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div>
-                        <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
-                          Competition Room
-                        </div>
-                        <div className="mt-1 font-display text-[24px] font-bold text-ink">
-                          {competitionRoom.title}
-                        </div>
-                        <div className="mt-1 text-[13px] font-semibold text-[#5d6f8a]">
-                          Code {competitionRoom.roomCode} · Host {competitionRoom.hostName} · {selectedDataset.label}
-                        </div>
-                        {competitionRoom.participantRole === 'host' ? (
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void handleCopyCompetitionText('Code', competitionRoom.roomCode)
-                              }
-                              className="inline-flex items-center gap-2 rounded-[12px] bg-white/88 px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-primary shadow-[0_10px_24px_rgba(13,27,51,0.05)]"
-                            >
-                              <Icon name="copy" className="h-4 w-4" />
-                              Copy Code
-                            </button>
-                            {competitionRoom.generatedPassword ? (
+                  <div className="mb-2.5 overflow-hidden rounded-[28px] border border-[#dbe5f1] bg-[#f8fbff] shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
+                    <div className="border-b border-[#dbe5f1] bg-[linear-gradient(135deg,#0f172a,#173968_48%,#2563eb)] px-5 py-5 text-white">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                          <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/65">
+                            Competition room
+                          </div>
+                          <div className="mt-1 font-display text-[28px] font-bold tracking-[-0.04em]">
+                            {competitionRoom.title}
+                          </div>
+                          <div className="mt-2 text-[13px] font-semibold text-white/75">
+                            Code {competitionRoom.roomCode} · Host {competitionRoom.hostName} · {selectedDataset.label}
+                          </div>
+                          {competitionRoom.participantRole === 'host' ? (
+                            <div className="mt-4 flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void handleCopyCompetitionText('Code', competitionRoom.roomCode)
+                                }
+                                className="inline-flex items-center gap-2 rounded-[12px] border border-white/15 bg-white/12 px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-white"
+                              >
+                                <Icon name="copy" className="h-4 w-4" />
+                                Copy Code
+                              </button>
+                              {competitionRoom.generatedPassword ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void handleCopyCompetitionText(
+                                      'Password',
+                                      competitionRoom.generatedPassword ?? '',
+                                    )
+                                  }
+                                  className="inline-flex items-center gap-2 rounded-[12px] border border-white/15 bg-white/12 px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-white"
+                                >
+                                  <Icon name="copy" className="h-4 w-4" />
+                                  Copy Password
+                                </button>
+                              ) : null}
                               <button
                                 type="button"
                                 onClick={() =>
                                   void handleCopyCompetitionText(
-                                    'Password',
-                                    competitionRoom.generatedPassword ?? '',
+                                    'Join info',
+                                    [
+                                      `Title: ${competitionRoom.title}`,
+                                      `Dataset: ${selectedDataset.label}`,
+                                      `Code: ${competitionRoom.roomCode}`,
+                                      competitionRoom.generatedPassword
+                                        ? `Password: ${competitionRoom.generatedPassword}`
+                                        : null,
+                                    ]
+                                      .filter((item): item is string => item !== null)
+                                      .join('\n'),
                                   )
                                 }
-                                className="inline-flex items-center gap-2 rounded-[12px] bg-white/88 px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-primary shadow-[0_10px_24px_rgba(13,27,51,0.05)]"
+                                className="inline-flex items-center gap-2 rounded-[12px] border border-white/15 bg-white/12 px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-white"
                               >
                                 <Icon name="copy" className="h-4 w-4" />
-                                Copy Password
+                                Copy Join Info
                               </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void handleCopyCompetitionText(
-                                  'Join info',
-                                  [
-                                    `Title: ${competitionRoom.title}`,
-                                    `Dataset: ${selectedDataset.label}`,
-                                    `Code: ${competitionRoom.roomCode}`,
-                                    competitionRoom.generatedPassword
-                                      ? `Password: ${competitionRoom.generatedPassword}`
-                                      : null,
-                                  ]
-                                    .filter((item): item is string => item !== null)
-                                    .join('\n'),
-                                )
-                              }
-                              className="inline-flex items-center gap-2 rounded-[12px] bg-white/88 px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-primary shadow-[0_10px_24px_rgba(13,27,51,0.05)]"
-                            >
-                              <Icon name="copy" className="h-4 w-4" />
-                              Copy Join Info
-                            </button>
-                            {competitionCopyFeedback ? (
-                              <div className="rounded-full bg-[#eef3ff] px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-primary">
-                                {competitionCopyFeedback}
-                              </div>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setIsCompetitionRankOpen(true)}
-                          className="rounded-[14px] bg-[#eef3ff] px-4 py-2 text-[12px] font-extrabold uppercase tracking-[0.14em] text-primary"
-                        >
-                          Competition Rank
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleSubmitCompetitionRun()}
-                          disabled={!canSubmitCompetitionRun || competitionSubmitBusy}
-                          className="rounded-[14px] bg-[linear-gradient(135deg,#1151ff,#2d66ff)] px-4 py-2 text-[12px] font-extrabold uppercase tracking-[0.14em] text-white disabled:opacity-50"
-                        >
-                          {competitionSubmitBusy ? 'Submitting...' : 'Submit Selected'}
-                        </button>
+                              {competitionCopyFeedback ? (
+                                <div className="rounded-full bg-white/14 px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-white">
+                                  {competitionCopyFeedback}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsCompetitionRankOpen(true)}
+                            className="rounded-[14px] border border-white/15 bg-white/12 px-4 py-2 text-[12px] font-extrabold uppercase tracking-[0.14em] text-white"
+                          >
+                            View Leaderboard
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleSubmitCompetitionRun()}
+                            disabled={!canSubmitCompetitionRun || competitionSubmitBusy}
+                            className="rounded-[14px] bg-white px-4 py-2 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#2563eb] shadow-[0_14px_30px_rgba(15,23,42,0.14)] disabled:opacity-50"
+                          >
+                            {competitionSubmitBusy ? 'Submitting...' : 'Submit Selected'}
+                          </button>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_200px_180px]">
-                      <div className="rounded-[18px] bg-white/82 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
-                        <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
-                          Batch Size
+                    <div className="grid gap-3 px-5 py-5 xl:grid-cols-[minmax(0,1.15fr)_180px_180px]">
+                      <div className="rounded-[20px] border border-[#dbe5f1] bg-white px-4 py-4">
+                        <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#71839d]">
+                          Batch size
                         </div>
                         <div className="mt-3 grid grid-cols-4 gap-2">
                           {competitionBatchSizes.map((size) => (
@@ -723,8 +725,10 @@ export function BuilderShell() {
                               type="button"
                               onClick={() => setBatchSize(size)}
                               className={[
-                                'rounded-[12px] px-2 py-2 text-[12px] font-extrabold transition-colors',
-                                batchSize === size ? 'bg-primary text-white' : 'bg-[#eef3ff] text-primary',
+                                'rounded-[12px] px-2 py-2 text-[12px] font-extrabold transition',
+                                batchSize === size
+                                  ? 'bg-[#2563eb] text-white shadow-[0_10px_20px_rgba(37,99,235,0.2)]'
+                                  : 'bg-[#f4f8fd] text-[#2563eb]',
                               ].join(' ')}
                             >
                               {size}
@@ -732,27 +736,29 @@ export function BuilderShell() {
                           ))}
                         </div>
                       </div>
-                      <div className="rounded-[18px] bg-white/82 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
-                        <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
+                      <div className="rounded-[20px] border border-[#dbe5f1] bg-white px-4 py-4">
+                        <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#71839d]">
                           Participants
                         </div>
-                        <div className="mt-1 font-display text-[18px] font-bold text-ink">
+                        <div className="mt-2 font-display text-[22px] font-bold text-[#10213b]">
                           {competitionRoom.participants.length}
                         </div>
                       </div>
-                      <div className="rounded-[18px] bg-white/82 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
-                        <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
-                          Your Role
+                      <div className="rounded-[20px] border border-[#dbe5f1] bg-white px-4 py-4">
+                        <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#71839d]">
+                          Your role
                         </div>
-                        <div className="mt-1 font-display text-[18px] font-bold text-ink">
+                        <div className="mt-2 font-display text-[22px] font-bold text-[#10213b]">
                           {competitionRoom.participantRole}
                         </div>
                       </div>
                     </div>
 
                     {competitionError ? (
-                      <div className="mt-3 rounded-[16px] bg-[#fff1f1] px-4 py-3 text-[13px] font-semibold text-[#b42318] shadow-[inset_0_0_0_1px_rgba(220,38,38,0.12)]">
-                        {competitionError}
+                      <div className="px-5 pb-5">
+                        <div className="rounded-[16px] border border-[#f5c2c7] bg-[#fff5f5] px-4 py-3 text-[13px] font-semibold text-[#b42318]">
+                          {competitionError}
+                        </div>
                       </div>
                     ) : null}
                   </div>

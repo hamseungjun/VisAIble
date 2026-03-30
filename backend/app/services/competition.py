@@ -163,6 +163,36 @@ def _room_status(starts_at: str | None, ends_at: str | None) -> bool:
     return True
 
 
+def _ensure_room_schedule_is_valid(starts_at: str | None, ends_at: str | None) -> None:
+    now = datetime.now(timezone.utc)
+
+    if starts_at:
+        start = datetime.fromisoformat(starts_at)
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        if start < now:
+            # Allow a small tolerance for client/server clock differences.
+            if (now - start).total_seconds() > 60:
+                raise ValueError("Competition start time must be in the future or current time")
+
+    if ends_at:
+        end = datetime.fromisoformat(ends_at)
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        if end <= now:
+            raise ValueError("Competition end time must be later than the current time")
+
+    if starts_at and ends_at:
+        start = datetime.fromisoformat(starts_at)
+        end = datetime.fromisoformat(ends_at)
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        if end <= start:
+            raise ValueError("Competition end time must be later than the start time")
+
+
 def _serialize_participants(connection: sqlite3.Connection, room_id: int) -> list[CompetitionParticipantResponse]:
     rows = connection.execute(
         """
@@ -190,6 +220,7 @@ def create_competition_room(payload: CompetitionCreateRequest) -> CompetitionRoo
     room_code = _normalize_room_code(payload.roomCode)
     password = payload.password or _generate_password()
     created_at = _now_iso()
+    _ensure_room_schedule_is_valid(payload.startsAt, payload.endsAt)
 
     with _connect() as connection:
         existing = connection.execute(

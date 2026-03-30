@@ -9,89 +9,146 @@ type CompetitionRankModalProps = {
   onClose: () => void;
 };
 
+function formatPercent(value: number | null | undefined) {
+  if (value == null) {
+    return '-';
+  }
+
+  return `${Math.round(value * 10000) / 100}%`;
+}
+
 export function CompetitionRankModal({
   roomTitle,
   leaderboard,
   isHost,
   onClose,
 }: CompetitionRankModalProps) {
+  const entryCount = leaderboard?.entries.length ?? 0;
+  const bestScore = entryCount > 0 ? leaderboard?.entries[0]?.publicScore ?? null : null;
+
   return (
-    <div className="fixed inset-0 z-[120] bg-[rgba(13,27,51,0.42)] px-5 py-10 backdrop-blur-md">
-      <div className="mx-auto flex h-full w-full max-w-[980px] flex-col overflow-hidden rounded-[32px] border border-white/70 bg-[linear-gradient(180deg,#fbfdff,#f2f7ff)] shadow-[0_28px_90px_rgba(13,27,51,0.22)]">
-        <div className="flex items-start justify-between gap-4 border-b border-line px-7 py-6">
-          <div>
-            <div className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-muted">
-              Competition Rank
+    <div className="fixed inset-0 z-[120] bg-[rgba(15,23,42,0.5)] px-5 py-8 backdrop-blur-sm">
+      <div className="mx-auto flex h-full w-full max-w-[1120px] flex-col overflow-hidden rounded-[30px] border border-[#dbe5f1] bg-[#f8fbff] shadow-[0_30px_90px_rgba(15,23,42,0.28)]">
+        <div className="border-b border-[#dbe5f1] bg-white px-7 py-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#71839d]">
+                Leaderboard
+              </div>
+              <div className="mt-2 font-display text-[30px] font-bold tracking-[-0.04em] text-[#10213b]">
+                {roomTitle}
+              </div>
+              <div className="mt-2 text-[13px] font-semibold text-[#66768f]">
+                {isHost
+                  ? 'Host view includes the hidden private leaderboard score.'
+                  : 'Participant view shows the public leaderboard score only.'}
+              </div>
             </div>
-            <div className="mt-1 font-display text-[28px] font-bold text-ink">{roomTitle}</div>
-            <div className="mt-2 text-[12px] font-semibold text-[#6b7d98]">
-              {isHost ? 'Host view: private leaderboard visible' : 'Member view: public leaderboard only'}
+            <button
+              type="button"
+              onClick={onClose}
+              className="grid h-10 w-10 place-items-center rounded-full border border-[#dbe5f1] bg-[#f8fbff] text-[20px] font-bold text-[#5f6f86] transition hover:text-[#10213b]"
+              aria-label="Close rank modal"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="rounded-[18px] border border-[#dbe5f1] bg-[#f8fbff] px-4 py-4">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">
+                Entries
+              </div>
+              <div className="mt-2 font-display text-[22px] font-bold text-[#10213b]">{entryCount}</div>
+            </div>
+            <div className="rounded-[18px] border border-[#dbe5f1] bg-[#f8fbff] px-4 py-4">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">
+                Best public score
+              </div>
+              <div className="mt-2 font-display text-[22px] font-bold text-[#2563eb]">
+                {formatPercent(bestScore)}
+              </div>
+            </div>
+            <div className="rounded-[18px] border border-[#dbe5f1] bg-[#f8fbff] px-4 py-4">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">
+                Visibility
+              </div>
+              <div className="mt-2 font-display text-[22px] font-bold text-[#10213b]">
+                {isHost ? 'Public + Private' : 'Public only'}
+              </div>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid h-10 w-10 place-items-center rounded-full bg-white text-[20px] font-bold text-muted shadow-[0_10px_24px_rgba(13,27,51,0.08)] transition-colors hover:text-ink"
-            aria-label="Close rank modal"
-          >
-            ×
-          </button>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6">
-          {(leaderboard?.entries ?? []).length > 0 ? (
-            <div className="grid gap-3">
-              {leaderboard?.entries.map((entry) => (
-                <div
-                  key={`${entry.participantId}-${entry.submittedAt}`}
-                  className="rounded-[24px] bg-white/88 px-5 py-4 shadow-[0_18px_40px_rgba(13,27,51,0.06)]"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="grid h-12 w-12 place-items-center rounded-full bg-[#eef3ff] font-display text-[18px] font-bold text-primary">
-                      {entry.rank}
+          {entryCount > 0 ? (
+            <div className="overflow-hidden rounded-[24px] border border-[#dbe5f1] bg-white shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
+              <div className={`grid gap-3 border-b border-[#e7eef7] bg-[#f8fbff] px-5 py-4 text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#71839d] ${isHost ? 'grid-cols-[72px_minmax(180px,1.2fr)_repeat(5,minmax(0,1fr))]' : 'grid-cols-[72px_minmax(180px,1.4fr)_repeat(4,minmax(0,1fr))]'}`}>
+                <div>Rank</div>
+                <div>Team</div>
+                <div>Public</div>
+                {isHost ? <div>Private</div> : null}
+                <div>Validation</div>
+                <div>Train</div>
+                <div>Status</div>
+              </div>
+
+              <div className="grid">
+                {leaderboard?.entries.map((entry, index) => (
+                  <div
+                    key={`${entry.participantId}-${entry.submittedAt}`}
+                    className={[
+                      'grid gap-3 px-5 py-4 text-[14px] text-[#24364f]',
+                      isHost
+                        ? 'grid-cols-[72px_minmax(180px,1.2fr)_repeat(5,minmax(0,1fr))]'
+                        : 'grid-cols-[72px_minmax(180px,1.4fr)_repeat(4,minmax(0,1fr))]',
+                      index !== entryCount - 1 ? 'border-b border-[#eef3f8]' : '',
+                    ].join(' ')}
+                  >
+                    <div className="flex items-center">
+                      <div className="grid h-11 w-11 place-items-center rounded-full bg-[#eff6ff] font-display text-[18px] font-bold text-[#2563eb]">
+                        {entry.rank}
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-display text-[18px] font-bold text-ink">
+                    <div className="min-w-0">
+                      <div className="truncate font-display text-[18px] font-bold text-[#10213b]">
                         {entry.participantName}
                       </div>
-                      <div className="mt-1 text-[12px] font-semibold text-[#667995]">
-                        Validation {Math.round(entry.validationAccuracy * 10000) / 100}% · Train{' '}
-                        {Math.round(entry.trainAccuracy * 10000) / 100}%
+                      <div className="mt-1 text-[12px] font-semibold text-[#71839d]">
+                        {entry.role} · {new Date(entry.submittedAt).toLocaleString()}
                       </div>
                     </div>
-                    <div className="rounded-full bg-[#eef3ff] px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-primary">
-                      {entry.isBaseline ? 'baseline' : entry.role}
-                    </div>
-                  </div>
-
-                  <div className={`mt-4 grid ${isHost ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}>
-                    <div className="rounded-[18px] bg-[#f5f8ff] px-4 py-3">
-                      <div className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted">
-                        Public Score
-                      </div>
-                      <div className="mt-1 font-display text-[20px] font-bold text-primary">
-                        {Math.round(entry.publicScore * 10000) / 100}%
-                      </div>
+                    <div className="flex items-center font-display text-[18px] font-bold text-[#2563eb]">
+                      {formatPercent(entry.publicScore)}
                     </div>
                     {isHost ? (
-                      <div className="rounded-[18px] bg-[#f5f8ff] px-4 py-3">
-                        <div className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted">
-                          Private Score
-                        </div>
-                        <div className="mt-1 font-display text-[20px] font-bold text-ink">
-                          {entry.privateScore == null
-                            ? '-'
-                            : `${Math.round(entry.privateScore * 10000) / 100}%`}
-                        </div>
+                      <div className="flex items-center font-display text-[18px] font-bold text-[#10213b]">
+                        {formatPercent(entry.privateScore)}
                       </div>
                     ) : null}
+                    <div className="flex items-center font-display text-[18px] font-bold text-[#10213b]">
+                      {formatPercent(entry.validationAccuracy)}
+                    </div>
+                    <div className="flex items-center font-display text-[18px] font-bold text-[#10213b]">
+                      {formatPercent(entry.trainAccuracy)}
+                    </div>
+                    <div className="flex items-center">
+                      <span
+                        className={[
+                          'rounded-full px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em]',
+                          entry.isBaseline ? 'bg-[#ede9fe] text-[#7c3aed]' : 'bg-[#eef2f7] text-[#5f6f86]',
+                        ].join(' ')}
+                      >
+                        {entry.isBaseline ? 'baseline' : entry.role}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           ) : (
-            <div className="rounded-[24px] bg-white/82 px-6 py-8 text-[15px] font-semibold text-muted shadow-[0_16px_36px_rgba(13,27,51,0.06)]">
-              아직 leaderboard에 제출된 기록이 없습니다.
+            <div className="rounded-[24px] border border-[#dbe5f1] bg-white px-6 py-8 text-[15px] font-semibold text-[#60718a] shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
+              No leaderboard submissions yet. Once a run is submitted, rankings will appear here.
             </div>
           )}
         </div>

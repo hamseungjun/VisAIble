@@ -834,6 +834,7 @@ export function Canvas({
                       onDragStart={(event) => {
                         event.dataTransfer.effectAllowed = 'move';
                         event.dataTransfer.setData('application/x-builder-node', node.id);
+                        event.dataTransfer.setDragImage(event.currentTarget, 72, 24);
                         setDraggingNodeId(node.id);
                         setTrashHover(false);
                       }}
@@ -899,13 +900,13 @@ export function Canvas({
                   onRemoveNode(droppedNodeId);
                 }}
                 className={[
-                  'fixed bottom-6 left-1/2 z-[70] flex min-w-[280px] -translate-x-1/2 items-center justify-center gap-3 rounded-[22px] border px-6 py-4 text-[15px] font-bold shadow-[0_22px_48px_rgba(13,27,51,0.18)] transition-all duration-150',
+                  'fixed bottom-6 left-1/2 z-[160] flex min-w-[320px] -translate-x-1/2 items-center justify-center gap-3 rounded-[22px] border px-6 py-4 text-[15px] font-bold shadow-[0_30px_72px_rgba(13,27,51,0.3)] transition-all duration-150',
                   trashHover
-                    ? 'border-[#ef4444] bg-[#fff1f2] text-[#b91c1c] ring-4 ring-[#fecdd3] scale-[1.06]'
-                    : 'border-[#fbcfe8] bg-white/96 text-[#c2416d] backdrop-blur-md',
+                    ? 'border-[#ef4444] bg-[#fff1f2] text-[#b91c1c] ring-4 ring-[#fecdd3] scale-[1.08]'
+                    : 'border-[#fbcfe8] bg-white text-[#c2416d] ring-1 ring-[rgba(244,114,182,0.18)] backdrop-blur-md',
                 ].join(' ')}
               >
-                <span className="grid h-10 w-10 place-items-center rounded-full bg-[#fff0f4] text-[22px] leading-none">
+                <span className="grid h-11 w-11 place-items-center rounded-full bg-[#fff0f4] text-[22px] leading-none shadow-[inset_0_0_0_1px_rgba(244,114,182,0.18)]">
                   🗑
                 </span>
                 <div className="grid gap-0.5 text-center">

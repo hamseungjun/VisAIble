@@ -160,8 +160,8 @@ export function TopBar({
   ];
 
   return (
-    <header className="border-b border-line bg-white/80 px-4 py-3 backdrop-blur-xl lg:px-5 lg:py-3.5 xl:px-[clamp(20px,2vw,32px)] xl:py-[clamp(14px,1.5vw,18px)]">
-      <div className="grid gap-3 xl:justify-center xl:grid-cols-[clamp(340px,24vw,620px)_minmax(0,1fr)_clamp(260px,22vw,440px)] xl:gap-[clamp(10px,1vw,18px)]">
+    <header className="border-b border-line bg-white/80 px-4 py-3 backdrop-blur-xl lg:px-5 lg:py-3.5">
+      <div className="grid gap-3 xl:grid-cols-[minmax(280px,1.1fr)_minmax(420px,1.35fr)_minmax(260px,0.95fr)]">
         <section className="glass-panel ghost-border flex min-w-0 flex-col justify-start gap-[clamp(8px,0.8vw,12px)] rounded-[24px] px-[clamp(16px,1.2vw,20px)] py-[clamp(12px,1vw,16px)] shadow-panel xl:w-full">
           <div className="flex items-start justify-between gap-3">
             <div className="font-display text-[2rem] font-bold tracking-[-0.06em] text-primary">
@@ -243,12 +243,12 @@ export function TopBar({
           </div>
 
           <div className="rounded-[20px] bg-white/75 px-4 py-[clamp(10px,0.9vw,12px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)] sm:col-span-2">
-            <div className="grid max-w-[clamp(500px,58vw,760px)] gap-3 lg:grid-cols-[clamp(280px,34vw,440px)_clamp(150px,18vw,220px)]">
+            <div className="grid max-w-[280px] gap-3">
               <div>
                 <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">
                   Optimizer
                 </span>
-                <div className="relative mt-2.5 max-w-[clamp(280px,34vw,440px)]">
+                <div className="relative mt-2.5 max-w-[280px]">
                   <select
                     value={optimizer}
                     onChange={(event) => onOptimizerChange(event.target.value as OptimizerName)}

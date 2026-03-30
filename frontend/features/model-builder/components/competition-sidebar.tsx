@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Inspector } from '@/features/model-builder/components/inspector';
 import type {
   CompetitionRoomSession,
@@ -33,6 +33,14 @@ type CompetitionSidebarProps = {
   onSubmitSelected: () => void;
 };
 
+function formatPercent(value: number | null | undefined) {
+  if (value == null) {
+    return '-';
+  }
+
+  return `${Math.round(value * 10000) / 100}%`;
+}
+
 export function CompetitionSidebar({
   room,
   trainingStatus,
@@ -43,40 +51,52 @@ export function CompetitionSidebar({
   onSelectRun,
   onSubmitSelected,
 }: CompetitionSidebarProps) {
-  const [mode, setMode] = useState<'metrics' | 'submit'>('metrics');
+  const [mode, setMode] = useState<'overview' | 'metrics'>('overview');
   const selectedRun = runs.find((run) => run.jobId === selectedRunJobId) ?? null;
   const isHost = room.participantRole === 'host';
+  const bestPublicScore = useMemo(() => {
+    const scoredRuns = runs.filter((run) => run.submission?.publicScore != null);
+
+    if (scoredRuns.length === 0) {
+      return null;
+    }
+
+    return Math.max(...scoredRuns.map((run) => run.submission?.publicScore ?? 0));
+  }, [runs]);
 
   return (
     <aside className="grid min-h-0 content-start gap-3">
-      <section className="glass-panel ghost-border rounded-[24px] px-4 py-4 shadow-panel">
-        <div className="flex items-center justify-between gap-3">
+      <section className="rounded-[24px] border border-[#dbe5f1] bg-white px-4 py-4 shadow-[0_16px_34px_rgba(15,23,42,0.06)]">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
-              Competition Mode
+            <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#71839d]">
+              Competition workspace
             </div>
-            <div className="mt-1 font-display text-[20px] font-bold text-ink">{room.title}</div>
+            <div className="mt-1 font-display text-[22px] font-bold text-[#10213b]">{room.title}</div>
+            <div className="mt-2 text-[12px] font-semibold text-[#64748b]">
+              {room.participants.length} participants · {room.participantRole}
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="flex rounded-full bg-[#eef4fb] p-1">
+            <button
+              type="button"
+              onClick={() => setMode('overview')}
+              className={[
+                'rounded-full px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] transition',
+                mode === 'overview' ? 'bg-[#2563eb] text-white' : 'text-[#2563eb]',
+              ].join(' ')}
+            >
+              Overview
+            </button>
             <button
               type="button"
               onClick={() => setMode('metrics')}
               className={[
-                'rounded-[12px] px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] transition-colors',
-                mode === 'metrics' ? 'bg-primary text-white' : 'bg-[#eef3ff] text-primary',
+                'rounded-full px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] transition',
+                mode === 'metrics' ? 'bg-[#2563eb] text-white' : 'text-[#2563eb]',
               ].join(' ')}
             >
               Metrics
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('submit')}
-              className={[
-                'rounded-[12px] px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] transition-colors',
-                mode === 'submit' ? 'bg-primary text-white' : 'bg-[#eef3ff] text-primary',
-              ].join(' ')}
-            >
-              Submit
             </button>
           </div>
         </div>
@@ -90,116 +110,168 @@ export function CompetitionSidebar({
           showMnistCanvas={false}
         />
       ) : (
-        <section className="glass-panel ghost-border grid min-h-0 content-start gap-3 rounded-[24px] px-4 py-4 shadow-panel">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
-                Competition Submissions
+        <section className="grid min-h-0 content-start gap-3 rounded-[24px] border border-[#dbe5f1] bg-[#f8fbff] px-4 py-4 shadow-[0_16px_34px_rgba(15,23,42,0.06)]">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-[18px] border border-[#dbe5f1] bg-white px-4 py-4">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">
+                Best public
               </div>
-              <div className="mt-1 font-display text-[20px] font-bold text-ink">Training Results</div>
+              <div className="mt-2 font-display text-[22px] font-bold text-[#2563eb]">
+                {formatPercent(bestPublicScore)}
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={onSubmitSelected}
-              disabled={!selectedRun || submitBusy}
-              className="rounded-[14px] bg-[linear-gradient(135deg,#1151ff,#2d66ff)] px-4 py-2 text-[12px] font-extrabold uppercase tracking-[0.14em] text-white disabled:opacity-50"
-            >
-              {submitBusy ? 'Submitting...' : 'Submit'}
-            </button>
+            <div className="rounded-[18px] border border-[#dbe5f1] bg-white px-4 py-4">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">
+                Selected run
+              </div>
+              <div className="mt-2 font-display text-[22px] font-bold text-[#10213b]">
+                {selectedRun ? 'Ready' : 'None'}
+              </div>
+            </div>
+            <div className="rounded-[18px] border border-[#dbe5f1] bg-white px-4 py-4">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">
+                Queue
+              </div>
+              <div className="mt-2 font-display text-[22px] font-bold text-[#10213b]">{runs.length}</div>
+            </div>
           </div>
 
-          {selectedRun ? (
-            <div className="rounded-[18px] bg-[#f7faff] px-4 py-3 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
-              <div className={`grid ${isHost ? 'grid-cols-2' : 'grid-cols-1'} gap-2 text-[12px] font-semibold text-[#4e607b]`}>
-                <div>
-                  Validation Score {Math.round(selectedRun.validationAccuracy * 10000) / 100}%
+          <div className="rounded-[22px] border border-[#dbe5f1] bg-white px-4 py-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#71839d]">
+                  Submission panel
                 </div>
-                <div>
-                  Submission Score{' '}
-                  {selectedRun.submission
-                    ? `${Math.round(selectedRun.submission.publicScore * 10000) / 100}%`
-                    : '-'}
+                <div className="mt-1 font-display text-[22px] font-bold text-[#10213b]">
+                  Review selected run
                 </div>
-                <div>Train Acc {Math.round(selectedRun.trainAccuracy * 10000) / 100}%</div>
-                {isHost ? (
-                  <div>
-                    Private Score{' '}
-                    {selectedRun.submission?.privateScore == null
-                      ? '-'
-                      : `${Math.round(selectedRun.submission.privateScore * 10000) / 100}%`}
-                  </div>
-                ) : null}
-                <div>{selectedRun.submitted ? 'Submitted' : 'Not Submitted'}</div>
               </div>
+              <button
+                type="button"
+                onClick={onSubmitSelected}
+                disabled={!selectedRun || submitBusy}
+                className="rounded-[14px] bg-[#2563eb] px-4 py-2 text-[12px] font-extrabold uppercase tracking-[0.14em] text-white shadow-[0_14px_28px_rgba(37,99,235,0.22)] disabled:opacity-50"
+              >
+                {submitBusy ? 'Submitting...' : 'Submit Run'}
+              </button>
             </div>
-          ) : (
-            <div className="rounded-[18px] bg-white/82 px-4 py-4 text-[13px] font-semibold text-muted shadow-[0_12px_24px_rgba(13,27,51,0.05)]">
-              완료된 training result를 선택하면 submission 점수와 validation 점수를 여기서 바로 확인하고 제출할 수 있습니다.
-            </div>
-          )}
 
-          <div className="grid gap-2.5">
-            {runs.length > 0 ? (
-              runs.map((run, index) => (
-                <button
-                  key={run.jobId}
-                  type="button"
-                  onClick={() => onSelectRun(run.jobId)}
-                  className={[
-                    'rounded-[18px] px-4 py-3 text-left shadow-[0_12px_24px_rgba(13,27,51,0.05)] transition-all',
-                    selectedRunJobId === run.jobId
-                      ? 'bg-[#eef4ff] ring-2 ring-primary/25'
-                      : 'bg-white/88 hover:bg-[#f9fbff]',
-                  ].join(' ')}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="font-display text-[15px] font-bold text-ink">Run {runs.length - index}</div>
-                      <div className="mt-0.5 text-[11px] font-semibold text-[#667995]">
-                        {run.completedAt ? new Date(run.completedAt).toLocaleString() : 'Completed run'}
-                      </div>
-                    </div>
-                    <div className="rounded-full bg-[#eef3ff] px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-primary">
-                      {run.submitted ? 'submitted' : 'ready'}
-                    </div>
+            {selectedRun ? (
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="rounded-[18px] bg-[#f5f8fd] px-4 py-4">
+                  <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">
+                    Validation
                   </div>
-                  <div className={`mt-3 grid ${isHost ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
-                    <div className="rounded-[14px] bg-[#f5f8ff] px-3 py-2">
-                      <div className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-muted">
-                        Validation Score
-                      </div>
-                      <div className="mt-1 font-display text-[15px] font-bold text-ink">
-                        {Math.round(run.validationAccuracy * 10000) / 100}%
-                      </div>
-                    </div>
-                    <div className="rounded-[14px] bg-[#f5f8ff] px-3 py-2">
-                      <div className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-muted">
-                        Submission Score
-                      </div>
-                      <div className="mt-1 font-display text-[15px] font-bold text-primary">
-                        {run.submission
-                          ? `${Math.round(run.submission.publicScore * 10000) / 100}%`
-                          : '-'}
-                      </div>
-                    </div>
-                    {isHost ? (
-                      <div className="rounded-[14px] bg-[#f5f8ff] px-3 py-2">
-                        <div className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-muted">
-                          Private Score
-                        </div>
-                        <div className="mt-1 font-display text-[15px] font-bold text-ink">
-                          {run.submission?.privateScore == null
-                            ? '-'
-                            : `${Math.round(run.submission.privateScore * 10000) / 100}%`}
-                        </div>
-                      </div>
-                    ) : null}
+                  <div className="mt-2 font-display text-[20px] font-bold text-[#10213b]">
+                    {formatPercent(selectedRun.validationAccuracy)}
                   </div>
-                </button>
-              ))
+                </div>
+                <div className="rounded-[18px] bg-[#f5f8fd] px-4 py-4">
+                  <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">
+                    Public leaderboard
+                  </div>
+                  <div className="mt-2 font-display text-[20px] font-bold text-[#2563eb]">
+                    {formatPercent(selectedRun.submission?.publicScore)}
+                  </div>
+                </div>
+                <div className="rounded-[18px] bg-[#f5f8fd] px-4 py-4">
+                  <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">
+                    Train accuracy
+                  </div>
+                  <div className="mt-2 font-display text-[20px] font-bold text-[#10213b]">
+                    {formatPercent(selectedRun.trainAccuracy)}
+                  </div>
+                </div>
+                <div className="rounded-[18px] bg-[#f5f8fd] px-4 py-4">
+                  <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">
+                    {isHost ? 'Private leaderboard' : 'Submission status'}
+                  </div>
+                  <div className="mt-2 font-display text-[20px] font-bold text-[#10213b]">
+                    {isHost
+                      ? formatPercent(selectedRun.submission?.privateScore)
+                      : selectedRun.submitted
+                        ? 'Submitted'
+                        : 'Pending'}
+                  </div>
+                </div>
+              </div>
             ) : (
-              <div className="rounded-[18px] bg-white/82 px-4 py-6 text-[13px] font-semibold text-muted shadow-[0_12px_24px_rgba(13,27,51,0.05)]">
-                아직 완료된 학습 결과가 없습니다. 먼저 training을 완료한 뒤 여기서 제출할 run을 선택하면 됩니다.
+              <div className="mt-4 rounded-[18px] bg-[#f5f8fd] px-4 py-4 text-[13px] leading-6 text-[#5d6d84]">
+                Select a completed training run to compare validation performance with the competition score.
+              </div>
+            )}
+          </div>
+
+          <div className="grid min-h-0 gap-2.5">
+            {runs.length > 0 ? (
+              runs.map((run, index) => {
+                const active = selectedRunJobId === run.jobId;
+
+                return (
+                  <button
+                    key={run.jobId}
+                    type="button"
+                    onClick={() => onSelectRun(run.jobId)}
+                    className={[
+                      'rounded-[20px] border px-4 py-4 text-left transition',
+                      active
+                        ? 'border-[#bfdbfe] bg-white shadow-[0_14px_30px_rgba(59,130,246,0.12)]'
+                        : 'border-[#dbe5f1] bg-white hover:border-[#c7d6e8]',
+                    ].join(' ')}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="font-display text-[17px] font-bold text-[#10213b]">
+                          Run {runs.length - index}
+                        </div>
+                        <div className="mt-1 text-[12px] font-semibold text-[#6c7c94]">
+                          {run.completedAt ? new Date(run.completedAt).toLocaleString() : 'Completed run'}
+                        </div>
+                      </div>
+                      <div
+                        className={[
+                          'rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em]',
+                          run.submitted ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#eef2f7] text-[#60718a]',
+                        ].join(' ')}
+                      >
+                        {run.submitted ? 'submitted' : 'ready'}
+                      </div>
+                    </div>
+
+                    <div className={`mt-4 grid gap-3 ${isHost ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+                      <div className="rounded-[16px] bg-[#f5f8fd] px-3 py-3">
+                        <div className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-[#7b8da8]">
+                          Validation
+                        </div>
+                        <div className="mt-1 font-display text-[16px] font-bold text-[#10213b]">
+                          {formatPercent(run.validationAccuracy)}
+                        </div>
+                      </div>
+                      <div className="rounded-[16px] bg-[#f5f8fd] px-3 py-3">
+                        <div className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-[#7b8da8]">
+                          Public
+                        </div>
+                        <div className="mt-1 font-display text-[16px] font-bold text-[#2563eb]">
+                          {formatPercent(run.submission?.publicScore)}
+                        </div>
+                      </div>
+                      {isHost ? (
+                        <div className="rounded-[16px] bg-[#f5f8fd] px-3 py-3">
+                          <div className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-[#7b8da8]">
+                            Private
+                          </div>
+                          <div className="mt-1 font-display text-[16px] font-bold text-[#10213b]">
+                            {formatPercent(run.submission?.privateScore)}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })
+            ) : (
+              <div className="rounded-[20px] border border-[#dbe5f1] bg-white px-4 py-6 text-[13px] font-semibold text-[#60718a]">
+                No completed runs yet. Finish a training job and it will appear here as a submission candidate.
               </div>
             )}
           </div>
