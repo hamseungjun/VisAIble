@@ -69,7 +69,6 @@ export function BuilderShell() {
     setDraggingBlock,
     addNode,
     removeNode,
-    replaceNode,
     updateNodeField,
     updateNodeActivation,
     moveNode,
@@ -767,10 +766,6 @@ export function BuilderShell() {
                   onUpdateNodeField={updateNodeField}
                   onUpdateNodeActivation={updateNodeActivation}
                   onMoveNode={moveNode}
-                  onReplaceNode={(id, type) => {
-                    replaceNode(id, type);
-                    setDraggingBlock(null);
-                  }}
                   onDropBlock={(type, index) => {
                     addNode(type, index);
                     setDraggingBlock(null);

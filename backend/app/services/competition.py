@@ -1,7 +1,7 @@
 import hashlib
 import secrets
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
@@ -54,6 +54,7 @@ PRIVATE_EVAL_CONFIG = {
     "coco": 4,
 }
 EVAL_BATCH_SIZE = 64
+KST = timezone(timedelta(hours=9))
 
 
 def _connect() -> sqlite3.Connection:
@@ -117,7 +118,14 @@ def init_competition_db() -> None:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(KST).isoformat()
+
+
+def _parse_kst_datetime(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=KST)
+    return parsed.astimezone(KST)
 
 
 def _normalize_room_code(value: str | None) -> str:
@@ -143,13 +151,13 @@ def _verify_password(password: str, password_hash: str) -> bool:
 
 
 def _room_status(starts_at: str | None, ends_at: str | None) -> bool:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(KST)
     if starts_at:
-        start = datetime.fromisoformat(starts_at)
+        start = _parse_kst_datetime(starts_at)
         if start > now:
             return False
     if ends_at:
-        end = datetime.fromisoformat(ends_at)
+        end = _parse_kst_datetime(ends_at)
         if end < now:
             return False
     return True

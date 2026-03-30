@@ -16,7 +16,6 @@ type CanvasProps = {
   onUpdateNodeField: (id: string, fieldLabel: string, value: string) => void;
   onUpdateNodeActivation: (id: string, activation: string) => void;
   onMoveNode: (id: string, index: number) => void;
-  onReplaceNode: (id: string, type: BlockType) => void;
   onDropBlock: (type: BlockType, index?: number) => void;
 };
 
@@ -63,6 +62,15 @@ function getInsertionIndex(
   }
 
   return count;
+}
+
+function getCardInsertionIndex(
+  event: DragEvent<HTMLElement>,
+  index: number,
+) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  const midpoint = rect.top + rect.height / 2;
+  return event.clientY < midpoint ? index : index + 1;
 }
 
 function blockTone(accent: BlockAccent) {
@@ -233,7 +241,7 @@ function NodeCard({
   onRemove: () => void;
   onFieldChange: (fieldLabel: string, value: string) => void;
   onActivationChange: (activation: string) => void;
-  onDragStart: (event: DragEvent<HTMLButtonElement>) => void;
+  onDragStart: (event: DragEvent<HTMLElement>) => void;
   onDragEnd: () => void;
 }) {
   const isCnn = node.type === 'cnn';
@@ -257,8 +265,11 @@ function NodeCard({
 
   return (
     <article
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       className={[
-        'relative w-full max-w-[clamp(900px,72vw,1480px)] rounded-[clamp(28px,2.2vw,34px)] px-[clamp(14px,1.2vw,20px)] pb-[clamp(12px,1vw,18px)] pt-[clamp(14px,1.1vw,18px)] shadow-[0_12px_24px_rgba(13,27,51,0.08)]',
+        'relative w-full max-w-[clamp(820px,68vw,1360px)] cursor-grab rounded-[clamp(24px,2vw,30px)] px-[clamp(12px,1vw,18px)] pb-[clamp(10px,0.9vw,16px)] pt-[clamp(12px,1vw,16px)] shadow-[0_12px_24px_rgba(13,27,51,0.08)] active:cursor-grabbing',
         cardClassName,
       ].join(' ')}
     >
@@ -324,16 +335,12 @@ function NodeCard({
 
         <div className="flex shrink-0 items-start gap-2">
           <div className="flex items-center gap-1 pt-1">
-            <button
-              type="button"
-              draggable
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-              className="grid h-6 w-6 cursor-grab place-items-center rounded-full text-muted/70 transition-colors hover:bg-white/70 hover:text-ink active:cursor-grabbing"
-              aria-label={`${node.title} move`}
+            <div
+              className="grid h-6 w-6 place-items-center rounded-full text-muted/70"
+              aria-hidden="true"
             >
               <Icon name="dots" className="h-3 w-3" />
-            </button>
+            </div>
             <button
               type="button"
               onClick={onRemove}
@@ -603,7 +610,7 @@ function DataBlockCard({ dataset }: { dataset: DatasetItem }) {
   const tone = blockTone('emerald');
 
   return (
-    <article className={['relative w-full max-w-[clamp(900px,72vw,1480px)] rounded-[clamp(28px,2.2vw,34px)] px-[clamp(14px,1.2vw,20px)] pb-[clamp(12px,1vw,18px)] pt-[clamp(14px,1.1vw,18px)] shadow-[0_12px_24px_rgba(13,27,51,0.08)]', tone.card].join(' ')}>
+    <article className={['relative w-full max-w-[clamp(820px,68vw,1360px)] rounded-[clamp(24px,2vw,30px)] px-[clamp(12px,1vw,18px)] pb-[clamp(10px,0.9vw,16px)] pt-[clamp(12px,1vw,16px)] shadow-[0_12px_24px_rgba(13,27,51,0.08)]', tone.card].join(' ')}>
       <div className={['absolute inset-x-3 top-0 h-[7px] rounded-b-[10px] rounded-t-[999px]', tone.bar].join(' ')} />
       <div className="pointer-events-none absolute left-1/2 bottom-[-8px] h-[16px] w-[52px] -translate-x-1/2 rounded-b-[14px] bg-background/92 shadow-[inset_0_2px_0_rgba(129,149,188,0.14)]" />
 
@@ -653,13 +660,11 @@ export function Canvas({
   onUpdateNodeField,
   onUpdateNodeActivation,
   onMoveNode,
-  onReplaceNode,
   onDropBlock,
 }: CanvasProps) {
   const stackRef = useRef<HTMLDivElement>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
-  const [replaceTargetId, setReplaceTargetId] = useState<string | null>(null);
   const [trashHover, setTrashHover] = useState(false);
   const { dimensions: nodeDimensions, advice: nodeAdvice } = analyzeModelNodes(selectedDataset, nodes);
   const starterBlocks = libraryBlocks.slice(0, 4);
@@ -701,7 +706,6 @@ export function Canvas({
           if (draggedNodeId) {
             setHoverIndex(null);
             setDraggingNodeId(null);
-            setReplaceTargetId(null);
             setTrashHover(false);
             onMoveNode(draggedNodeId, insertionIndex);
             return;
@@ -712,7 +716,6 @@ export function Canvas({
           }
 
           setHoverIndex(null);
-          setReplaceTargetId(null);
           setTrashHover(false);
           onDropBlock(droppedBlock, insertionIndex);
         }}
@@ -721,11 +724,11 @@ export function Canvas({
           draggingBlock || draggingNodeId ? 'bg-primary/[0.03]' : '',
         ].join(' ')}
       >
-        <div className="relative w-full max-w-[clamp(980px,78vw,1580px)] overflow-hidden rounded-[32px] border border-white/50 bg-white/28 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-sm">
+        <div className="relative w-full max-w-[clamp(920px,74vw,1480px)] overflow-hidden rounded-[30px] border border-white/50 bg-white/28 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-sm">
           <div className="px-[clamp(20px,1.6vw,24px)] py-[clamp(24px,2vw,28px)]">
             <div
               ref={stackRef}
-              className="mx-auto flex w-full max-w-[clamp(920px,74vw,1480px)] flex-col items-start transition-transform duration-150"
+              className="mx-auto flex w-full max-w-[clamp(860px,70vw,1360px)] flex-col items-start transition-transform duration-150"
               style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}
             >
               <DataBlockCard dataset={selectedDataset} />
@@ -791,50 +794,32 @@ export function Canvas({
                   <div
                     data-node-card="true"
                     onDragOver={(event) => {
-                      const droppedBlock = getDroppedBlockType(event, draggingBlock);
                       const draggedNodeId = getDraggedNodeId(event);
-
-                      if (!droppedBlock || draggedNodeId) {
+                      if (!draggedNodeId) {
                         return;
                       }
 
                       event.preventDefault();
                       event.stopPropagation();
-                      setHoverIndex(null);
-                      setReplaceTargetId(node.id);
-                    }}
-                    onDragLeave={(event) => {
-                      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                        setReplaceTargetId((current) => (current === node.id ? null : current));
-                      }
+                      setTrashHover(false);
+                      setHoverIndex(getCardInsertionIndex(event, index));
                     }}
                     onDrop={(event) => {
-                      const droppedBlock = getDroppedBlockType(event, draggingBlock);
                       const draggedNodeId = getDraggedNodeId(event);
-
-                      if (!droppedBlock || draggedNodeId) {
+                      if (!draggedNodeId) {
                         return;
                       }
 
                       event.preventDefault();
                       event.stopPropagation();
-                      setHoverIndex(null);
-                      setReplaceTargetId(null);
+                      const insertionIndex = getCardInsertionIndex(event, index);
+                      setDraggingNodeId(null);
                       setTrashHover(false);
-                      onReplaceNode(node.id, droppedBlock);
+                      setHoverIndex(null);
+                      onMoveNode(draggedNodeId, insertionIndex);
                     }}
-                    className={[
-                      'relative w-full max-w-[clamp(900px,72vw,1420px)] rounded-[36px] transition-all duration-150',
-                      replaceTargetId === node.id
-                        ? 'scale-[1.01] bg-primary/[0.045] p-1.5 shadow-[0_0_0_1px_rgba(36,99,235,0.12)] ring-2 ring-primary/35'
-                        : '',
-                    ].join(' ')}
+                    className="relative w-full max-w-[clamp(820px,68vw,1320px)] rounded-[32px] transition-all duration-150"
                   >
-                    {replaceTargetId === node.id ? (
-                      <div className="pointer-events-none absolute inset-x-8 top-4 z-10 rounded-full bg-white/92 px-4 py-2 text-center text-[12px] font-bold tracking-[0.08em] text-primary shadow-[0_12px_24px_rgba(17,81,255,0.12)]">
-                        Drop to replace with {libraryBlocks.find((block) => block.id === draggingBlock)?.title ?? 'layer'}
-                      </div>
-                    ) : null}
                     <NodeCard
                       node={node}
                       dimensions={nodeDimensions[node.id]}
@@ -850,13 +835,11 @@ export function Canvas({
                         event.dataTransfer.effectAllowed = 'move';
                         event.dataTransfer.setData('application/x-builder-node', node.id);
                         setDraggingNodeId(node.id);
-                        setReplaceTargetId(null);
                         setTrashHover(false);
                       }}
                       onDragEnd={() => {
                         setDraggingNodeId(null);
                         setHoverIndex(null);
-                        setReplaceTargetId(null);
                         setTrashHover(false);
                       }}
                     />
@@ -871,7 +854,7 @@ export function Canvas({
 
           <div className="flex items-center justify-between border-t border-white/60 px-5 py-3.5">
             <div className="rounded-full bg-white/80 px-3.5 py-2 text-[13px] font-semibold text-muted shadow-panel">
-              Drag a sidebar block onto an existing card to replace it in place
+              Drag a block into the stack to add it. Drag an existing block to move it.
             </div>
             <div className="rounded-full bg-[#edf3ff] px-3 py-1.5 text-[13px] font-bold text-primary">
               {nodes.length} blocks
@@ -880,10 +863,10 @@ export function Canvas({
         </div>
         {draggingBlock || draggingNodeId ? (
           <>
-            <div className="pointer-events-none absolute inset-x-5 bottom-5 rounded-2xl border border-dashed border-primary/40 bg-white/80 px-4 py-2.5 text-center text-[14px] font-semibold text-primary backdrop-blur-md">
+            <div className="pointer-events-none absolute inset-x-5 bottom-5 rounded-2xl border border-dashed border-primary/40 bg-white/88 px-4 py-3 text-center text-[14px] font-semibold text-primary shadow-[0_18px_40px_rgba(17,81,255,0.08)] backdrop-blur-md">
               {draggingNodeId
-                ? 'Drag the block handle to reorder it, or drop it on the trash below to delete'
-                : `Drag onto the stack to add ${draggingBlock === 'linear' ? 'Linear Layer' : draggingBlock === 'cnn' ? 'CNN Layer' : draggingBlock === 'pooling' ? 'Pooling Layer' : 'Dropout Layer'}, or onto a card to replace it`}
+                ? 'Drag the block to move it, or drop it on the trash below to delete'
+                : `Drag onto the stack to add ${draggingBlock === 'linear' ? 'Linear Layer' : draggingBlock === 'cnn' ? 'CNN Layer' : draggingBlock === 'pooling' ? 'Pooling Layer' : 'Dropout Layer'}`}
             </div>
             {draggingNodeId ? (
               <div
@@ -896,7 +879,6 @@ export function Canvas({
                   event.stopPropagation();
                   setTrashHover(true);
                   setHoverIndex(null);
-                  setReplaceTargetId(null);
                 }}
                 onDragLeave={(event) => {
                   if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
@@ -914,18 +896,24 @@ export function Canvas({
                   setTrashHover(false);
                   setDraggingNodeId(null);
                   setHoverIndex(null);
-                  setReplaceTargetId(null);
                   onRemoveNode(droppedNodeId);
                 }}
                 className={[
-                  'absolute bottom-20 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-full border px-5 py-3 text-[14px] font-bold shadow-[0_18px_40px_rgba(13,27,51,0.14)] transition-all duration-150',
+                  'fixed bottom-6 left-1/2 z-[70] flex min-w-[280px] -translate-x-1/2 items-center justify-center gap-3 rounded-[22px] border px-6 py-4 text-[15px] font-bold shadow-[0_22px_48px_rgba(13,27,51,0.18)] transition-all duration-150',
                   trashHover
-                    ? 'border-[#ef4444] bg-[#fff1f2] text-[#b91c1c] ring-4 ring-[#fecdd3] scale-[1.03]'
-                    : 'border-[#fbcfe8] bg-white/94 text-[#c2416d] backdrop-blur-md',
+                    ? 'border-[#ef4444] bg-[#fff1f2] text-[#b91c1c] ring-4 ring-[#fecdd3] scale-[1.06]'
+                    : 'border-[#fbcfe8] bg-white/96 text-[#c2416d] backdrop-blur-md',
                 ].join(' ')}
               >
-                <span className="text-[20px] leading-none">🗑</span>
-                <span>Drop here to delete</span>
+                <span className="grid h-10 w-10 place-items-center rounded-full bg-[#fff0f4] text-[22px] leading-none">
+                  🗑
+                </span>
+                <div className="grid gap-0.5 text-center">
+                  <span>Drop here to delete</span>
+                  <span className="text-[11px] font-extrabold uppercase tracking-[0.14em] opacity-70">
+                    Trash Zone
+                  </span>
+                </div>
               </div>
             ) : null}
           </>

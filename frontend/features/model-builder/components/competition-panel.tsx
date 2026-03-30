@@ -60,6 +60,18 @@ function formatMonthLabel(date: Date) {
   return `${date.getFullYear()}. ${date.getMonth() + 1}`;
 }
 
+function toKstIso(date: Date) {
+  const utcTime = date.getTime() + date.getTimezoneOffset() * 60_000;
+  const kstDate = new Date(utcTime + 9 * 60 * 60 * 1000);
+  const year = kstDate.getUTCFullYear();
+  const month = `${kstDate.getUTCMonth() + 1}`.padStart(2, '0');
+  const day = `${kstDate.getUTCDate()}`.padStart(2, '0');
+  const hours = `${kstDate.getUTCHours()}`.padStart(2, '0');
+  const minutes = `${kstDate.getUTCMinutes()}`.padStart(2, '0');
+  const seconds = `${kstDate.getUTCSeconds()}`.padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+09:00`;
+}
+
 function isSameDay(date: Date, value: string) {
   return formatDateValue(date) === value;
 }
@@ -395,8 +407,8 @@ export function CompetitionPanel({
                   datasetId,
                   roomCode,
                   password,
-                  startsAt: new Date().toISOString(),
-                  endsAt: endsAt ? new Date(`${endsAt}T15:00:00`).toISOString() : undefined,
+                  startsAt: toKstIso(new Date()),
+                  endsAt: endsAt ? toKstIso(new Date(`${endsAt}T15:00:00`)) : undefined,
                 })
               }
               className="rounded-[18px] bg-[linear-gradient(135deg,#1151ff,#2d66ff)] px-6 py-3 text-[13px] font-extrabold uppercase tracking-[0.18em] text-white shadow-[0_18px_40px_rgba(17,81,255,0.18)] disabled:opacity-50"
