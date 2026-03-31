@@ -30,6 +30,7 @@ type TopBarProps = {
   onTrainingStop: () => void;
   onModelPreview: () => void;
   onReset: () => void;
+  onLogoClick: () => void;
 };
 
 type ActionButton = {
@@ -66,6 +67,7 @@ export function TopBar({
   onTrainingStop,
   onModelPreview,
   onReset,
+  onLogoClick,
 }: TopBarProps) {
   const optimizerConfig = optimizerConfigs[optimizer];
   const learningRates = optimizerConfig.learningRates;
@@ -164,9 +166,13 @@ export function TopBar({
       <div className="grid gap-3 xl:grid-cols-[minmax(280px,1.1fr)_minmax(420px,1.35fr)_minmax(260px,0.95fr)]">
         <section className="glass-panel ghost-border flex min-w-0 flex-col justify-start gap-[clamp(8px,0.8vw,12px)] rounded-[24px] px-[clamp(16px,1.2vw,20px)] py-[clamp(12px,1vw,16px)] shadow-panel xl:w-full">
           <div className="flex items-start justify-between gap-3">
-            <div className="font-display text-[2rem] font-bold tracking-[-0.06em] text-primary">
+            <button
+              type="button"
+              onClick={onLogoClick}
+              className="font-display text-[2rem] font-bold tracking-[-0.06em] text-primary transition-opacity hover:opacity-80"
+            >
               VisAIble
-            </div>
+            </button>
             <div className="shrink-0 rounded-full bg-[rgba(17,81,255,0.08)] px-3 py-1 text-right">
               <div className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-muted">
                 Device
@@ -243,8 +249,8 @@ export function TopBar({
           </div>
 
           <div className="rounded-[20px] bg-white/75 px-4 py-[clamp(10px,0.9vw,12px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)] sm:col-span-2">
-            <div className="grid max-w-[280px] gap-3">
-              <div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="max-w-[280px]">
                 <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">
                   Optimizer
                 </span>
@@ -267,7 +273,7 @@ export function TopBar({
                 </div>
               </div>
 
-              <div>
+              <div className="max-w-[220px]">
                 <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">
                   Epochs
                 </span>

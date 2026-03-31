@@ -116,6 +116,7 @@ export function BuilderShell() {
   );
   const [isCompetitionRankOpen, setIsCompetitionRankOpen] = useState(false);
   const [competitionCopyFeedback, setCompetitionCopyFeedback] = useState<string | null>(null);
+  const [isCompetitionInfoOpen, setIsCompetitionInfoOpen] = useState(false);
   const pollingRef = useRef<number | null>(null);
   const streamRef = useRef<EventSource | null>(null);
   const liveBatchKeyRef = useRef<string | null>(null);
@@ -199,6 +200,16 @@ export function BuilderShell() {
   }, [competitionRoom?.roomCode, competitionRoom?.participantId]);
 
   const competitionActive = activeWorkspace === 'competition' && competitionRoom !== null;
+  const competitionInfoText = competitionRoom
+    ? [
+        `Title: ${competitionRoom.title}`,
+        `Dataset: ${selectedDataset.label}`,
+        `Code: ${competitionRoom.roomCode}`,
+        competitionRoom.generatedPassword ? `Password: ${competitionRoom.generatedPassword}` : null,
+      ]
+        .filter((item): item is string => item !== null)
+        .join('\n')
+    : '';
 
   const handleCopyCompetitionText = async (label: string, value: string) => {
     try {
@@ -303,6 +314,18 @@ export function BuilderShell() {
     } finally {
       setCompetitionSubmitBusy(false);
     }
+  };
+
+  const handleLeaveCompetitionRoom = () => {
+    setCompetitionRoom(null);
+    setCompetitionLeaderboard(null);
+    setCompetitionRuns([]);
+    setSelectedCompetitionRunJobId(null);
+    setCompetitionError(null);
+    setCompetitionCopyFeedback(null);
+    setIsCompetitionInfoOpen(false);
+    setIsCompetitionRankOpen(false);
+    setActiveWorkspace('builder');
   };
 
   return (
@@ -591,12 +614,18 @@ export function BuilderShell() {
             setIsPreviewOpen(true);
           }}
           onReset={resetBoard}
+          onLogoClick={() => {
+            setActiveWorkspace('builder');
+            setIsCompetitionInfoOpen(false);
+            setIsCompetitionRankOpen(false);
+          }}
         />
 
         <div className="grid min-h-0 gap-3 px-4 py-2 xl:justify-center xl:grid-cols-[clamp(248px,17vw,360px)_minmax(0,1fr)_clamp(288px,22vw,460px)] xl:px-[clamp(20px,2vw,40px)]">
           <Sidebar
             selectedDatasetId={selectedDatasetId}
             activeWorkspace={activeWorkspace}
+            selectedDataset={selectedDataset}
             onDatasetSelect={(datasetId) => {
               if (activeWorkspace === 'competition') {
                 return;
@@ -623,7 +652,7 @@ export function BuilderShell() {
                       <div className="flex flex-wrap items-start justify-between gap-4">
                         <div>
                           <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/65">
-                            Competition room
+                            VisAIble Competition
                           </div>
                           <div className="mt-1 font-display text-[28px] font-bold tracking-[-0.04em]">
                             {competitionRoom.title}
@@ -632,54 +661,40 @@ export function BuilderShell() {
                             Code {competitionRoom.roomCode} · Host {competitionRoom.hostName} · {selectedDataset.label}
                           </div>
                           {competitionRoom.participantRole === 'host' ? (
-                            <div className="mt-4 flex flex-wrap items-center gap-2">
+                            <div className="relative mt-4 flex flex-wrap items-center gap-2">
                               <button
                                 type="button"
-                                onClick={() =>
-                                  void handleCopyCompetitionText('Code', competitionRoom.roomCode)
-                                }
+                                onClick={() => {
+                                  setIsCompetitionInfoOpen((current) => !current);
+                                  void handleCopyCompetitionText('Info', competitionInfoText);
+                                }}
                                 className="inline-flex items-center gap-2 rounded-[12px] border border-white/15 bg-white/12 px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-white"
                               >
                                 <Icon name="copy" className="h-4 w-4" />
-                                Copy Code
+                                Info
                               </button>
-                              {competitionRoom.generatedPassword ? (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    void handleCopyCompetitionText(
-                                      'Password',
-                                      competitionRoom.generatedPassword ?? '',
-                                    )
-                                  }
-                                  className="inline-flex items-center gap-2 rounded-[12px] border border-white/15 bg-white/12 px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-white"
-                                >
-                                  <Icon name="copy" className="h-4 w-4" />
-                                  Copy Password
-                                </button>
+                              {isCompetitionInfoOpen ? (
+                                <div className="absolute left-0 top-full z-20 mt-3 w-[min(320px,80vw)] rounded-[18px] border border-white/15 bg-[rgba(15,23,42,0.88)] p-4 text-white shadow-[0_18px_40px_rgba(15,23,42,0.28)] backdrop-blur">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-white/70">
+                                      Room Info
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setIsCompetitionInfoOpen(false)}
+                                      className="rounded-full border border-white/10 px-2 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-white/75"
+                                    >
+                                      Close
+                                    </button>
+                                  </div>
+                                  <pre className="mt-3 whitespace-pre-wrap break-words font-mono text-[12px] leading-6 text-white/90">
+                                    {competitionInfoText}
+                                  </pre>
+                                  <div className="mt-3 text-[11px] font-semibold text-white/65">
+                                    {competitionCopyFeedback ?? '클릭하면 정보가 복사됩니다.'}
+                                  </div>
+                                </div>
                               ) : null}
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void handleCopyCompetitionText(
-                                    'Join info',
-                                    [
-                                      `Title: ${competitionRoom.title}`,
-                                      `Dataset: ${selectedDataset.label}`,
-                                      `Code: ${competitionRoom.roomCode}`,
-                                      competitionRoom.generatedPassword
-                                        ? `Password: ${competitionRoom.generatedPassword}`
-                                        : null,
-                                    ]
-                                      .filter((item): item is string => item !== null)
-                                      .join('\n'),
-                                  )
-                                }
-                                className="inline-flex items-center gap-2 rounded-[12px] border border-white/15 bg-white/12 px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-white"
-                              >
-                                <Icon name="copy" className="h-4 w-4" />
-                                Copy Join Info
-                              </button>
                               {competitionCopyFeedback ? (
                                 <div className="rounded-full bg-white/14 px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-white">
                                   {competitionCopyFeedback}
@@ -692,12 +707,19 @@ export function BuilderShell() {
                           <button
                             type="button"
                             onClick={() => setIsCompetitionRankOpen(true)}
-                            className="rounded-[14px] border border-white/15 bg-white/12 px-4 py-2 text-[12px] font-extrabold uppercase tracking-[0.14em] text-white"
+                            className="rounded-[14px] border border-white/15 bg-white/16 px-4 py-2 text-[12px] font-extrabold tracking-[0.06em] text-white"
                           >
-                            View Leaderboard
+                            리더보드 보기
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleLeaveCompetitionRoom}
+                            className="rounded-[14px] border border-[#fecaca] bg-[rgba(127,29,29,0.18)] px-4 py-2 text-[12px] font-extrabold tracking-[0.06em] text-white"
+                          >
+                            방 나가기
                           </button>
                           <div className="rounded-[14px] bg-white/12 px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-white/85">
-                            Submit from run cards
+                            Run 카드에서 제출
                           </div>
                         </div>
                       </div>

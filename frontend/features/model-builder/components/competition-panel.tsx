@@ -107,14 +107,14 @@ const competitionDatasets = datasets.map((dataset) => ({ id: dataset.id, label: 
 const modeOptions = [
   {
     key: 'make',
-    title: 'Create competition',
-    description: 'New private room',
+    title: 'Create Room',
+    description: '새 Private Room 만들기',
     icon: 'rocket' as const,
   },
   {
     key: 'enter',
-    title: 'Join competition',
-    description: 'Use room code',
+    title: 'Join Room',
+    description: '초대 코드로 입장',
     icon: 'check' as const,
   },
 ] as const;
@@ -127,7 +127,7 @@ export function CompetitionPanel({
 }: CompetitionPanelProps) {
   const [mode, setMode] = useState<'idle' | 'make' | 'enter'>('idle');
   const [hostName, setHostName] = useState('Host');
-  const [title, setTitle] = useState('Class Competition');
+  const [title, setTitle] = useState('VisAIble Competition');
   const [datasetId, setDatasetId] = useState(datasets[0]?.id ?? 'mnist');
   const [roomCode, setRoomCode] = useState(makeRandomCode());
   const [password, setPassword] = useState(makeRandomPassword());
@@ -139,12 +139,12 @@ export function CompetitionPanel({
 
   const helperText = useMemo(() => {
     if (mode === 'make') {
-      return 'Host creates a private competition room, shares the invite code, and students submit their best training runs to the leaderboard.';
+      return '호스트가 Private Room을 만들고 초대 코드를 공유하면, 참가자는 가장 좋은 학습 결과를 리더보드에 제출할 수 있습니다.';
     }
     if (mode === 'enter') {
-      return 'Join an existing room with the invite code. Hosts use the room password, members keep their personal password for future logins.';
+      return '초대 코드로 이미 만들어진 방에 입장하세요. 호스트는 방 비밀번호를 사용하고, 참가자는 처음 입장 후 개인 비밀번호를 계속 사용할 수 있습니다.';
     }
-    return 'Create a clean, deadline-based competition room or jump into an existing leaderboard.';
+    return '마감 시간이 있는 경쟁 방을 만들거나, 이미 진행 중인 리더보드에 바로 참여해보세요.';
   }, [mode]);
 
   const selectedDatasetLabel =
@@ -152,7 +152,7 @@ export function CompetitionPanel({
   const selectedDeadline = endsAt ? toCompetitionDeadline(endsAt) : null;
   const isDeadlineExpired = selectedDeadline ? selectedDeadline.getTime() <= Date.now() : false;
   const scheduleWarning = isDeadlineExpired
-    ? 'Selected end date already passed 15:00 in your local time. Please choose a later date.'
+    ? '선택한 마감일은 현재 기준으로 이미 종료된 시간입니다. 더 늦은 날짜를 선택해 주세요.'
     : null;
 
   return (
@@ -161,10 +161,10 @@ export function CompetitionPanel({
         <div className="overflow-hidden rounded-[28px] border border-[#d5e3f2] bg-[linear-gradient(135deg,#0f172a,#173968_48%,#2563eb)] px-6 py-6 text-white shadow-[0_30px_80px_rgba(15,23,42,0.22)]">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/82">
             <Icon name="grid" className="h-4 w-4" />
-            Competition
+            VisAIble Competition
           </div>
           <h1 className="mt-4 max-w-[560px] font-display text-[34px] font-bold tracking-[-0.05em]">
-            Kaggle-style private competitions for model building sessions.
+            VisAIble Competition으로 수업형 AI 대회를 바로 시작하세요.
           </h1>
           <p className="mt-3 max-w-[620px] text-[15px] leading-7 text-white/78">{helperText}</p>
 
@@ -173,27 +173,27 @@ export function CompetitionPanel({
               <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/60">
                 Format
               </div>
-              <div className="mt-2 text-[18px] font-bold">Hidden leaderboard</div>
+              <div className="mt-2 text-[18px] font-bold">Hidden Leaderboard</div>
               <div className="mt-1 text-[12px] text-white/70">
-                Public score for players, private score for hosts.
+                참가자는 Public Score를 보고, 호스트는 Private Score까지 확인합니다.
               </div>
             </div>
             <div className="rounded-[20px] border border-white/12 bg-white/10 px-4 py-4 backdrop-blur">
               <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/60">
                 Access
               </div>
-              <div className="mt-2 text-[18px] font-bold">Invite only</div>
+              <div className="mt-2 text-[18px] font-bold">Invite Only</div>
               <div className="mt-1 text-[12px] text-white/70">
-                Room code and password keep each classroom isolated.
+                Room Code와 비밀번호로 각 수업 방을 분리해 운영할 수 있습니다.
               </div>
             </div>
             <div className="rounded-[20px] border border-white/12 bg-white/10 px-4 py-4 backdrop-blur">
               <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/60">
                 Deadline
               </div>
-              <div className="mt-2 text-[18px] font-bold">{endsAt ? formatDateLabel(endsAt) : 'Open now'}</div>
+              <div className="mt-2 text-[18px] font-bold">{endsAt ? formatDateLabel(endsAt) : 'Open Now'}</div>
               <div className="mt-1 text-[12px] text-white/70">
-                End time is fixed to 15:00 for consistent submissions.
+                제출 기준을 맞추기 위해 종료 시간은 오후 3시로 고정됩니다.
               </div>
             </div>
           </div>
@@ -201,33 +201,33 @@ export function CompetitionPanel({
 
         <aside className="grid gap-3 rounded-[28px] border border-[#dbe5f1] bg-white px-5 py-5 shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
           <div>
-            <div className={fieldLabelClassName}>Competition guide</div>
+            <div className={fieldLabelClassName}>Competition Guide</div>
             <div className="mt-2 font-display text-[24px] font-bold tracking-[-0.04em] text-[#10213b]">
-              Quick setup
+              빠른 시작 안내
             </div>
           </div>
           <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4">
             <div className="text-[12px] font-extrabold uppercase tracking-[0.16em] text-[#3b82f6]">
-              1. Create or join
+              1. Create or Join
             </div>
             <div className="mt-1 text-[13px] leading-6 text-[#52627a]">
-              Start a room as host or enter with an invite code.
+              호스트로 새 방을 만들거나, 초대 코드로 기존 방에 입장합니다.
             </div>
           </div>
           <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4">
             <div className="text-[12px] font-extrabold uppercase tracking-[0.16em] text-[#3b82f6]">
-              2. Train models
+              2. Train Model
             </div>
             <div className="mt-1 text-[13px] leading-6 text-[#52627a]">
-              Build architectures, run training, and keep the best run selected.
+              아키텍처를 구성하고 학습을 돌린 뒤, 가장 좋은 Run을 골라둡니다.
             </div>
           </div>
           <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4">
             <div className="text-[12px] font-extrabold uppercase tracking-[0.16em] text-[#3b82f6]">
-              3. Submit leaderboard score
+              3. Submit Score
             </div>
             <div className="mt-1 text-[13px] leading-6 text-[#52627a]">
-              Members see public rank, hosts can inspect the private board.
+              참가자는 공개 순위를 보고, 호스트는 비공개 평가 결과까지 확인할 수 있습니다.
             </div>
           </div>
         </aside>
@@ -269,7 +269,7 @@ export function CompetitionPanel({
           })}
         </div>
         <div className="rounded-full bg-[#f5f8fd] px-4 py-2 text-[12px] font-semibold text-[#5e6d84]">
-          Host baseline is recorded on the first submission.
+          첫 제출 기록은 Host Baseline으로 저장됩니다.
         </div>
       </div>
 
@@ -332,7 +332,7 @@ export function CompetitionPanel({
                         {dataset.label}
                       </div>
                       <div className="mt-1 text-[12px] text-[#61738b]">
-                        {active ? 'Selected for this leaderboard' : 'Use for all competition runs'}
+                        {active ? '이 리더보드에 사용 중' : '이 대회의 모든 Run에 사용'}
                       </div>
                     </button>
                   );
@@ -379,7 +379,7 @@ export function CompetitionPanel({
                   </button>
                 </div>
                 <div className="text-[12px] leading-6 text-[#687a92]">
-                  This password is only for the host account. Members create their own password on first entry.
+                  이 비밀번호는 호스트 계정 전용입니다. 참가자는 첫 입장 시 개인 비밀번호를 설정해 사용합니다.
                 </div>
               </label>
             </div>
@@ -392,7 +392,7 @@ export function CompetitionPanel({
                     {formatDateLabel(endsAt)}
                   </div>
                   <div className="mt-1 text-[13px] text-[#61738b]">
-                    Competition starts immediately and closes at 15:00 on the selected date.
+                    Competition은 즉시 시작되며, 선택한 날짜 오후 3시에 종료됩니다.
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -470,7 +470,7 @@ export function CompetitionPanel({
               <div>
                 <div className={fieldLabelClassName}>Publish room</div>
                 <div className="mt-1 text-[14px] leading-6 text-[#596a81]">
-                  The room opens right away with dataset <span className="font-bold text-[#10213b]">{selectedDatasetLabel}</span>.
+                  방은 즉시 열리며, 선택한 데이터셋은 <span className="font-bold text-[#10213b]">{selectedDatasetLabel}</span>입니다.
                 </div>
               </div>
               <button
@@ -489,7 +489,7 @@ export function CompetitionPanel({
                 }
                 className="rounded-[16px] bg-[#2563eb] px-6 py-3 text-[13px] font-extrabold uppercase tracking-[0.18em] text-white shadow-[0_16px_34px_rgba(37,99,235,0.24)] disabled:opacity-50"
               >
-                {isLoading ? 'Creating...' : 'Create Competition'}
+                {isLoading ? 'Creating...' : 'Create Room'}
               </button>
             </div>
           </div>
@@ -497,7 +497,7 @@ export function CompetitionPanel({
           <aside className="grid content-start gap-4 rounded-[28px] border border-[#dbe5f1] bg-white px-5 py-5 shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
             <div>
               <div className={fieldLabelClassName}>Overview</div>
-              <div className="mt-2 font-display text-[24px] font-bold text-[#10213b]">Competition summary</div>
+              <div className="mt-2 font-display text-[24px] font-bold text-[#10213b]">Room Summary</div>
             </div>
             <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4">
               <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">Title</div>
@@ -512,7 +512,7 @@ export function CompetitionPanel({
               <div className="mt-2 text-[18px] font-bold text-[#10213b]">{selectedDatasetLabel}</div>
             </div>
             <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4">
-              <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">Invite code</div>
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">Invite Code</div>
               <div className="mt-2 font-display text-[20px] font-bold tracking-[0.12em] text-[#2563eb]">
                 {roomCode || '------'}
               </div>
@@ -527,10 +527,10 @@ export function CompetitionPanel({
             <div>
               <div className={fieldLabelClassName}>Join room</div>
               <div className="mt-2 font-display text-[28px] font-bold tracking-[-0.04em] text-[#10213b]">
-                Enter a live competition
+                진행 중인 Room에 입장하기
               </div>
               <p className="mt-2 max-w-[640px] text-[14px] leading-7 text-[#60718a]">
-                Use the invite code from the host. Members can create a personal password on first entry and reuse it later.
+                호스트에게 받은 초대 코드로 입장하세요. 참가자는 첫 입장 시 개인 비밀번호를 만들고 이후에도 그대로 사용할 수 있습니다.
               </p>
             </div>
 
@@ -568,7 +568,7 @@ export function CompetitionPanel({
 
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-[22px] border border-[#dbe5f1] bg-[#f7fafc] px-5 py-4">
               <div className="text-[14px] leading-6 text-[#596a81]">
-                Hosts enter with the room password. Members keep their own password after the first successful login.
+                호스트는 방 비밀번호로 입장하고, 참가자는 첫 로그인 이후 자신의 비밀번호를 계속 사용합니다.
               </div>
               <button
                 type="button"
@@ -582,7 +582,7 @@ export function CompetitionPanel({
                 }
                 className="rounded-[16px] bg-[#2563eb] px-6 py-3 text-[13px] font-extrabold uppercase tracking-[0.18em] text-white shadow-[0_16px_34px_rgba(37,99,235,0.24)] disabled:opacity-50"
               >
-                {isLoading ? 'Entering...' : 'Join Competition'}
+                {isLoading ? 'Entering...' : 'Join Room'}
               </button>
             </div>
           </div>
@@ -590,16 +590,16 @@ export function CompetitionPanel({
           <aside className="grid content-start gap-4 rounded-[28px] border border-[#dbe5f1] bg-white px-5 py-5 shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
             <div>
               <div className={fieldLabelClassName}>What you need</div>
-              <div className="mt-2 font-display text-[24px] font-bold text-[#10213b]">Before you join</div>
+              <div className="mt-2 font-display text-[24px] font-bold text-[#10213b]">입장 전 확인</div>
             </div>
             <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4 text-[13px] leading-6 text-[#52627a]">
-              The host shares the competition title, room code, and the room password.
+              호스트에게 Competition title, Room Code, 비밀번호를 먼저 받아야 합니다.
             </div>
             <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4 text-[13px] leading-6 text-[#52627a]">
-              Your best completed training run can be submitted once you are inside the room.
+              방에 들어간 뒤 가장 좋은 학습 결과를 선택해 제출할 수 있습니다.
             </div>
             <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4 text-[13px] leading-6 text-[#52627a]">
-              The leaderboard score may differ from validation accuracy because it uses hidden evaluation data.
+              리더보드 점수는 숨겨진 평가 데이터로 계산되기 때문에 validation accuracy와 다를 수 있습니다.
             </div>
           </aside>
         </div>

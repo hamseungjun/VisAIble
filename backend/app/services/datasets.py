@@ -137,6 +137,13 @@ COCO_ANNOTATIONS_URLS = [
 ]
 
 
+def _build_direct_session() -> requests.Session:
+    session = requests.Session()
+    # Ignore broken system proxy settings when downloading public dataset assets.
+    session.trust_env = False
+    return session
+
+
 def ensure_mnist_downloaded() -> dict[str, object]:
     MNIST_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -261,19 +268,20 @@ def _download_file(urls: list[str], target_path: Path) -> None:
     target_path.parent.mkdir(parents=True, exist_ok=True)
     last_error: Exception | None = None
 
-    for url in urls:
-        for verify in (True, False):
-            try:
-                with requests.get(url, stream=True, timeout=120, verify=verify) as response:
-                    response.raise_for_status()
-                    with target_path.open("wb") as handle:
-                        for chunk in response.iter_content(chunk_size=1024 * 1024):
-                            if chunk:
-                                handle.write(chunk)
-                return
-            except requests.RequestException as exc:
-                last_error = exc
-                target_path.unlink(missing_ok=True)
+    with _build_direct_session() as session:
+        for url in urls:
+            for verify in (True, False):
+                try:
+                    with session.get(url, stream=True, timeout=120, verify=verify) as response:
+                        response.raise_for_status()
+                        with target_path.open("wb") as handle:
+                            for chunk in response.iter_content(chunk_size=1024 * 1024):
+                                if chunk:
+                                    handle.write(chunk)
+                    return
+                except requests.RequestException as exc:
+                    last_error = exc
+                    target_path.unlink(missing_ok=True)
 
     raise ValueError(f"Failed to download dataset asset for {target_path.name}: {last_error}")
 

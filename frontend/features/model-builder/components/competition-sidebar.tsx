@@ -53,8 +53,7 @@ export function CompetitionSidebar({
 }: CompetitionSidebarProps) {
   const [mode, setMode] = useState<'overview' | 'metrics'>('overview');
   const submittedRuns = runs.filter((run) => run.submitted);
-  const selectedRun =
-    submittedRuns.find((run) => run.jobId === selectedRunJobId) ?? null;
+  const selectedRun = submittedRuns.find((run) => run.jobId === selectedRunJobId) ?? null;
   const isHost = room.participantRole === 'host';
   const bestPublicScore = useMemo(() => {
     const scoredRuns = runs.filter((run) => run.submission?.publicScore != null);
@@ -67,16 +66,16 @@ export function CompetitionSidebar({
   }, [runs]);
 
   return (
-    <aside className="grid min-h-0 content-start gap-3">
+    <aside className="grid min-h-0 content-start gap-3 self-start xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
       <section className="rounded-[24px] border border-[#dbe5f1] bg-white px-4 py-4 shadow-[0_16px_34px_rgba(15,23,42,0.06)]">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#71839d]">
-              Competition workspace
+              VisAIble Competition
             </div>
             <div className="mt-1 font-display text-[22px] font-bold text-[#10213b]">{room.title}</div>
             <div className="mt-2 text-[12px] font-semibold text-[#64748b]">
-              {room.participants.length} participants · {room.participantRole}
+              {`\uCC38\uAC00\uC790 ${room.participants.length}\uBA85 \u00B7 ${room.participantRole}`}
             </div>
           </div>
           <div className="flex rounded-full bg-[#eef4fb] p-1">
@@ -194,7 +193,7 @@ export function CompetitionSidebar({
               </div>
             ) : (
               <div className="mt-4 rounded-[18px] bg-[#f5f8fd] px-4 py-4 text-[13px] leading-6 text-[#5d6d84]">
-                Only submitted runs can be selected here. Submit a completed run first, then choose it to inspect leaderboard scores.
+                {'\uC81C\uCD9C\uC774 \uC644\uB8CC\uB41C Run\uB9CC \uC5EC\uAE30\uC11C \uC120\uD0DD\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uBA3C\uC800 \uC644\uB8CC\uB41C Run\uC744 \uC81C\uCD9C\uD55C \uB4A4, \uC120\uD0DD\uD574\uC11C \uB9AC\uB354\uBCF4\uB4DC \uC810\uC218\uB97C \uD655\uC778\uD574 \uBCF4\uC138\uC694.'}
               </div>
             )}
           </div>
@@ -230,7 +229,7 @@ export function CompetitionSidebar({
                           Run {runs.length - index}
                         </div>
                         <div className="mt-1 text-[12px] font-semibold text-[#6c7c94]">
-                          {run.completedAt ? new Date(run.completedAt).toLocaleString() : 'Completed run'}
+                          {run.completedAt ? new Date(run.completedAt).toLocaleString() : '\uC644\uB8CC\uB41C Run'}
                         </div>
                       </div>
                       <div
@@ -280,9 +279,9 @@ export function CompetitionSidebar({
                       <div className="text-[11px] font-semibold text-[#6c7c94]">
                         {run.submitted
                           ? active
-                            ? 'This submitted run is selected for detailed review.'
-                            : 'Submitted run. Click to select and inspect.'
-                          : 'Complete the submit step first. Only submitted runs can be selected.'}
+                            ? '\uC120\uD0DD\uB41C \uC81C\uCD9C Run\uC785\uB2C8\uB2E4. \uC544\uB798 \uC810\uC218\uB97C \uC790\uC138\uD788 \uD655\uC778\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.'
+                            : '\uC81C\uCD9C\uB41C Run\uC785\uB2C8\uB2E4. \uD074\uB9AD\uD574\uC11C \uC120\uD0DD\uD558\uACE0 \uC810\uC218\uB97C \uD655\uC778\uD558\uC138\uC694.'
+                          : '\uBA3C\uC800 Submit \uB2E8\uACC4\uB97C \uC644\uB8CC\uD574\uC57C \uD569\uB2C8\uB2E4. \uC81C\uCD9C\uB41C Run\uB9CC \uC120\uD0DD\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.'}
                       </div>
                       {run.submitted ? (
                         <div
@@ -312,7 +311,7 @@ export function CompetitionSidebar({
               })
             ) : (
               <div className="rounded-[20px] border border-[#dbe5f1] bg-white px-4 py-6 text-[13px] font-semibold text-[#60718a]">
-                No completed runs yet. Finish a training job and it will appear here as a submission candidate.
+                {'\uC544\uC9C1 \uC644\uB8CC\uB41C Run\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. \uD559\uC2B5\uC744 \uB05D\uB0B4\uBA74 \uC774\uACF3\uC5D0 \uC81C\uCD9C \uD6C4\uBCF4\uB85C \uD45C\uC2DC\uB429\uB2C8\uB2E4.'}
               </div>
             )}
           </div>
