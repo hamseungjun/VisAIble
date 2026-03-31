@@ -1,5 +1,43 @@
 import type { DatasetItem, LibraryBlock, StatItem } from '@/types/builder';
 
+const mnistClassLabels = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+const fashionMnistClassLabels = [
+  'T-shirt/top',
+  'Trouser',
+  'Pullover',
+  'Dress',
+  'Coat',
+  'Sandal',
+  'Shirt',
+  'Sneaker',
+  'Bag',
+  'Ankle boot',
+];
+const cifar10ClassLabels = [
+  'Airplane',
+  'Automobile',
+  'Bird',
+  'Cat',
+  'Deer',
+  'Dog',
+  'Frog',
+  'Horse',
+  'Ship',
+  'Truck',
+];
+const cocoClassLabels = [
+  'Person', 'Bicycle', 'Car', 'Motorcycle', 'Airplane', 'Bus', 'Train', 'Truck', 'Boat',
+  'Traffic light', 'Fire hydrant', 'Stop sign', 'Parking meter', 'Bench', 'Bird', 'Cat', 'Dog',
+  'Horse', 'Sheep', 'Cow', 'Elephant', 'Bear', 'Zebra', 'Giraffe', 'Backpack', 'Umbrella',
+  'Handbag', 'Tie', 'Suitcase', 'Frisbee', 'Skis', 'Snowboard', 'Sports ball', 'Kite',
+  'Baseball bat', 'Baseball glove', 'Skateboard', 'Surfboard', 'Tennis racket', 'Bottle',
+  'Wine glass', 'Cup', 'Fork', 'Knife', 'Spoon', 'Bowl', 'Banana', 'Apple', 'Sandwich',
+  'Orange', 'Broccoli', 'Carrot', 'Hot dog', 'Pizza', 'Donut', 'Cake', 'Chair', 'Couch',
+  'Potted plant', 'Bed', 'Dining table', 'Toilet', 'TV', 'Laptop', 'Mouse', 'Remote',
+  'Keyboard', 'Cell phone', 'Microwave', 'Oven', 'Toaster', 'Sink', 'Refrigerator', 'Book',
+  'Clock', 'Vase', 'Scissors', 'Teddy bear', 'Hair drier', 'Toothbrush',
+];
+
 export const datasets: DatasetItem[] = [
   {
     id: 'mnist',
@@ -13,6 +51,7 @@ export const datasets: DatasetItem[] = [
       '손글씨 숫자 이미지 데이터셋입니다. 흑백 28x28 이미지로 구성되며 숫자 0부터 9까지를 분류합니다.',
     shapeDescriptionKo: '입력 텐서 형태는 1채널 28x28 이미지입니다.',
     classesDescriptionKo: '클래스는 총 10개이며 숫자 0, 1, 2, 3, 4, 5, 6, 7, 8, 9입니다.',
+    classLabels: mnistClassLabels,
     sampleClasses: [
       { label: '숫자 0', imageSrc: '/dataset-samples/mnist/0.png' },
       { label: '숫자 1', imageSrc: '/dataset-samples/mnist/1.png' },
@@ -33,6 +72,7 @@ export const datasets: DatasetItem[] = [
     shapeDescriptionKo: '입력 텐서 형태는 1채널 28x28 이미지입니다.',
     classesDescriptionKo:
       '클래스는 총 10개이며 티셔츠/상의, 바지, 풀오버, 드레스, 코트, 샌들, 셔츠, 스니커즈, 가방, 앵클부츠입니다.',
+    classLabels: fashionMnistClassLabels,
     sampleClasses: [
       { label: '티셔츠', imageSrc: '/dataset-samples/fashion_mnist/0.png' },
       { label: '풀오버', imageSrc: '/dataset-samples/fashion_mnist/2.png' },
@@ -53,6 +93,7 @@ export const datasets: DatasetItem[] = [
     shapeDescriptionKo: '입력 텐서 형태는 RGB 3채널 32x32 이미지입니다.',
     classesDescriptionKo:
       '클래스는 총 10개이며 비행기, 자동차, 새, 고양이, 사슴, 개, 개구리, 말, 배, 트럭입니다.',
+    classLabels: cifar10ClassLabels,
     sampleClasses: [
       { label: '비행기', imageSrc: '/dataset-samples/cifar10/0.png' },
       { label: '자동차', imageSrc: '/dataset-samples/cifar10/1.png' },
@@ -73,6 +114,7 @@ export const datasets: DatasetItem[] = [
     shapeDescriptionKo: '입력 텐서 형태는 RGB 3채널 224x224 이미지입니다.',
     classesDescriptionKo:
       '클래스는 총 80개이며 사람, 자전거, 자동차, 개, 고양이, 의자, 병 등 일상 객체 중심으로 구성됩니다.',
+    classLabels: cocoClassLabels,
     sampleClasses: [
       { label: '사람', imageSrc: '/dataset-samples/coco/1.jpg' },
       { label: '자동차', imageSrc: '/dataset-samples/coco/3.jpg' },

@@ -1012,6 +1012,27 @@ def stop_training_job(job_id: str) -> dict[str, str] | None:
         return {"jobId": job_id, "status": "stopped"}
 
 
+def _predict_probabilities(job_id: str, input_tensor: torch.Tensor) -> dict[str, object]:
+    with TRAINING_LOCK:
+        trained = TRAINED_CLASSIFIERS.get(job_id)
+
+    if trained is None:
+        raise ValueError("No trained model found for this job")
+
+    model, device, _dataset_id = trained
+    model.eval()
+    with torch.no_grad():
+        logits = model(input_tensor.to(device))
+        probabilities = torch.softmax(logits, dim=1).squeeze(0).cpu().tolist()
+        predicted_label = int(torch.argmax(logits, dim=1).item())
+
+    return {
+        "predictedLabel": predicted_label,
+        "confidence": round(float(probabilities[predicted_label]), 4),
+        "probabilities": [round(float(value), 4) for value in probabilities],
+    }
+
+
 def predict_mnist_digit(job_id: str, pixels: list[float]) -> dict[str, object]:
     with TRAINING_LOCK:
         trained = TRAINED_CLASSIFIERS.get(job_id)
@@ -1023,15 +1044,31 @@ def predict_mnist_digit(job_id: str, pixels: list[float]) -> dict[str, object]:
     if dataset_id != "mnist":
         raise ValueError("Canvas prediction is only supported for MNIST jobs")
 
-    input_tensor = torch.tensor(pixels, dtype=torch.float32).view(1, 1, 28, 28).to(device)
-    model.eval()
-    with torch.no_grad():
-        logits = model(input_tensor)
-        probabilities = torch.softmax(logits, dim=1).squeeze(0).cpu().tolist()
-        predicted_label = int(torch.argmax(logits, dim=1).item())
+    input_tensor = torch.tensor(pixels, dtype=torch.float32).view(1, 1, 28, 28)
+    return _predict_probabilities(job_id, input_tensor)
 
-    return {
-        "predictedLabel": predicted_label,
-        "confidence": round(float(probabilities[predicted_label]), 4),
-        "probabilities": [round(float(value), 4) for value in probabilities],
-    }
+
+def predict_sample_input(job_id: str, pixels: list[float]) -> dict[str, object]:
+    with TRAINING_LOCK:
+        trained = TRAINED_CLASSIFIERS.get(job_id)
+
+    if trained is None:
+        raise ValueError("No trained model found for this job")
+
+    _model, _device, dataset_id = trained
+    dataset_spec = get_dataset_runtime_spec(dataset_id)
+    expected_pixels = (
+        dataset_spec.input_channels * dataset_spec.input_height * dataset_spec.input_width
+    )
+    if len(pixels) != expected_pixels:
+        raise ValueError(
+            f"Expected {expected_pixels} input values for {dataset_spec.definition.label}, received {len(pixels)}",
+        )
+
+    input_tensor = torch.tensor(pixels, dtype=torch.float32).view(
+        1,
+        dataset_spec.input_channels,
+        dataset_spec.input_height,
+        dataset_spec.input_width,
+    )
+    return _predict_probabilities(job_id, input_tensor)

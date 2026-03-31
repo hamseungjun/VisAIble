@@ -30,7 +30,7 @@ type CompetitionSidebarProps = {
   selectedRunJobId: string | null;
   submitBusy: boolean;
   onSelectRun: (jobId: string) => void;
-  onSubmitSelected: () => void;
+  onSubmitRun: (jobId: string) => void;
 };
 
 function formatPercent(value: number | null | undefined) {
@@ -49,10 +49,12 @@ export function CompetitionSidebar({
   selectedRunJobId,
   submitBusy,
   onSelectRun,
-  onSubmitSelected,
+  onSubmitRun,
 }: CompetitionSidebarProps) {
   const [mode, setMode] = useState<'overview' | 'metrics'>('overview');
-  const selectedRun = runs.find((run) => run.jobId === selectedRunJobId) ?? null;
+  const submittedRuns = runs.filter((run) => run.submitted);
+  const selectedRun =
+    submittedRuns.find((run) => run.jobId === selectedRunJobId) ?? null;
   const isHost = room.participantRole === 'host';
   const bestPublicScore = useMemo(() => {
     const scoredRuns = runs.filter((run) => run.submission?.publicScore != null);
@@ -143,17 +145,12 @@ export function CompetitionSidebar({
                   Submission panel
                 </div>
                 <div className="mt-1 font-display text-[22px] font-bold text-[#10213b]">
-                  Review selected run
+                  Review submitted run
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={onSubmitSelected}
-                disabled={!selectedRun || submitBusy}
-                className="rounded-[14px] bg-[#2563eb] px-4 py-2 text-[12px] font-extrabold uppercase tracking-[0.14em] text-white shadow-[0_14px_28px_rgba(37,99,235,0.22)] disabled:opacity-50"
-              >
-                {submitBusy ? 'Submitting...' : 'Submit Run'}
-              </button>
+              <div className="rounded-full bg-[#eef4fb] px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#2563eb]">
+                Select from submitted runs
+              </div>
             </div>
 
             {selectedRun ? (
@@ -197,7 +194,7 @@ export function CompetitionSidebar({
               </div>
             ) : (
               <div className="mt-4 rounded-[18px] bg-[#f5f8fd] px-4 py-4 text-[13px] leading-6 text-[#5d6d84]">
-                Select a completed training run to compare validation performance with the competition score.
+                Only submitted runs can be selected here. Submit a completed run first, then choose it to inspect leaderboard scores.
               </div>
             )}
           </div>
@@ -206,18 +203,26 @@ export function CompetitionSidebar({
             {runs.length > 0 ? (
               runs.map((run, index) => {
                 const active = selectedRunJobId === run.jobId;
+                const selectable = run.submitted;
 
                 return (
                   <button
                     key={run.jobId}
                     type="button"
-                    onClick={() => onSelectRun(run.jobId)}
+                    onClick={() => {
+                      if (selectable) {
+                        onSelectRun(run.jobId);
+                      }
+                    }}
                     className={[
                       'rounded-[20px] border px-4 py-4 text-left transition',
                       active
-                        ? 'border-[#bfdbfe] bg-white shadow-[0_14px_30px_rgba(59,130,246,0.12)]'
-                        : 'border-[#dbe5f1] bg-white hover:border-[#c7d6e8]',
+                        ? 'border-[#60a5fa] bg-[linear-gradient(135deg,#ffffff,#eef6ff)] shadow-[0_0_0_2px_rgba(59,130,246,0.18),0_22px_44px_rgba(59,130,246,0.22)] -translate-y-0.5'
+                        : selectable
+                          ? 'border-[#dbe5f1] bg-white hover:border-[#93c5fd] hover:shadow-[0_14px_30px_rgba(59,130,246,0.10)]'
+                          : 'border-[#dbe5f1] bg-white/90 opacity-95',
                     ].join(' ')}
+                    disabled={!selectable && submitBusy}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -231,10 +236,14 @@ export function CompetitionSidebar({
                       <div
                         className={[
                           'rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em]',
-                          run.submitted ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#eef2f7] text-[#60718a]',
+                          run.submitted
+                            ? active
+                              ? 'bg-[#2563eb] text-white shadow-[0_8px_18px_rgba(37,99,235,0.25)]'
+                              : 'bg-[#dbeafe] text-[#2563eb]'
+                            : 'bg-[#eef2f7] text-[#60718a]',
                         ].join(' ')}
                       >
-                        {run.submitted ? 'submitted' : 'ready'}
+                        {run.submitted ? (active ? 'selected' : 'submitted') : 'completed'}
                       </div>
                     </div>
 
@@ -265,6 +274,38 @@ export function CompetitionSidebar({
                           </div>
                         </div>
                       ) : null}
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-[11px] font-semibold text-[#6c7c94]">
+                        {run.submitted
+                          ? active
+                            ? 'This submitted run is selected for detailed review.'
+                            : 'Submitted run. Click to select and inspect.'
+                          : 'Complete the submit step first. Only submitted runs can be selected.'}
+                      </div>
+                      {run.submitted ? (
+                        <div
+                          className={[
+                            'rounded-[12px] px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em]',
+                            active ? 'bg-[#2563eb] text-white' : 'bg-[#eef4fb] text-[#2563eb]',
+                          ].join(' ')}
+                        >
+                          {active ? 'Selected' : 'Select'}
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onSubmitRun(run.jobId);
+                          }}
+                          disabled={submitBusy}
+                          className="rounded-[12px] bg-[#2563eb] px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-white shadow-[0_12px_24px_rgba(37,99,235,0.18)] disabled:opacity-50"
+                        >
+                          {submitBusy ? 'Submitting...' : 'Submit Run'}
+                        </button>
+                      )}
                     </div>
                   </button>
                 );

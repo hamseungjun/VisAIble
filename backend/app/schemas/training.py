@@ -68,6 +68,10 @@ class PredictDigitResponse(BaseModel):
     probabilities: list[float]
 
 
+class PredictSampleRequest(BaseModel):
+    pixels: list[float] = Field(..., min_length=1)
+
+
 class TrainingControlResponse(BaseModel):
     jobId: str
     status: str

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Icon } from '@/features/model-builder/components/icons';
-import { predictDigit } from '@/lib/api/model-builder';
-import type { TrainingJobStatus } from '@/types/builder';
+import { predictDigit, predictSample } from '@/lib/api/model-builder';
+import { datasets } from '@/lib/constants/builder-data';
+import type { DatasetItem, TrainingJobStatus } from '@/types/builder';
 
 type InspectorProps = {
   trainingStatus: TrainingJobStatus | null;
@@ -195,6 +196,63 @@ function extractMnistPixels(canvas: HTMLCanvasElement) {
   return Array.from({ length: 28 * 28 }, (_, index) => centeredImage.data[index * 4] / 255);
 }
 
+function getDatasetFromStatus(trainingStatus: TrainingJobStatus | null) {
+  if (!trainingStatus?.datasetId) {
+    return null;
+  }
+
+  return datasets.find((dataset) => dataset.id === trainingStatus.datasetId) ?? null;
+}
+
+function getTopPredictions(probabilities: number[], labels: string[], count = 5) {
+  return probabilities
+    .map((probability, index) => ({
+      index,
+      label: labels[index] ?? `Class ${index}`,
+      probability,
+    }))
+    .sort((left, right) => right.probability - left.probability)
+    .slice(0, count);
+}
+
+async function extractSamplePixels(imageSrc: string, dataset: DatasetItem): Promise<number[]> {
+  const [channels, height, width] =
+    dataset.inputShape?.split('x').map((value) => Number(value.trim())) ?? [1, 28, 28];
+
+  const image = new Image();
+  image.src = imageSrc;
+  await new Promise<void>((resolve, reject) => {
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error('Sample image failed to load'));
+  });
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+  if (!context) {
+    throw new Error('Preview canvas is not available');
+  }
+
+  context.drawImage(image, 0, 0, width, height);
+  const { data } = context.getImageData(0, 0, width, height);
+
+  if (channels === 1) {
+    return Array.from({ length: width * height }, (_, index) => {
+      const offset = index * 4;
+      return (0.299 * data[offset] + 0.587 * data[offset + 1] + 0.114 * data[offset + 2]) / 255;
+    });
+  }
+
+  const pixels: number[] = [];
+  for (let channel = 0; channel < 3; channel += 1) {
+    for (let index = 0; index < width * height; index += 1) {
+      pixels.push(data[index * 4 + channel] / 255);
+    }
+  }
+  return pixels;
+}
+
 export function Inspector({
   trainingStatus,
   liveHistory = { loss: [], accuracy: [], validationLoss: [], validationAccuracy: [] },
@@ -215,8 +273,18 @@ export function Inspector({
   const [digitPrediction, setDigitPrediction] = useState<{
     predictedLabel: number;
     confidence: number;
+    probabilities: number[];
   } | null>(null);
+  const [selectedSampleIndex, setSelectedSampleIndex] = useState(0);
+  const [samplePrediction, setSamplePrediction] = useState<{
+    predictedLabel: number;
+    confidence: number;
+    probabilities: number[];
+  } | null>(null);
+  const [samplePredictError, setSamplePredictError] = useState<string | null>(null);
+  const [isSamplePredicting, setIsSamplePredicting] = useState(false);
   const drawingCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const currentDataset = getDatasetFromStatus(trainingStatus);
   const metrics = trainingStatus?.metrics ?? [];
   const isReplayAvailable =
     (trainingStatus?.status === 'completed' ||
@@ -343,6 +411,25 @@ export function Inspector({
     trainingStatus?.status === 'completed' &&
     trainingStatus.datasetId === 'mnist' &&
     !!trainingStatus.jobId;
+  const showSamplePredictor =
+    trainingStatus?.status === 'completed' &&
+    !!trainingStatus.jobId &&
+    currentDataset != null &&
+    currentDataset.id !== 'mnist' &&
+    (currentDataset.sampleClasses?.length ?? 0) > 0 &&
+    (currentDataset.classLabels?.length ?? 0) > 0;
+  const selectedSample =
+    showSamplePredictor && currentDataset?.sampleClasses
+      ? (currentDataset.sampleClasses[selectedSampleIndex] ?? currentDataset.sampleClasses[0])
+      : null;
+  const digitTopPredictions =
+    digitPrediction && currentDataset?.classLabels
+      ? getTopPredictions(digitPrediction.probabilities, currentDataset.classLabels, 5)
+      : [];
+  const sampleTopPredictions =
+    samplePrediction && currentDataset?.classLabels
+      ? getTopPredictions(samplePrediction.probabilities, currentDataset.classLabels, 5)
+      : [];
 
   useEffect(() => {
     if (!showMnistCanvas) {
@@ -363,6 +450,14 @@ export function Inspector({
     context.lineJoin = 'round';
     context.strokeStyle = '#ffffff';
   }, [showMnistCanvas, trainingStatus?.jobId]);
+
+  useEffect(() => {
+    setSelectedSampleIndex(0);
+    setDigitPrediction(null);
+    setPredictError(null);
+    setSamplePrediction(null);
+    setSamplePredictError(null);
+  }, [trainingStatus?.jobId, trainingStatus?.datasetId]);
 
   const startDrawing = (event: PointerEvent<HTMLCanvasElement>) => {
     const canvas = drawingCanvasRef.current;
@@ -440,6 +535,7 @@ export function Inspector({
       setDigitPrediction({
         predictedLabel: result.predictedLabel,
         confidence: result.confidence,
+        probabilities: result.probabilities,
       });
     } catch (error) {
       setPredictError(error instanceof Error ? error.message : 'Prediction failed');
@@ -453,6 +549,28 @@ export function Inspector({
       return;
     }
     setIsDrawing(false);
+  };
+
+  const runSamplePrediction = async () => {
+    if (!trainingStatus?.jobId || !currentDataset || !selectedSample?.imageSrc) {
+      return;
+    }
+
+    setIsSamplePredicting(true);
+    setSamplePredictError(null);
+    try {
+      const pixels = await extractSamplePixels(selectedSample.imageSrc, currentDataset);
+      const result = await predictSample(trainingStatus.jobId, pixels);
+      setSamplePrediction({
+        predictedLabel: result.predictedLabel,
+        confidence: result.confidence,
+        probabilities: result.probabilities,
+      });
+    } catch (error) {
+      setSamplePredictError(error instanceof Error ? error.message : 'Sample prediction failed');
+    } finally {
+      setIsSamplePredicting(false);
+    }
   };
 
   return (
@@ -527,14 +645,162 @@ export function Inspector({
             </div>
 
             {digitPrediction ? (
-              <div className="rounded-[14px] bg-white/80 px-3 py-2 text-sm text-ink">
-                Predicted Digit: <strong>{digitPrediction.predictedLabel}</strong> (
-                {(digitPrediction.confidence * 100).toFixed(1)}%)
+              <div className="grid gap-3 rounded-[16px] bg-[linear-gradient(135deg,#ffffff,#eef4ff)] px-3.5 py-3 shadow-[0_12px_28px_rgba(17,81,255,0.08)]">
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
+                      Predicted Digit
+                    </div>
+                    <div className="mt-1 font-display text-[32px] font-bold text-primary">
+                      {digitPrediction.predictedLabel}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
+                      Confidence
+                    </div>
+                    <div className="mt-1 font-display text-[24px] font-bold text-ink">
+                      {(digitPrediction.confidence * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-2">
+                  {digitTopPredictions.map((prediction) => (
+                    <div key={prediction.index} className="grid gap-1">
+                      <div className="flex items-center justify-between text-[12px] font-semibold text-ink">
+                        <span>{prediction.label}</span>
+                        <span>{(prediction.probability * 100).toFixed(1)}%</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-[#dbe5f4]">
+                        <div
+                          className="h-full rounded-full bg-[linear-gradient(90deg,#1151ff,#4f7dff)]"
+                          style={{ width: `${Math.max(prediction.probability * 100, 2)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : null}
             {predictError ? (
               <div className="rounded-[14px] bg-[#ffeef1] px-3 py-2 text-sm text-[#a4384f]">
                 {predictError}
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
+      {showSamplePredictor && currentDataset && selectedSample ? (
+        <section className="rounded-[22px] bg-panel/80 p-3.5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <strong className="font-display text-lg font-bold text-ink">
+              {currentDataset.label} Sample Predictor
+            </strong>
+            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">
+              Sample Selection
+            </span>
+          </div>
+
+          <div className="grid gap-3">
+            <div className="grid grid-cols-2 gap-2">
+              {currentDataset.sampleClasses?.map((sample, index) => {
+                const active = index === selectedSampleIndex;
+
+                return (
+                  <button
+                    key={`${sample.label}-${sample.imageSrc ?? index}`}
+                    type="button"
+                    onClick={() => {
+                      setSelectedSampleIndex(index);
+                      setSamplePrediction(null);
+                      setSamplePredictError(null);
+                    }}
+                    className={[
+                      'overflow-hidden rounded-[16px] border text-left transition',
+                      active
+                        ? 'border-[#7aa2ff] bg-white shadow-[0_14px_28px_rgba(17,81,255,0.12)]'
+                        : 'border-[#dbe5f1] bg-white/80 hover:border-[#bdd1f3]',
+                    ].join(' ')}
+                  >
+                    {sample.imageSrc ? (
+                      <img
+                        src={sample.imageSrc}
+                        alt={sample.label}
+                        className="h-24 w-full object-cover"
+                      />
+                    ) : (
+                      <div className="grid h-24 place-items-center bg-[#eef4ff] text-sm font-bold text-ink">
+                        {sample.label}
+                      </div>
+                    )}
+                    <div className="px-3 py-2 text-[12px] font-semibold text-ink">{sample.label}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[12px] font-semibold text-[#5e6e86]">
+                Select a sample image and inspect the model probability distribution.
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  void runSamplePrediction();
+                }}
+                disabled={isSamplePredicting}
+                className="rounded-full bg-primary px-4 py-1.5 text-xs font-extrabold uppercase tracking-[0.12em] text-white disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isSamplePredicting ? 'Predicting...' : 'Predict Sample'}
+              </button>
+            </div>
+
+            {samplePrediction ? (
+              <div className="grid gap-3 rounded-[16px] bg-[linear-gradient(135deg,#ffffff,#eef8ff)] px-3.5 py-3 shadow-[0_12px_28px_rgba(10,96,127,0.08)]">
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
+                      Predicted Class
+                    </div>
+                    <div className="mt-1 font-display text-[24px] font-bold text-primary">
+                      {currentDataset.classLabels?.[samplePrediction.predictedLabel] ??
+                        `Class ${samplePrediction.predictedLabel}`}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
+                      Confidence
+                    </div>
+                    <div className="mt-1 font-display text-[24px] font-bold text-ink">
+                      {(samplePrediction.confidence * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-2">
+                  {sampleTopPredictions.map((prediction) => (
+                    <div key={prediction.index} className="grid gap-1">
+                      <div className="flex items-center justify-between text-[12px] font-semibold text-ink">
+                        <span>{prediction.label}</span>
+                        <span>{(prediction.probability * 100).toFixed(1)}%</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-[#dbe5f4]">
+                        <div
+                          className="h-full rounded-full bg-[linear-gradient(90deg,#0a607f,#14a3d2)]"
+                          style={{ width: `${Math.max(prediction.probability * 100, 2)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {samplePredictError ? (
+              <div className="rounded-[14px] bg-[#ffeef1] px-3 py-2 text-sm text-[#a4384f]">
+                {samplePredictError}
               </div>
             ) : null}
           </div>

@@ -13,6 +13,7 @@ export type DatasetItem = {
     label: string;
     imageSrc?: string;
   }>;
+  classLabels?: string[];
 };
 
 export type BlockType = 'linear' | 'cnn' | 'pooling' | 'dropout';

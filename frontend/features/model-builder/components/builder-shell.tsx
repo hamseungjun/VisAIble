@@ -199,10 +199,6 @@ export function BuilderShell() {
   }, [competitionRoom?.roomCode, competitionRoom?.participantId]);
 
   const competitionActive = activeWorkspace === 'competition' && competitionRoom !== null;
-  const canSubmitCompetitionRun =
-    competitionActive &&
-    selectedCompetitionRunJobId !== null &&
-    runtimeDatasetId === 'imagenet';
 
   const handleCopyCompetitionText = async (label: string, value: string) => {
     try {
@@ -274,8 +270,8 @@ export function BuilderShell() {
     }
   };
 
-  const handleSubmitCompetitionRun = async () => {
-    if (!competitionRoom || !selectedCompetitionRunJobId) {
+  const handleSubmitCompetitionRun = async (jobId: string) => {
+    if (!competitionRoom) {
       return;
     }
 
@@ -285,13 +281,13 @@ export function BuilderShell() {
       const submission = await submitCompetitionRun({
         roomCode: competitionRoom.roomCode,
         participantId: competitionRoom.participantId,
-        jobId: selectedCompetitionRunJobId,
+        jobId,
         optimizer,
         batchSize,
       });
       setCompetitionRuns((current) =>
         current.map((run) =>
-          run.jobId === selectedCompetitionRunJobId
+          run.jobId === jobId
             ? { ...run, submitted: true, submission }
             : run,
         ),
@@ -416,7 +412,6 @@ export function BuilderShell() {
 
                           return [nextRun, ...current.filter((run) => run.jobId !== result.jobId)];
                         });
-                        setSelectedCompetitionRunJobId(result.jobId);
                       }
                     }
                   }
@@ -701,14 +696,9 @@ export function BuilderShell() {
                           >
                             View Leaderboard
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleSubmitCompetitionRun()}
-                            disabled={!canSubmitCompetitionRun || competitionSubmitBusy}
-                            className="rounded-[14px] bg-white px-4 py-2 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#2563eb] shadow-[0_14px_30px_rgba(15,23,42,0.14)] disabled:opacity-50"
-                          >
-                            {competitionSubmitBusy ? 'Submitting...' : 'Submit Selected'}
-                          </button>
+                          <div className="rounded-[14px] bg-white/12 px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-white/85">
+                            Submit from run cards
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -803,7 +793,7 @@ export function BuilderShell() {
                   selectedRunJobId={selectedCompetitionRunJobId}
                   submitBusy={competitionSubmitBusy}
                   onSelectRun={setSelectedCompetitionRunJobId}
-                  onSubmitSelected={() => void handleSubmitCompetitionRun()}
+                  onSubmitRun={(jobId) => void handleSubmitCompetitionRun(jobId)}
                 />
               ) : (
                 <Inspector

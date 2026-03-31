@@ -104,6 +104,20 @@ const fieldLabelClassName =
   'text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#71839d]';
 const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const competitionDatasets = datasets.map((dataset) => ({ id: dataset.id, label: dataset.label }));
+const modeOptions = [
+  {
+    key: 'make',
+    title: 'Create competition',
+    description: 'New private room',
+    icon: 'rocket' as const,
+  },
+  {
+    key: 'enter',
+    title: 'Join competition',
+    description: 'Use room code',
+    icon: 'check' as const,
+  },
+] as const;
 
 export function CompetitionPanel({
   isLoading,
@@ -221,20 +235,7 @@ export function CompetitionPanel({
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-[#dbe5f1] bg-white px-4 py-4 shadow-[0_14px_32px_rgba(15,23,42,0.05)]">
         <div className="flex flex-wrap gap-2">
-          {[
-            {
-              key: 'make',
-              title: 'Create competition',
-              description: 'New private room',
-              icon: 'rocket' as const,
-            },
-            {
-              key: 'enter',
-              title: 'Join competition',
-              description: 'Use room code',
-              icon: 'check' as const,
-            },
-          ].map((option) => {
+          {modeOptions.map((option) => {
             const active = mode === option.key;
 
             return (
