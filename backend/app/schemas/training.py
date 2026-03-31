@@ -23,7 +23,7 @@ class OptimizerParamsPayload(BaseModel):
 class TrainModelRequest(BaseModel):
     datasetId: str = Field(..., min_length=1)
     learningRate: float = Field(..., gt=0)
-    epochs: int = Field(..., ge=1, le=50)
+    epochs: int = Field(..., ge=1, le=500)
     batchSize: int = Field(default=128, ge=8, le=512)
     optimizer: str = Field(..., min_length=1)
     optimizerParams: OptimizerParamsPayload

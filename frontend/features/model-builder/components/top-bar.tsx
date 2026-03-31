@@ -262,7 +262,7 @@ export function TopBar({
                 <input
                   type="number"
                   min={1}
-                  max={50}
+                  max={500}
                   value={epochs}
                   onChange={(event) => onEpochChange(event.target.value)}
                   className="mt-2.5 w-full rounded-[14px] border border-line bg-white/80 px-3 py-2.5 font-display text-[15px] font-bold text-primary outline-none transition-colors focus:border-primary"
