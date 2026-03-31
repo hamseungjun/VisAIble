@@ -12,6 +12,7 @@ import { Sidebar } from '@/features/model-builder/components/sidebar';
 import { TopBar } from '@/features/model-builder/components/top-bar';
 import { TrainingLiveOverlay } from '@/features/model-builder/components/training-live-overlay';
 import { useBuilderBoard } from '@/features/model-builder/hooks/use-builder-board';
+import { analyzeModelNodes } from '@/lib/model-advice';
 import {
   createCompetitionRoom,
   enterCompetitionRoom,
@@ -132,6 +133,7 @@ export function BuilderShell() {
     addNode,
     removeNode,
     updateNodeField,
+    updateNodeFields,
     updateNodeActivation,
     moveNode,
     resetBoard,
@@ -189,6 +191,29 @@ export function BuilderShell() {
         competitionDataset)
       : (datasets.find((dataset) => dataset.id === selectedDatasetId) ?? datasets[0]);
   const runtimeDatasetId = activeWorkspace === 'competition' ? competitionDatasetId : selectedDatasetId;
+
+  const alignNodesToDataset = (datasetId: string) => {
+    const nextDataset = datasets.find((dataset) => dataset.id === datasetId);
+    if (!nextDataset || nodes.length === 0) {
+      return;
+    }
+
+    const { advice } = analyzeModelNodes(nextDataset, nodes);
+    nodes.forEach((node) => {
+      const nodeAdvice = advice[node.id];
+      if (!nodeAdvice) {
+        return;
+      }
+
+      if (Object.keys(nodeAdvice.suggestedFields).length > 0) {
+        updateNodeFields(node.id, nodeAdvice.suggestedFields);
+      }
+
+      if (nodeAdvice.suggestedActivation) {
+        updateNodeActivation(node.id, nodeAdvice.suggestedActivation);
+      }
+    });
+  };
 
   const surfaceTrainingError = (message: string, jobId: string | null = currentJobId) => {
     console.error('Training error:', message, { jobId: jobId ?? currentJobId ?? 'local-error' });
@@ -706,6 +731,7 @@ export function BuilderShell() {
                 return;
               }
               setSelectedDatasetId(datasetId);
+              alignNodesToDataset(datasetId);
             }}
             onWorkspaceSelect={setActiveWorkspace}
             onBlockDragStart={setDraggingBlock}

@@ -199,16 +199,19 @@ def get_coco_root() -> Path:
 
 
 def ensure_cifar10_downloaded() -> Path:
-    extracted_dir = CIFAR10_DATA_DIR / "cifar-10-batches-py"
-    if extracted_dir.exists():
-        return CIFAR10_DATA_DIR
+    from torchvision import datasets
 
     CIFAR10_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    archive_path = CIFAR10_DATA_DIR / "cifar-10-python.tar.gz"
-    _download_file(CIFAR10_URLS, archive_path)
-    _extract_archive(archive_path, CIFAR10_DATA_DIR)
+    extracted_dir = CIFAR10_DATA_DIR / "cifar-10-batches-py"
+
+    # Let torchvision handle integrity checks and re-download corrupted files.
+    datasets.CIFAR10(root=str(CIFAR10_DATA_DIR), train=True, download=True)
+    datasets.CIFAR10(root=str(CIFAR10_DATA_DIR), train=False, download=True)
+
     if not extracted_dir.exists():
-        raise ValueError("CIFAR-10 archive was downloaded but extraction did not produce cifar-10-batches-py")
+        raise ValueError(
+            "CIFAR-10 download completed but extraction did not produce cifar-10-batches-py",
+        )
     return CIFAR10_DATA_DIR
 
 
