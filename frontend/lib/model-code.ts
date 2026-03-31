@@ -57,6 +57,76 @@ function optimizerCode(
   return `torch.optim.Adam(model.parameters(), lr=${learningRate}, weight_decay=${optimizerParams.weightDecay})`;
 }
 
+function classCountForDataset(dataset: DatasetItem) {
+  return dataset.classCount ?? 10;
+}
+
+function buildDatasetLoaderLines(dataset: DatasetItem) {
+  if (dataset.id === 'mnist') {
+    return [
+      'def load_dataset():',
+      "    transform = transforms.ToTensor()",
+      "    train_split = datasets.MNIST(root='./data/mnist', train=True, download=True, transform=transform)",
+      "    test_split = datasets.MNIST(root='./data/mnist', train=False, download=True, transform=transform)",
+      '    source_dataset = ConcatDataset([train_split, test_split])',
+      '    labels = torch.cat([train_split.targets, test_split.targets]).long()',
+      '    return source_dataset, labels',
+    ];
+  }
+
+  if (dataset.id === 'fashion_mnist') {
+    return [
+      'def load_dataset():',
+      "    transform = transforms.ToTensor()",
+      "    train_split = datasets.FashionMNIST(root='./data/fashion_mnist', train=True, download=True, transform=transform)",
+      "    test_split = datasets.FashionMNIST(root='./data/fashion_mnist', train=False, download=True, transform=transform)",
+      '    source_dataset = ConcatDataset([train_split, test_split])',
+      '    labels = torch.cat([train_split.targets, test_split.targets]).long()',
+      '    return source_dataset, labels',
+    ];
+  }
+
+  if (dataset.id === 'cifar10') {
+    return [
+      'def load_dataset():',
+      "    transform = transforms.Compose([transforms.Resize((32, 32)), transforms.ToTensor()])",
+      "    train_split = datasets.CIFAR10(root='./data/cifar10', train=True, download=True, transform=transform)",
+      "    test_split = datasets.CIFAR10(root='./data/cifar10', train=False, download=True, transform=transform)",
+      '    source_dataset = ConcatDataset([train_split, test_split])',
+      '    labels = torch.tensor(train_split.targets + test_split.targets, dtype=torch.long)',
+      '    return source_dataset, labels',
+    ];
+  }
+
+  if (dataset.id === 'imagenet') {
+    return [
+      'def build_dataloaders():',
+      "    transform = transforms.Compose([transforms.Resize((64, 64)), transforms.ToTensor()])",
+      "    train_dataset = datasets.ImageFolder('./data/tiny-imagenet-200/train', transform=transform)",
+      "    val_dataset = datasets.ImageFolder('./data/tiny-imagenet-200/val-by-class', transform=transform)",
+      '    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)',
+      '    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)',
+      '    return train_loader, val_loader, len(train_dataset), len(val_dataset)',
+    ];
+  }
+
+  if (dataset.id === 'coco') {
+    return [
+      'def build_dataloaders():',
+      "    raise NotImplementedError('COCO export code is not auto-generated yet because the app uses a custom classification proxy dataset loader.')",
+    ];
+  }
+
+  return [
+    'def build_dataloaders():',
+    `    raise ValueError("Unsupported dataset: ${dataset.id}")`,
+  ];
+}
+
+function usesStratifiedSplit(dataset: DatasetItem) {
+  return dataset.id === 'mnist' || dataset.id === 'fashion_mnist' || dataset.id === 'cifar10';
+}
+
 export function generateModelCode(
   dataset: DatasetItem,
   nodes: CanvasNode[],
@@ -65,24 +135,17 @@ export function generateModelCode(
   epochs: string,
   optimizerParams: OptimizerParamsForCode,
 ) {
-  const datasetClassCount: Record<string, number> = {
-    mnist: 10,
-    fashion_mnist: 10,
-    cifar10: 10,
-    imagenet: 1000,
-    coco: 80,
-  };
-  const classCount = datasetClassCount[dataset.id] ?? 10;
+  const classCount = classCountForDataset(dataset);
   const lines = [
     'import torch',
     'from torch import nn',
-    'from torch.utils.data import DataLoader, TensorDataset',
+    'from torch.utils.data import ConcatDataset, DataLoader, Subset',
     'from torchvision import datasets, transforms',
     '',
     `EPOCHS = ${epochs}`,
-    `BATCH_SIZE = 128`,
+    'BATCH_SIZE = 128',
     `LEARNING_RATE = ${learningRate}`,
-    `RANDOM_STATE = 42`,
+    'RANDOM_STATE = 42',
     '',
     'class GeneratedModel(nn.Module):',
     '    def __init__(self):',
@@ -149,34 +212,31 @@ export function generateModelCode(
   lines.push(`# Rule: the final block must be nn.Linear(n, ${classCount}) and must output logits.`);
   lines.push('# Do not apply ReLU or Softmax after the final linear layer before CrossEntropyLoss.');
   lines.push('');
-  lines.push('def load_mnist_dataset():');
-  lines.push("    transform = transforms.ToTensor()");
-  lines.push("    train_split = datasets.MNIST(root='./data', train=True, download=True, transform=transform)");
-  lines.push("    test_split = datasets.MNIST(root='./data', train=False, download=True, transform=transform)");
+  lines.push(...buildDatasetLoaderLines(dataset));
   lines.push('');
-  lines.push('    images = torch.cat([train_split.data, test_split.data], dim=0).float().unsqueeze(1) / 255.0');
-  lines.push('    labels = torch.cat([train_split.targets, test_split.targets], dim=0).long()');
-  lines.push('    return images, labels');
-  lines.push('');
-  lines.push('def build_stratified_datasets(images, labels, train_ratio=0.8, seed=RANDOM_STATE):');
-  lines.push('    generator = torch.Generator().manual_seed(seed)');
-  lines.push('    train_indices = []');
-  lines.push('    val_indices = []');
-  lines.push('');
-  lines.push('    for class_id in torch.unique(labels).tolist():');
-  lines.push('        class_indices = torch.where(labels == class_id)[0]');
-  lines.push('        permuted = class_indices[torch.randperm(class_indices.numel(), generator=generator)]');
-  lines.push('        split_index = int(permuted.numel() * train_ratio)');
-  lines.push('        train_indices.append(permuted[:split_index])');
-  lines.push('        val_indices.append(permuted[split_index:])');
-  lines.push('');
-  lines.push('    train_indices = torch.cat(train_indices)');
-  lines.push('    val_indices = torch.cat(val_indices)');
-  lines.push('');
-  lines.push('    train_dataset = TensorDataset(images[train_indices], labels[train_indices])');
-  lines.push('    val_dataset = TensorDataset(images[val_indices], labels[val_indices])');
-  lines.push('    return train_dataset, val_dataset');
-  lines.push('');
+
+  if (usesStratifiedSplit(dataset)) {
+    lines.push('def build_stratified_datasets(source_dataset, labels, train_ratio=0.8, seed=RANDOM_STATE):');
+    lines.push('    generator = torch.Generator().manual_seed(seed)');
+    lines.push('    train_indices = []');
+    lines.push('    val_indices = []');
+    lines.push('');
+    lines.push('    for class_id in torch.unique(labels).tolist():');
+    lines.push('        class_indices = torch.where(labels == class_id)[0]');
+    lines.push('        permuted = class_indices[torch.randperm(class_indices.numel(), generator=generator)]');
+    lines.push('        split_index = int(permuted.numel() * train_ratio)');
+    lines.push('        train_indices.append(permuted[:split_index])');
+    lines.push('        val_indices.append(permuted[split_index:])');
+    lines.push('');
+    lines.push('    train_indices = torch.cat(train_indices)');
+    lines.push('    val_indices = torch.cat(val_indices)');
+    lines.push('');
+    lines.push('    train_dataset = Subset(source_dataset, train_indices.tolist())');
+    lines.push('    val_dataset = Subset(source_dataset, val_indices.tolist())');
+    lines.push('    return train_dataset, val_dataset');
+    lines.push('');
+  }
+
   lines.push('def evaluate_model(model, loader, criterion, device):');
   lines.push('    model.eval()');
   lines.push('    loss_sum = 0.0');
@@ -208,18 +268,24 @@ export function generateModelCode(
   lines.push('');
   lines.push('def train_model():');
   lines.push('    device = get_training_device()');
-  lines.push('    images, labels = load_mnist_dataset()');
-  lines.push('    train_dataset, val_dataset = build_stratified_datasets(images, labels)');
+  if (usesStratifiedSplit(dataset)) {
+    lines.push('    source_dataset, labels = load_dataset()');
+    lines.push('    train_dataset, val_dataset = build_stratified_datasets(source_dataset, labels)');
+    lines.push('    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)');
+    lines.push('    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)');
+    lines.push('    train_size = len(train_dataset)');
+    lines.push('    val_size = len(val_dataset)');
+  } else {
+    lines.push('    train_loader, val_loader, train_size, val_size = build_dataloaders()');
+  }
   lines.push('    training_model = GeneratedModel().to(device)');
   lines.push('    criterion = nn.CrossEntropyLoss()');
   lines.push(
     `    optimizer = ${optimizerCode(optimizer, learningRate, optimizerParams).replaceAll('model.', 'training_model.')}`,
   );
-  lines.push('    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)');
-  lines.push('    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)');
   lines.push('');
   lines.push("    print(f'Using device: {device}')");
-  lines.push("    print(f'Train samples: {len(train_dataset)} | Val samples: {len(val_dataset)}')");
+  lines.push("    print(f'Train samples: {train_size} | Val samples: {val_size}')");
   lines.push('');
   lines.push('    for epoch in range(EPOCHS):');
   lines.push('        training_model.train()');

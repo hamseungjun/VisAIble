@@ -1,7 +1,7 @@
 'use client';
 
 import type { DragEvent, HTMLAttributes } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Icon } from '@/features/model-builder/components/icons';
 import { libraryBlocks } from '@/lib/constants/builder-data';
 import { analyzeModelNodes, type NodeAdviceInfo, type NodeDimensionInfo } from '@/lib/model-advice';
@@ -175,49 +175,20 @@ function NodeFieldInput({
   className: string;
   onChange: (value: string) => void;
 }) {
-  const showHint = hasFieldError && suggestedValue;
-  const [hintDigits, setHintDigits] = useState('');
-
-  useEffect(() => {
-    if (!showHint) {
-      setHintDigits('');
-      return;
-    }
-
-    setHintDigits((current) =>
-      current.slice(0, Math.max((suggestedValue?.length ?? 1) - 1, 0)),
-    );
-  }, [showHint, suggestedValue]);
-
-  const displayValue =
-    showHint && suggestedValue
-      ? `${suggestedValue[0] ?? ''}${hintDigits}${'_'.repeat(
-          Math.max(suggestedValue.length - 1 - hintDigits.length, 0),
-        )}`
-      : value;
+  const suggestionPlaceholder =
+    hasFieldError && suggestedValue
+      ? `${suggestedValue[0] ?? ''}${'_'.repeat(Math.max(suggestedValue.length - 1, 0))}`
+      : placeholder;
 
   return (
     <input
-      value={displayValue}
-      onChange={(event) => {
-        if (showHint && suggestedValue) {
-          const fixedPrefix = suggestedValue[0] ?? '';
-          const typedDigits = event.target.value
-            .replace(/\D/g, '')
-            .replace(new RegExp(`^${fixedPrefix}`), '')
-            .slice(0, Math.max(suggestedValue.length - 1, 0));
-
-          setHintDigits(typedDigits);
-          onChange(`${fixedPrefix}${typedDigits}`);
-          return;
-        }
-
-        onChange(event.target.value);
-      }}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
       inputMode={inputMode}
-      placeholder={showHint ? undefined : placeholder}
+      placeholder={suggestionPlaceholder}
       className={[
         className,
+        hasFieldError && suggestedValue ? 'placeholder:text-[#dc2626]/45 placeholder:tracking-[0.08em]' : '',
         advisedFieldClassName(hasFieldError),
       ].join(' ')}
       aria-label={fieldLabel}
@@ -257,7 +228,6 @@ function NodeCard({
   const tone = blockTone(node.accent);
   const showAdvice = Boolean(advice?.hasError);
   const showAdviceBanner = showAdvice && advice?.message;
-  const showActivationHintChip = Boolean(advice?.activationError && advice.activationHint);
   const cardClassName = showAdvice
     ? 'bg-[#fff0f0] shadow-[0_16px_32px_rgba(220,38,38,0.14)] ring-1 ring-[#fca5a5]'
     : tone.card;
@@ -293,16 +263,16 @@ function NodeCard({
           <strong className="truncate font-display text-[clamp(15px,1.15vw,18px)] font-bold uppercase tracking-[-0.02em] text-ink">
             {node.title}
           </strong>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             <span className="rounded-full bg-white/72 px-[clamp(8px,0.8vw,10px)] py-[clamp(3px,0.35vw,5px)] text-[clamp(10px,0.75vw,11px)] font-bold uppercase tracking-[0.12em] text-muted">
               {fieldCountLabel}
             </span>
             <span className="rounded-full bg-white/72 px-[clamp(8px,0.8vw,10px)] py-[clamp(3px,0.35vw,5px)] text-[clamp(10px,0.75vw,11px)] font-bold uppercase tracking-[0.12em] text-muted">
               {poolingTypeLabel}
             </span>
-            {showActivationHintChip ? (
-              <span className="rounded-full bg-[#fee2e2] px-[clamp(8px,0.8vw,10px)] py-[clamp(3px,0.35vw,5px)] text-[clamp(10px,0.75vw,11px)] font-bold uppercase tracking-[0.12em] text-[#b91c1c]">
-                {advice?.activationHint}
+            {advice?.activationError && advice.activationHint ? (
+              <span className="rounded-full bg-[#fee2e2] px-[clamp(8px,0.8vw,10px)] py-[clamp(3px,0.35vw,5px)] text-[clamp(10px,0.75vw,11px)] font-semibold tracking-normal text-[#b91c1c] opacity-75">
+                {advice.activationHint}
               </span>
             ) : null}
           </div>
@@ -425,7 +395,7 @@ function NodeCard({
             ))}
 
             <label className="grid gap-0.5 rounded-[18px] bg-white/72 px-[clamp(10px,0.9vw,12px)] py-[clamp(8px,0.75vw,10px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
-              <span className="text-[clamp(10px,0.75vw,11px)] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
+              <span className="shrink-0 text-[clamp(10px,0.75vw,11px)] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
                 Activation Function
               </span>
               <div className="relative">
@@ -578,7 +548,7 @@ function NodeCard({
           ))}
 
           <label className="grid gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
-            <span className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
+            <span className="shrink-0 text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
               Activation Function
             </span>
             <div className="relative">
