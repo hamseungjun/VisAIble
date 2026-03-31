@@ -286,8 +286,8 @@ export function CompetitionPanel({
       ) : null}
 
       {mode === 'make' ? (
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_320px]">
-          <div className="grid gap-5 rounded-[28px] border border-[#dbe5f1] bg-white px-6 py-6 shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.42fr)_280px]">
+          <div className="grid gap-4 rounded-[28px] border border-[#dbe5f1] bg-white px-5 py-5 shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
             <div className="grid gap-4 md:grid-cols-2">
               <label className="grid gap-2">
                 <span className={fieldLabelClassName}>Host name</span>
@@ -384,14 +384,14 @@ export function CompetitionPanel({
               </label>
             </div>
 
-            <div className="rounded-[24px] border border-[#dbe5f1] bg-[#f8fbff] px-5 py-5">
+            <div className="rounded-[24px] border border-[#dbe5f1] bg-[#f8fbff] px-4 py-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <div className={fieldLabelClassName}>Deadline</div>
-                  <div className="mt-2 font-display text-[24px] font-bold text-[#10213b]">
+                  <div className="mt-1.5 font-display text-[21px] font-bold text-[#10213b]">
                     {formatDateLabel(endsAt)}
                   </div>
-                  <div className="mt-1 text-[13px] text-[#61738b]">
+                  <div className="mt-1 text-[12px] text-[#61738b]">
                     Competition은 즉시 시작되며, 선택한 날짜 오후 3시에 종료됩니다.
                   </div>
                 </div>
@@ -399,35 +399,35 @@ export function CompetitionPanel({
                   <button
                     type="button"
                     onClick={() => setCalendarMonth((current) => addMonths(current, -1))}
-                    className="rounded-full border border-[#dbe5f1] bg-white px-3 py-2 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#2563eb]"
+                    className="rounded-full border border-[#dbe5f1] bg-white px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#2563eb]"
                   >
                     Prev
                   </button>
                   <button
                     type="button"
                     onClick={() => setCalendarMonth((current) => addMonths(current, 1))}
-                    className="rounded-full border border-[#dbe5f1] bg-white px-3 py-2 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#2563eb]"
+                    className="rounded-full border border-[#dbe5f1] bg-white px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#2563eb]"
                   >
                     Next
                   </button>
                 </div>
               </div>
 
-              <div className="mt-4 rounded-[22px] border border-[#dbe5f1] bg-white px-4 py-4 shadow-[0_14px_30px_rgba(15,23,42,0.04)]">
-                <div className="mb-3 font-display text-[18px] font-bold text-[#10213b]">
+              <div className="mt-3 rounded-[22px] border border-[#dbe5f1] bg-white px-3.5 py-3 shadow-[0_14px_30px_rgba(15,23,42,0.04)]">
+                <div className="mb-2 font-display text-[16px] font-bold text-[#10213b]">
                   {formatMonthLabel(calendarMonth)}
                 </div>
-                <div className="mb-2 grid grid-cols-7 gap-2">
+                <div className="mb-1.5 grid grid-cols-7 gap-1.5">
                   {weekdayLabels.map((label) => (
                     <div
                       key={`${calendarMonth.getMonth()}-${label}`}
-                      className="text-center text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#94a3b8]"
+                      className="text-center text-[8px] font-extrabold uppercase tracking-[0.1em] text-[#94a3b8]"
                     >
                       {label}
                     </div>
                   ))}
                 </div>
-                <div className="grid grid-cols-7 gap-2">
+                <div className="grid grid-cols-7 gap-1.5">
                   {buildCalendar(calendarMonth).map((cell) => {
                     const isEnd = cell.dateValue ? isSameDay(new Date(cell.dateValue), endsAt) : false;
                     const isExpired =
@@ -452,7 +452,7 @@ export function CompetitionPanel({
                         }}
                         disabled={isExpired}
                         className={[
-                          'aspect-square rounded-[14px] border text-center font-display text-[13px] font-bold transition disabled:cursor-not-allowed disabled:opacity-45',
+                          'aspect-square rounded-[12px] border text-center font-display text-[12px] font-bold transition disabled:cursor-not-allowed disabled:opacity-45',
                           isEnd
                             ? 'border-[#3b82f6] bg-[#2563eb] text-white shadow-[0_12px_24px_rgba(37,99,235,0.24)]'
                             : 'border-[#e7eef7] bg-[#f8fbff] text-[#29415f] hover:border-[#bfd4ef] hover:bg-[#eef5ff]',
@@ -466,7 +466,7 @@ export function CompetitionPanel({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-[22px] border border-[#dbe5f1] bg-[#f7fafc] px-5 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-[22px] border border-[#dbe5f1] bg-[#f7fafc] px-4 py-4">
               <div>
                 <div className={fieldLabelClassName}>Publish room</div>
                 <div className="mt-1 text-[14px] leading-6 text-[#596a81]">
@@ -494,26 +494,26 @@ export function CompetitionPanel({
             </div>
           </div>
 
-          <aside className="grid content-start gap-4 rounded-[28px] border border-[#dbe5f1] bg-white px-5 py-5 shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
+          <aside className="grid content-start gap-3 rounded-[28px] border border-[#dbe5f1] bg-white px-4 py-4 shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
             <div>
               <div className={fieldLabelClassName}>Overview</div>
-              <div className="mt-2 font-display text-[24px] font-bold text-[#10213b]">Room Summary</div>
+              <div className="mt-2 font-display text-[21px] font-bold text-[#10213b]">Room Summary</div>
             </div>
-            <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4">
+            <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-3.5">
               <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">Title</div>
-              <div className="mt-2 text-[18px] font-bold text-[#10213b]">{title}</div>
+              <div className="mt-1.5 text-[16px] font-bold text-[#10213b]">{title}</div>
             </div>
-            <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4">
+            <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-3.5">
               <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">Host</div>
-              <div className="mt-2 text-[18px] font-bold text-[#10213b]">{hostName}</div>
+              <div className="mt-1.5 text-[16px] font-bold text-[#10213b]">{hostName}</div>
             </div>
-            <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4">
+            <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-3.5">
               <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">Dataset</div>
-              <div className="mt-2 text-[18px] font-bold text-[#10213b]">{selectedDatasetLabel}</div>
+              <div className="mt-1.5 text-[16px] font-bold text-[#10213b]">{selectedDatasetLabel}</div>
             </div>
-            <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-4">
+            <div className="rounded-[20px] bg-[#f5f8fd] px-4 py-3.5">
               <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">Invite Code</div>
-              <div className="mt-2 font-display text-[20px] font-bold tracking-[0.12em] text-[#2563eb]">
+              <div className="mt-1.5 font-display text-[18px] font-bold tracking-[0.12em] text-[#2563eb]">
                 {roomCode || '------'}
               </div>
             </div>

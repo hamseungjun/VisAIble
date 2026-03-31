@@ -25,6 +25,447 @@
 }
 
 @layer utilities {
+  @keyframes guide-flow {
+    0%,
+    100% {
+      transform: scale(0.7);
+      opacity: 0.28;
+    }
+
+    50% {
+      transform: scale(1.18);
+      opacity: 1;
+    }
+  }
+
+  @keyframes guide-scan {
+    0% {
+      transform: translateX(0) scale(1);
+      opacity: 0.95;
+    }
+
+    82% {
+      transform: translateX(52px) scale(1.03);
+      opacity: 1;
+    }
+
+    100% {
+      transform: translateX(52px) scale(1.03);
+      opacity: 0.95;
+    }
+  }
+
+  @keyframes guide-cnn-kernel {
+    0%,
+    7% {
+      transform: translate(0, 0);
+    }
+
+    11%,
+    18% {
+      transform: translate(20px, 0);
+    }
+
+    22%,
+    29% {
+      transform: translate(40px, 0);
+    }
+
+    33%,
+    40% {
+      transform: translate(0, 20px);
+    }
+
+    44%,
+    51% {
+      transform: translate(20px, 20px);
+    }
+
+    55%,
+    62% {
+      transform: translate(40px, 20px);
+    }
+
+    66%,
+    73% {
+      transform: translate(0, 40px);
+    }
+
+    77%,
+    84% {
+      transform: translate(20px, 40px);
+    }
+
+    88%,
+    100% {
+      transform: translate(40px, 40px);
+    }
+  }
+
+  @keyframes guide-cnn-kernel-5 {
+    0%,
+    4% {
+      transform: translate(0, 0);
+    }
+
+    6.25%,
+    10.25% {
+      transform: translate(20px, 0);
+    }
+
+    12.5%,
+    16.5% {
+      transform: translate(40px, 0);
+    }
+
+    18.75%,
+    22.75% {
+      transform: translate(60px, 0);
+    }
+
+    25%,
+    29% {
+      transform: translate(0, 20px);
+    }
+
+    31.25%,
+    35.25% {
+      transform: translate(20px, 20px);
+    }
+
+    37.5%,
+    41.5% {
+      transform: translate(40px, 20px);
+    }
+
+    43.75%,
+    47.75% {
+      transform: translate(60px, 20px);
+    }
+
+    50%,
+    54% {
+      transform: translate(0, 40px);
+    }
+
+    56.25%,
+    60.25% {
+      transform: translate(20px, 40px);
+    }
+
+    62.5%,
+    66.5% {
+      transform: translate(40px, 40px);
+    }
+
+    68.75%,
+    72.75% {
+      transform: translate(60px, 40px);
+    }
+
+    75%,
+    79% {
+      transform: translate(0, 60px);
+    }
+
+    81.25%,
+    85.25% {
+      transform: translate(20px, 60px);
+    }
+
+    87.5%,
+    91.5% {
+      transform: translate(40px, 60px);
+    }
+
+    93.75%,
+    100% {
+      transform: translate(60px, 60px);
+    }
+  }
+
+  @keyframes guide-float {
+    0%,
+    100% {
+      transform: translateX(0) translateY(0) scale(1);
+      opacity: 0.7;
+    }
+
+    50% {
+      transform: translateX(6px) translateY(-4px) scale(1.05);
+      opacity: 1;
+    }
+  }
+
+  @keyframes guide-pop {
+    0%,
+    100% {
+      transform: scale(0.95);
+      opacity: 0.76;
+    }
+
+    50% {
+      transform: scale(1.08);
+      opacity: 1;
+    }
+  }
+
+  @keyframes guide-wave {
+    0%,
+    100% {
+      transform: translateY(0) scale(1);
+      opacity: 0.62;
+    }
+
+    50% {
+      transform: translateY(-6px) scale(1.08);
+      opacity: 1;
+    }
+  }
+
+  @keyframes guide-dropout {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+
+    35% {
+      transform: scale(0.3);
+      opacity: 0.12;
+    }
+
+    60% {
+      transform: scale(1.08);
+      opacity: 0.92;
+    }
+  }
+
+  @keyframes guide-spark {
+    0%,
+    100% {
+      transform: scale(0.3);
+      opacity: 0;
+    }
+
+    40% {
+      transform: scale(1);
+      opacity: 0.9;
+    }
+
+    70% {
+      transform: scale(1.4);
+      opacity: 0;
+    }
+  }
+
+  @keyframes guide-beam {
+    0% {
+      transform: translateX(-32px);
+      opacity: 0;
+    }
+
+    25%,
+    70% {
+      opacity: 1;
+    }
+
+    100% {
+      transform: translateX(42px);
+      opacity: 0;
+    }
+  }
+
+  @keyframes guide-scan-beam {
+    0% {
+      transform: translateX(0);
+      opacity: 0.2;
+    }
+
+    82% {
+      transform: translateX(52px);
+      opacity: 1;
+    }
+
+    100% {
+      transform: translateX(52px);
+      opacity: 0.2;
+    }
+  }
+
+  @keyframes guide-collapse {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 0.7;
+    }
+
+    50% {
+      transform: scale(0.58);
+      opacity: 1;
+    }
+  }
+
+  @keyframes guide-line-flow {
+    0% {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+
+    20% {
+      opacity: 1;
+    }
+
+    100% {
+      transform: translateX(360%);
+      opacity: 0;
+    }
+  }
+
+  @keyframes guide-cnn-activate {
+    0%,
+    100% {
+      transform: scale(0.8);
+      opacity: 0.24;
+    }
+
+    18%,
+    42% {
+      transform: scale(1.08);
+      opacity: 1;
+    }
+
+    60% {
+      transform: scale(0.92);
+      opacity: 0.58;
+    }
+  }
+
+  @keyframes guide-pool-window {
+    0%,
+    20% {
+      transform: translate(0, 0);
+    }
+
+    25%,
+    45% {
+      transform: translate(28px, 0);
+    }
+
+    50%,
+    70% {
+      transform: translate(0, 28px);
+    }
+
+    75%,
+    100% {
+      transform: translate(28px, 28px);
+    }
+  }
+
+  @keyframes guide-pool-window-4 {
+    0%,
+    24% {
+      transform: translate(0, 0);
+    }
+
+    25%,
+    49% {
+      transform: translate(20px, 0);
+    }
+
+    50%,
+    74% {
+      transform: translate(0, 20px);
+    }
+
+    75%,
+    100% {
+      transform: translate(20px, 20px);
+    }
+  }
+
+  @keyframes guide-cnn-output {
+    0%,
+    100% {
+      transform: scale(0.75);
+      opacity: 0.18;
+    }
+
+    18%,
+    42% {
+      transform: scale(1);
+      opacity: 1;
+    }
+
+    65% {
+      transform: scale(0.86);
+      opacity: 0.45;
+    }
+  }
+
+  @keyframes guide-pool-result {
+    0%,
+    100% {
+      transform: scale(0.84);
+      opacity: 0.28;
+    }
+
+    20%,
+    45% {
+      transform: scale(1.08);
+      opacity: 1;
+    }
+
+    65% {
+      transform: scale(0.96);
+      opacity: 0.56;
+    }
+  }
+
+  @keyframes guide-pool-output-fill {
+    0% {
+      transform: scale(0.78);
+      opacity: 0.22;
+    }
+
+    8% {
+      transform: scale(1.08);
+      opacity: 1;
+    }
+
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes guide-pool-pick {
+    0%,
+    24% {
+      transform: translate(0, 0);
+      opacity: 1;
+    }
+
+    25%,
+    49% {
+      transform: translate(40px, 0);
+      opacity: 1;
+    }
+
+    50%,
+    74% {
+      transform: translate(0, 20px);
+      opacity: 1;
+    }
+
+    75%,
+    100% {
+      transform: translate(40px, 40px);
+      opacity: 1;
+    }
+  }
+
   .glass-panel {
     @apply bg-white/70 backdrop-blur-xl;
   }
@@ -36,5 +477,94 @@
   .canvas-grid {
     background-image: radial-gradient(rgba(129, 149, 188, 0.28) 1px, transparent 1px);
     background-size: 24px 24px;
+  }
+
+  .ui-label {
+    font-family: var(--font-space-grotesk);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #72819c;
+  }
+
+  .animate-guide-flow {
+    animation: guide-flow 1.7s ease-in-out infinite;
+  }
+
+  .animate-guide-scan {
+    animation: guide-scan 3.8s cubic-bezier(0.55, 0.08, 0.25, 0.97) infinite;
+  }
+
+  .animate-guide-float {
+    animation: guide-float 2.4s ease-in-out infinite;
+  }
+
+  .animate-guide-pop {
+    animation: guide-pop 2s ease-in-out infinite;
+  }
+
+  .animate-guide-wave {
+    animation: guide-wave 1.9s ease-in-out infinite;
+  }
+
+  .animate-guide-dropout {
+    animation: guide-dropout 2.8s ease-in-out infinite;
+  }
+
+  .animate-guide-cnn-kernel {
+    animation: guide-cnn-kernel 4.8s steps(1, end) infinite;
+  }
+
+  .animate-guide-cnn-kernel-5 {
+    animation: guide-cnn-kernel-5 6.4s steps(1, end) infinite;
+  }
+
+  .animate-guide-cnn-activate {
+    animation: guide-cnn-activate 2.6s ease-in-out infinite;
+  }
+
+  .animate-guide-cnn-output {
+    animation: guide-cnn-output 4.2s ease-in-out infinite;
+  }
+
+  .animate-guide-spark {
+    animation: guide-spark 2.4s ease-out infinite;
+  }
+
+  .animate-guide-beam {
+    animation: guide-beam 2.2s linear infinite;
+  }
+
+  .animate-guide-collapse {
+    animation: guide-collapse 2.1s ease-in-out infinite;
+  }
+
+  .animate-guide-scan-beam {
+    animation: guide-scan-beam 3.8s cubic-bezier(0.55, 0.08, 0.25, 0.97) infinite;
+  }
+
+  .animate-guide-line-flow {
+    animation: guide-line-flow 1.8s linear infinite;
+  }
+
+  .animate-guide-pool-window {
+    animation: guide-pool-window 4.2s steps(1, end) infinite;
+  }
+
+  .animate-guide-pool-window-4 {
+    animation: guide-pool-window-4 4s steps(1, end) infinite;
+  }
+
+  .animate-guide-pool-result {
+    animation: guide-pool-result 2.8s ease-in-out infinite;
+  }
+
+  .animate-guide-pool-output {
+    animation: guide-pool-output-fill 4s ease-out infinite;
+  }
+
+  .animate-guide-pool-pick {
+    animation: guide-pool-pick 4s steps(1, end) infinite;
   }
 }

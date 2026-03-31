@@ -374,21 +374,6 @@ export function Inspector({
         : latestMetric
           ? `${(latestMetric.validationAccuracy * 100).toFixed(2)}%`
           : '--';
-  const statusLines = trainingStatus?.error
-    ? [
-        trainingStatus.stage ? `Stage ${trainingStatus.stage}` : null,
-        trainingStatus.error,
-      ].filter((value): value is string => value !== null)
-    : latestMetric
-      ? [
-          trainingStatus?.stage ? `Stage ${trainingStatus.stage}` : null,
-          `Val Acc ${Math.round(latestMetric.validationAccuracy * 10000) / 100}%`,
-          `Val Loss ${latestMetric.validationLoss}`,
-          trainingStatus?.device ? `Device ${trainingStatus.device}` : null,
-        ].filter((value): value is string => value !== null)
-      : [
-          trainingStatus?.device ? `Device ${trainingStatus.device}` : 'Run training to see validation metrics.',
-        ];
   const progressEpochCount = isReplaying
     ? replayMetricsCount
     : (trainingStatus?.currentEpoch ?? metrics.length);
@@ -538,6 +523,7 @@ export function Inspector({
         probabilities: result.probabilities,
       });
     } catch (error) {
+      console.error('Digit prediction failed', error);
       setPredictError(error instanceof Error ? error.message : 'Prediction failed');
     } finally {
       setIsPredicting(false);
@@ -567,6 +553,7 @@ export function Inspector({
         probabilities: result.probabilities,
       });
     } catch (error) {
+      console.error('Sample prediction failed', error);
       setSamplePredictError(error instanceof Error ? error.message : 'Sample prediction failed');
     } finally {
       setIsSamplePredicting(false);
@@ -887,22 +874,6 @@ export function Inspector({
             <strong className="font-display text-[2rem] font-bold text-tertiary">
               {secondaryValue}
             </strong>
-          </div>
-        </div>
-
-        <div className="mt-4 rounded-[16px] bg-[linear-gradient(135deg,rgba(17,81,255,0.05),rgba(10,96,127,0.08))] px-3.5 py-3">
-          <div className="mb-2 text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
-            Training Status
-          </div>
-          <div className="grid gap-1 text-[13px] font-semibold text-ink">
-            {statusLines.map((line) => (
-              <span
-                key={line}
-                className={trainingStatus?.error ? 'break-words text-[#b54708]' : undefined}
-              >
-                {line}
-              </span>
-            ))}
           </div>
         </div>
       </section>

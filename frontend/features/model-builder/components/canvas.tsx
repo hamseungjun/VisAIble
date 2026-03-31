@@ -614,18 +614,10 @@ function DataBlockCard({ dataset }: { dataset: DatasetItem }) {
       <div className={['absolute inset-x-3 top-0 h-[7px] rounded-b-[10px] rounded-t-[999px]', tone.bar].join(' ')} />
       <div className="pointer-events-none absolute left-1/2 bottom-[-8px] h-[16px] w-[52px] -translate-x-1/2 rounded-b-[14px] bg-background/92 shadow-[inset_0_2px_0_rgba(129,149,188,0.14)]" />
 
-      <div className="flex items-start justify-between gap-2 border-b border-line pb-[clamp(8px,0.8vw,10px)]">
-        <div className="min-w-0 grid gap-0.5">
-          <strong className="truncate font-display text-[clamp(15px,1.15vw,18px)] font-bold uppercase tracking-[-0.02em] text-ink">
-            Data
-          </strong>
-          <span className="text-[clamp(11px,0.85vw,12px)] font-semibold uppercase tracking-[0.14em] text-muted">
-            Fixed source block
-          </span>
-        </div>
-        <div className={['shrink-0 rounded-full px-[clamp(8px,0.8vw,10px)] py-[clamp(3px,0.35vw,5px)] text-[clamp(10px,0.75vw,11px)] font-bold uppercase tracking-[0.12em]', tone.chip].join(' ')}>
-          locked
-        </div>
+      <div className="border-b border-line pb-[clamp(8px,0.8vw,10px)]">
+        <strong className="truncate font-display text-[clamp(18px,1.35vw,22px)] font-bold tracking-[-0.03em] text-ink">
+          Dataset
+        </strong>
       </div>
 
       <div className="mt-2 grid gap-1.5 lg:grid-cols-[minmax(0,1fr)_clamp(180px,16vw,240px)]">
@@ -738,14 +730,14 @@ export function Canvas({
                   <div className="grid min-h-[clamp(220px,28vh,360px)] content-center gap-[clamp(20px,2vw,28px)]">
                     <div className="mx-auto max-w-[clamp(560px,58vw,760px)] text-center">
                       <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-primary/70">
-                        Builder Start
+                        빌더 시작
                       </div>
                       <div className="mt-3 font-display text-[clamp(24px,2.2vw,30px)] font-bold tracking-[-0.04em] text-ink">
-                        Build your first stack
+                        첫 번째 모델 구조를 만들어보세요
                       </div>
                       <p className="mt-3 text-[clamp(14px,1.1vw,15px)] leading-[clamp(24px,1.9vw,28px)] text-[#60728d]">
-                        Drag a layer card into this canvas to attach it under the data block.
-                        Start with CNN or Linear, then add Pooling and Dropout as needed.
+                        왼쪽 레이어 카드를 이 캔버스로 끌어오면 데이터 블록 아래에 바로 연결돼요.
+                        보통은 CNN이나 선형 레이어부터 시작하고, 필요하면 풀링과 드롭아웃을 이어 붙이면 됩니다.
                       </p>
                     </div>
 
@@ -779,7 +771,7 @@ export function Canvas({
                       <span className="grid h-7 w-7 place-items-center rounded-full bg-white">
                         <Icon name="play" className="h-4 w-4" />
                       </span>
-                      Drop a block anywhere on this area to start the architecture.
+                      이 영역 아무 곳에나 블록을 놓으면 모델 구성이 시작됩니다.
                     </div>
                   </div>
                 </div>
@@ -855,10 +847,10 @@ export function Canvas({
 
           <div className="flex items-center justify-between border-t border-white/60 px-5 py-3.5">
             <div className="rounded-full bg-white/80 px-3.5 py-2 text-[13px] font-semibold text-muted shadow-panel">
-              Drag a block into the stack to add it. Drag an existing block to move it.
+              블록을 끌어오면 추가되고, 이미 있는 블록은 다시 끌어서 위치를 바꿀 수 있어요.
             </div>
             <div className="rounded-full bg-[#edf3ff] px-3 py-1.5 text-[13px] font-bold text-primary">
-              {nodes.length} blocks
+              블록 {nodes.length}개
             </div>
           </div>
         </div>
@@ -866,8 +858,8 @@ export function Canvas({
           <>
             <div className="pointer-events-none absolute inset-x-5 bottom-5 rounded-2xl border border-dashed border-primary/40 bg-white/88 px-4 py-3 text-center text-[14px] font-semibold text-primary shadow-[0_18px_40px_rgba(17,81,255,0.08)] backdrop-blur-md">
               {draggingNodeId
-                ? 'Drag the block to move it, or drop it on the trash below to delete'
-                : `Drag onto the stack to add ${draggingBlock === 'linear' ? 'Linear Layer' : draggingBlock === 'cnn' ? 'CNN Layer' : draggingBlock === 'pooling' ? 'Pooling Layer' : 'Dropout Layer'}`}
+                ? '블록을 원하는 위치로 옮기거나, 아래 휴지통에 놓아 삭제할 수 있어요.'
+                : `${draggingBlock === 'linear' ? '선형 레이어' : draggingBlock === 'cnn' ? 'CNN 레이어' : draggingBlock === 'pooling' ? '풀링 레이어' : '드롭아웃 레이어'}를 스택 위로 끌어와 추가해보세요.`}
             </div>
             {draggingNodeId ? (
               <div

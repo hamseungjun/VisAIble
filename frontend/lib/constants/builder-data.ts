@@ -128,7 +128,7 @@ export const libraryBlocks: LibraryBlock[] = [
   {
     id: 'linear',
     title: 'Linear Layer',
-    description: 'Fully connected neural network layer.',
+    description: '입력 특징을 다음 단계로 연결해 주는 기본 레이어예요.',
     icon: 'layers',
     accent: 'blue',
     defaults: {
@@ -143,7 +143,7 @@ export const libraryBlocks: LibraryBlock[] = [
   {
     id: 'cnn',
     title: 'CNN Layer',
-    description: 'Convolutional neural network layer.',
+    description: '이미지의 패턴을 찾을 때 자주 쓰는 합성곱 레이어예요.',
     icon: 'panel',
     accent: 'amber',
     defaults: {
@@ -161,7 +161,7 @@ export const libraryBlocks: LibraryBlock[] = [
   {
     id: 'pooling',
     title: 'Pooling Layer',
-    description: 'Downsample feature maps with max or average pooling.',
+    description: '특징 맵 크기를 줄여서 핵심 정보만 남겨주는 레이어예요.',
     icon: 'pool',
     accent: 'violet',
     defaults: {
@@ -178,7 +178,7 @@ export const libraryBlocks: LibraryBlock[] = [
   {
     id: 'dropout',
     title: 'Dropout Layer',
-    description: 'Regularize features by randomly masking activations during training.',
+    description: '학습 중 일부 값을 쉬게 해서 과적합을 줄여주는 레이어예요.',
     icon: 'dropout',
     accent: 'rose',
     defaults: {

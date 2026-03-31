@@ -72,7 +72,6 @@ export function TopBar({
   const optimizerConfig = optimizerConfigs[optimizer];
   const learningRates = optimizerConfig.learningRates;
   const optimizerField = optimizerConfig.parameter;
-  const formattedDeviceLabel = formatDeviceLabel(trainingStatus?.device);
   const learningRateIndex = Math.max(0, learningRates.indexOf(learningRate));
   const optimizerParamIndex = Math.max(
     0,
@@ -88,15 +87,6 @@ export function TopBar({
     { label: 'Total Parameters', value: totalParameters.toLocaleString() },
   ];
   const trainingState = trainingStatus?.status ?? (isTraining ? 'running' : 'idle');
-  const statusChipClassName =
-    trainingState === 'failed'
-      ? 'bg-[#ffe4e1] text-[#c2412d]'
-      : trainingState === 'paused'
-        ? 'bg-[#eef3ff] text-primary'
-        : trainingState === 'running'
-          ? 'bg-[#e9f7ef] text-[#15803d]'
-          : 'bg-[rgba(17,81,255,0.08)] text-primary';
-  const statusLabel = trainingState === 'failed' ? 'error' : trainingState;
   const primaryTrainingLabel =
     trainingState === 'paused' ? 'Resume' : isTraining ? 'Running' : 'Start';
   const actionButtons: ActionButton[] = [
@@ -165,22 +155,14 @@ export function TopBar({
     <header className="border-b border-line bg-white/80 px-4 py-3 backdrop-blur-xl lg:px-5 lg:py-3.5">
       <div className="grid gap-3 xl:grid-cols-[minmax(280px,1.1fr)_minmax(420px,1.35fr)_minmax(260px,0.95fr)]">
         <section className="glass-panel ghost-border flex min-w-0 flex-col justify-start gap-[clamp(8px,0.8vw,12px)] rounded-[24px] px-[clamp(16px,1.2vw,20px)] py-[clamp(12px,1vw,16px)] shadow-panel xl:w-full">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
             <button
               type="button"
               onClick={onLogoClick}
-              className="font-display text-[2rem] font-bold tracking-[-0.06em] text-primary transition-opacity hover:opacity-80"
+              className="font-display text-[clamp(2.5rem,3vw,3.3rem)] font-bold tracking-[-0.07em] text-primary transition-opacity hover:opacity-80"
             >
               VisAIble
             </button>
-            <div className="shrink-0 rounded-full bg-[rgba(17,81,255,0.08)] px-3 py-1 text-right">
-              <div className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-muted">
-                Device
-              </div>
-              <div className="font-display text-xs font-bold uppercase text-primary">
-                {formattedDeviceLabel}
-              </div>
-            </div>
           </div>
 
           <div className="grid gap-[clamp(8px,0.8vw,12px)] sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
@@ -189,7 +171,7 @@ export function TopBar({
                 key={item.label}
                 className="rounded-[18px] bg-[rgba(17,81,255,0.06)] px-3.5 py-2.5"
               >
-                <div className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">
+                <div className="ui-label">
                   {item.label}
                 </div>
                 <div className="mt-1 break-words font-display text-[15px] font-bold leading-[1.15] text-ink">
@@ -202,7 +184,7 @@ export function TopBar({
 
         <section className="glass-panel ghost-border grid min-w-0 gap-[clamp(10px,0.9vw,14px)] rounded-[24px] px-[clamp(16px,1.2vw,20px)] py-[clamp(12px,1vw,16px)] shadow-panel sm:grid-cols-2 xl:w-full">
           <div className="rounded-[20px] bg-white/75 px-4 py-[clamp(10px,0.9vw,12px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">
+            <span className="ui-label">
               Learning Rate
             </span>
             <div className="mt-2.5 flex items-center gap-3">
@@ -224,7 +206,7 @@ export function TopBar({
           </div>
 
           <div className="rounded-[20px] bg-white/75 px-4 py-[clamp(10px,0.9vw,12px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">
+            <span className="ui-label">
               {optimizerField.label}
             </span>
             <div className="mt-2.5 flex items-center gap-3">
@@ -251,7 +233,7 @@ export function TopBar({
           <div className="rounded-[20px] bg-white/75 px-4 py-[clamp(10px,0.9vw,12px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)] sm:col-span-2">
             <div className="grid gap-3 md:grid-cols-2">
               <div className="max-w-[280px]">
-                <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">
+                <span className="ui-label">
                   Optimizer
                 </span>
                 <div className="relative mt-2.5 max-w-[280px]">
@@ -274,7 +256,7 @@ export function TopBar({
               </div>
 
               <div className="max-w-[220px]">
-                <span className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">
+                <span className="ui-label">
                   Epochs
                 </span>
                 <input
@@ -291,20 +273,6 @@ export function TopBar({
         </section>
 
         <section className="glass-panel ghost-border flex min-w-0 flex-col gap-[clamp(8px,0.8vw,12px)] rounded-[24px] px-[clamp(14px,1.1vw,18px)] py-[clamp(12px,1vw,16px)] shadow-panel xl:w-full">
-          <div className="relative mb-0.5 flex items-center justify-between px-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
-              Quick Actions
-            </span>
-            <span
-              className={[
-                'rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em]',
-                statusChipClassName,
-              ].join(' ')}
-            >
-              {statusLabel}
-            </span>
-          </div>
-
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-2">
             {actionButtons.map((action) => (
               <button
@@ -377,12 +345,4 @@ function estimateTotalParameters(nodes: CanvasNode[]) {
   });
 
   return total;
-}
-
-function formatDeviceLabel(device?: string | null) {
-  if (!device) {
-    return 'Auto';
-  }
-
-  return device.toUpperCase();
 }

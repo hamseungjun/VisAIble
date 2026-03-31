@@ -126,7 +126,9 @@ export type IconName =
   | 'chevron'
   | 'architecture'
   | 'dropout'
-  | 'copy';
+  | 'copy'
+  | 'flask'
+  | 'trophy';
 
 export type CompetitionParticipant = {
   id: number;

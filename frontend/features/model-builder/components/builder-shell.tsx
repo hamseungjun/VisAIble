@@ -53,6 +53,68 @@ const availableCompetitionDatasets = [...datasets, competitionDataset];
 
 const competitionBatchSizes = [8, 16, 32, 64, 128, 256, 512, 1024] as const;
 
+function formatCompetitionDateLabel(value?: string | null) {
+  if (!value) {
+    return 'Open';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'Open';
+  }
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function getCompetitionTimeline(room: CompetitionRoomSession, now: number) {
+  const fallbackStart = room.startsAt ?? room.createdAt;
+  const start = fallbackStart ? new Date(fallbackStart) : null;
+  const end = room.endsAt ? new Date(room.endsAt) : null;
+
+  if (!start || Number.isNaN(start.getTime()) || !end || Number.isNaN(end.getTime())) {
+    return null;
+  }
+
+  const total = Math.max(end.getTime() - start.getTime(), 1);
+  const elapsed = Math.min(Math.max(now - start.getTime(), 0), total);
+  const remaining = Math.max(end.getTime() - now, 0);
+  const progress = Math.round((elapsed / total) * 100);
+
+  return {
+    startLabel: formatCompetitionDateLabel(start.toISOString()),
+    endLabel: formatCompetitionDateLabel(end.toISOString()),
+    remainingMs: remaining,
+    progress,
+    isEnded: remaining <= 0,
+  };
+}
+
+function formatRemainingTime(ms: number) {
+  if (ms <= 0) {
+    return '종료됨';
+  }
+
+  const totalMinutes = Math.floor(ms / 60000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) {
+    return `${days}일 ${hours}시간 남음`;
+  }
+
+  if (hours > 0) {
+    return `${hours}시간 ${minutes}분 남음`;
+  }
+
+  return `${minutes}분 남음`;
+}
+
 type CompetitionRunRecord = {
   jobId: string;
   trainAccuracy: number;
@@ -88,7 +150,6 @@ export function BuilderShell() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isTrainingOverlayOpen, setIsTrainingOverlayOpen] = useState(false);
   const [isTraining, setIsTraining] = useState(false);
-  const [trainingError, setTrainingError] = useState<string | null>(null);
   const [latestTrainingResult, setLatestTrainingResult] = useState<TrainingRunResult | null>(null);
   const [trainingStatus, setTrainingStatus] = useState<TrainingJobStatus | null>(null);
   const [liveHistory, setLiveHistory] = useState<{
@@ -117,6 +178,7 @@ export function BuilderShell() {
   const [isCompetitionRankOpen, setIsCompetitionRankOpen] = useState(false);
   const [competitionCopyFeedback, setCompetitionCopyFeedback] = useState<string | null>(null);
   const [isCompetitionInfoOpen, setIsCompetitionInfoOpen] = useState(false);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const pollingRef = useRef<number | null>(null);
   const streamRef = useRef<EventSource | null>(null);
   const liveBatchKeyRef = useRef<string | null>(null);
@@ -129,7 +191,7 @@ export function BuilderShell() {
   const runtimeDatasetId = activeWorkspace === 'competition' ? competitionDatasetId : selectedDatasetId;
 
   const surfaceTrainingError = (message: string, jobId: string | null = currentJobId) => {
-    setTrainingError(message);
+    console.error('Training error:', message, { jobId: jobId ?? currentJobId ?? 'local-error' });
     setIsTraining(false);
     setTrainingStatus((current) => ({
       jobId: jobId ?? current?.jobId ?? 'local-error',
@@ -166,6 +228,14 @@ export function BuilderShell() {
       }
       streamRef.current?.close();
     };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 60000);
+
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -210,6 +280,10 @@ export function BuilderShell() {
         .filter((item): item is string => item !== null)
         .join('\n')
     : '';
+  const competitionTimeline =
+    competitionActive && competitionRoom
+      ? getCompetitionTimeline(competitionRoom, currentTime)
+      : null;
 
   const handleCopyCompetitionText = async (label: string, value: string) => {
     try {
@@ -359,8 +433,6 @@ export function BuilderShell() {
           }
           onTrainingStart={() => {
             void (async () => {
-              setTrainingError(null);
-
               if (currentJobId && trainingStatus?.status === 'paused') {
                 try {
                   await resumeTraining(currentJobId);
@@ -418,7 +490,6 @@ export function BuilderShell() {
                   setTrainingStatus(result);
                   if (result.status === 'completed') {
                     setLatestTrainingResult(result as TrainingRunResult);
-                    setTrainingError(null);
                     if (activeWorkspace === 'competition' && result.jobId) {
                       const completedMetric = result.metrics.at(-1);
                       if (completedMetric) {
@@ -439,7 +510,10 @@ export function BuilderShell() {
                     }
                   }
                   if (result.status === 'failed') {
-                    setTrainingError(result.error ?? 'Training failed unexpectedly');
+                    console.error('Training failed:', result.error ?? 'Training failed unexpectedly', {
+                      jobId: result.jobId,
+                      stage: result.stage ?? null,
+                    });
                   }
                   setIsTraining(false);
                   if (result.status === 'completed' || result.status === 'failed' || result.status === 'stopped') {
@@ -625,6 +699,7 @@ export function BuilderShell() {
           <Sidebar
             selectedDatasetId={selectedDatasetId}
             activeWorkspace={activeWorkspace}
+            hasCompetitionRoom={competitionRoom !== null}
             selectedDataset={selectedDataset}
             onDatasetSelect={(datasetId) => {
               if (activeWorkspace === 'competition') {
@@ -773,6 +848,35 @@ export function BuilderShell() {
                         </div>
                       </div>
                     ) : null}
+                  </div>
+                ) : null}
+                {competitionTimeline ? (
+                  <div className="mb-2.5 rounded-[24px] border border-[#dbe5f1] bg-white px-5 py-4 shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#6e809a]">
+                          Competition Progress
+                        </div>
+                        <div className="mt-1 text-[18px] font-bold text-[#10213b]">
+                          {competitionTimeline.isEnded
+                            ? '대회가 종료되었습니다'
+                            : formatRemainingTime(competitionTimeline.remainingMs)}
+                        </div>
+                      </div>
+                      <div className="rounded-full bg-[#eef4ff] px-4 py-2 text-[13px] font-extrabold uppercase tracking-[0.14em] text-[#2563eb]">
+                        {competitionTimeline.progress}%
+                      </div>
+                    </div>
+                    <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#e7eef8]">
+                      <div
+                        className="h-full rounded-full bg-[linear-gradient(90deg,#2563eb,#60a5fa)] transition-all duration-500"
+                        style={{ width: `${competitionTimeline.progress}%` }}
+                      />
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-[13px] font-semibold text-[#60718a]">
+                      <span>시작 {competitionTimeline.startLabel}</span>
+                      <span>종료 {competitionTimeline.endLabel}</span>
+                    </div>
                   </div>
                 ) : null}
                 <Canvas
