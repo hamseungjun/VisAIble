@@ -5,9 +5,7 @@
 ## Preview
 | 이미지1 | 이미지2 |
 |--------|--------|
-| <img width="1437" height="679" alt="KakaoTalk_Photo_2026-04-02-00-36-49" src="https://github.com/user-attachments/assets/26865023-812c-4741-96b9-84aacd9231f1" />
-| <img width="1473" height="692" alt="KakaoTalk_Photo_2026-04-02-00-36-53" src="https://github.com/user-attachments/assets/cc8a085a-f46a-4c18-aee3-525666b8db7e" />
- |
+| <img width="1437" height="679" alt="KakaoTalk_Photo_2026-04-02-00-36-49" src="https://github.com/user-attachments/assets/26865023-812c-4741-96b9-84aacd9231f1" />| <img width="1473" height="692" alt="KakaoTalk_Photo_2026-04-02-00-36-53" src="https://github.com/user-attachments/assets/cc8a085a-f46a-4c18-aee3-525666b8db7e" />|
 
 ## Structure
 
