@@ -110,13 +110,6 @@ function buildDatasetLoaderLines(dataset: DatasetItem) {
     ];
   }
 
-  if (dataset.id === 'coco') {
-    return [
-      'def build_dataloaders():',
-      "    raise NotImplementedError('COCO export code is not auto-generated yet because the app uses a custom classification proxy dataset loader.')",
-    ];
-  }
-
   return [
     'def build_dataloaders():',
     `    raise ValueError("Unsupported dataset: ${dataset.id}")`,
