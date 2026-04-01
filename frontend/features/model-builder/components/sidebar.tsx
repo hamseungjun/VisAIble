@@ -878,13 +878,13 @@ function DatasetDetailPanel({
         <p>{dataset.classesDescriptionKo}</p>
       </div>
 
-      {dataset.sampleClasses?.length ? (
+      {(dataset.infoSampleClasses ?? dataset.sampleClasses)?.length ? (
         <div className={largeSamples ? 'mt-6' : 'mt-3'}>
           <div className={largeSamples ? 'mb-4 text-[12px] font-extrabold uppercase tracking-[0.2em] text-muted' : 'mb-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-muted'}>
             Class Samples
           </div>
           <div className={largeSamples ? 'grid grid-cols-2 gap-4' : 'grid grid-cols-2 gap-2'}>
-            {dataset.sampleClasses.map((sample) => (
+            {(dataset.infoSampleClasses ?? dataset.sampleClasses ?? []).map((sample) => (
               <div
                 key={`${dataset.id}-${sample.label}`}
                 className={[

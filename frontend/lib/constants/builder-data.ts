@@ -2,7 +2,7 @@ import type { DatasetItem, LibraryBlock, StatItem } from '@/types/builder';
 
 const mnistClassLabels = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 const fashionMnistClassLabels = [
-  'T-shirt',
+  'T-shirt/top',
   'Trouser',
   'Pullover',
   'Dress',
@@ -40,6 +40,12 @@ export const datasets: DatasetItem[] = [
     shapeDescriptionKo: '입력 텐서 형태는 1채널 28x28 이미지입니다.',
     classesDescriptionKo: '클래스는 총 10개이며 숫자 0, 1, 2, 3, 4, 5, 6, 7, 8, 9입니다.',
     classLabels: mnistClassLabels,
+    infoSampleClasses: [
+      { label: '숫자 0', imageSrc: '/dataset-samples/mnist/0.png' },
+      { label: '숫자 1', imageSrc: '/dataset-samples/mnist/1.png' },
+      { label: '숫자 7', imageSrc: '/dataset-samples/mnist/7.png' },
+      { label: '숫자 9', imageSrc: '/dataset-samples/mnist/9.png' },
+    ],
     sampleClasses: [
       { label: '0', imageSrc: '/dataset-samples/mnist/0.png' },
       { label: '1', imageSrc: '/dataset-samples/mnist/1.png' },
@@ -67,6 +73,12 @@ export const datasets: DatasetItem[] = [
     classesDescriptionKo:
       '클래스는 총 10개이며 티셔츠/상의, 바지, 풀오버, 드레스, 코트, 샌들, 셔츠, 스니커즈, 가방, 앵클부츠입니다.',
     classLabels: fashionMnistClassLabels,
+    infoSampleClasses: [
+      { label: '티셔츠', imageSrc: '/dataset-samples/fashion_mnist/0.png' },
+      { label: '풀오버', imageSrc: '/dataset-samples/fashion_mnist/2.png' },
+      { label: '가방', imageSrc: '/dataset-samples/fashion_mnist/8.png' },
+      { label: '앵클부츠', imageSrc: '/dataset-samples/fashion_mnist/9.png' },
+    ],
     sampleClasses: [
       { label: 'T-shirt', imageSrc: '/dataset-samples/fashion_mnist/0.png' },
       { label: 'Trouser', imageSrc: '/dataset-samples/fashion_mnist/1.png' },
@@ -94,6 +106,12 @@ export const datasets: DatasetItem[] = [
     classesDescriptionKo:
       '클래스는 총 10개이며 비행기, 자동차, 새, 고양이, 사슴, 개, 개구리, 말, 배, 트럭입니다.',
     classLabels: cifar10ClassLabels,
+    infoSampleClasses: [
+      { label: '비행기', imageSrc: '/dataset-samples/cifar10/0.png' },
+      { label: '자동차', imageSrc: '/dataset-samples/cifar10/1.png' },
+      { label: '고양이', imageSrc: '/dataset-samples/cifar10/3.png' },
+      { label: '배', imageSrc: '/dataset-samples/cifar10/8.png' },
+    ],
     sampleClasses: [
       { label: 'Airplane', imageSrc: '/dataset-samples/cifar10/0.png' },
       { label: 'Automobile', imageSrc: '/dataset-samples/cifar10/1.png' },

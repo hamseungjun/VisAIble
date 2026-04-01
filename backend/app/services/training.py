@@ -30,8 +30,6 @@ from app.services.datasets import (
 
 BATCH_SIZE = 128
 RANDOM_STATE = 0
-COMPACT_CIFAR10_TRAIN_PER_CLASS = 400
-COMPACT_CIFAR10_VAL_PER_CLASS = 100
 COMPACT_TINY_IMAGENET_TRAIN_PER_CLASS = 20
 COMPACT_TINY_IMAGENET_VAL_PER_CLASS = 5
 TRAINING_JOBS: dict[str, dict[str, object]] = {}
@@ -178,10 +176,6 @@ def _build_stratified_loaders(dataset_id: str, batch_size: int) -> tuple[DataLoa
     dataset, labels = _load_combined_torchvision_dataset(dataset_id)
     train_limit_per_class: int | None = None
     validation_limit_per_class: int | None = None
-
-    if dataset_id == "cifar10":
-        train_limit_per_class = COMPACT_CIFAR10_TRAIN_PER_CLASS
-        validation_limit_per_class = COMPACT_CIFAR10_VAL_PER_CLASS
 
     generator = np.random.default_rng(RANDOM_STATE)
     train_index_parts: list[np.ndarray] = []
@@ -493,7 +487,6 @@ def compile_model(
 
 def build_optimizer(model: nn.Module, payload: TrainModelRequest):
     learning_rate = payload.learningRate
-    weight_decay = float(payload.optimizerParams.weightDecay)
     momentum = float(payload.optimizerParams.momentum)
     rho = float(payload.optimizerParams.rho)
 
@@ -502,19 +495,17 @@ def build_optimizer(model: nn.Module, payload: TrainModelRequest):
             model.parameters(),
             lr=learning_rate,
             momentum=momentum,
-            weight_decay=weight_decay,
         )
     if payload.optimizer == "AdaGrad":
-        return Adagrad(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        return Adagrad(model.parameters(), lr=learning_rate)
     if payload.optimizer == "RMS Prop":
         return RMSprop(
             model.parameters(),
             lr=learning_rate,
             alpha=rho,
-            weight_decay=weight_decay,
         )
     if payload.optimizer == "ADAM":
-        return Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        return Adam(model.parameters(), lr=learning_rate)
 
     raise ValueError(f"Unsupported optimizer: {payload.optimizer}")
 
@@ -1220,74 +1211,101 @@ def generate_gradcam(job_id: str, class_index: int) -> dict[str, object]:
     else:
         original_img = transforms.ToPILImage()(img)
 
-    # 2. Identify the last conv layer
+    # 2. Identify the last conv layer. If none exists, fall back to input-gradient saliency
     target_layer = None
     for module in reversed(list(model.modules())):
         if isinstance(module, nn.Conv2d):
             target_layer = module
             break
 
+    debug_lines = [f"Dataset: {dataset_id}, Class: {class_index}"]
+
     if target_layer is None:
-        raise ValueError("Grad-CAM requires at least one Convolutional layer")
-
-    # 3. Setup hooks & Inference (Locked for thread safety)
-    activations = []
-    gradients = []
-
-    def forward_hook(module, input, output):
-        activations.append(output)
-
-    def backward_hook(module, grad_input, grad_output):
-        gradients.append(grad_output[0])
-
-    with TRAINING_LOCK:
-        hf = target_layer.register_forward_hook(forward_hook)
-        hb = target_layer.register_full_backward_hook(backward_hook)
-
-        try:
-            # 4. Forward and backward pass
+        with TRAINING_LOCK:
             model.eval()
+            sample_tensor = sample_tensor.clone().detach().requires_grad_(True)
             logits = model(sample_tensor)
-            
+
             num_classes = logits.shape[1]
             if class_index >= num_classes:
                 raise ValueError(f"Class index {class_index} is out of bounds for {num_classes} classes")
-                
-            one_hot = torch.zeros_like(logits)
-            one_hot[0][class_index] = 1
-            
-            model.zero_grad()
-            logits.backward(gradient=one_hot)
-            
-            if not gradients or not activations:
-                # Fallback for debugging - print layer info if failed
-                print(f"[Grad-CAM Error] Hooks failed for layer {target_layer}")
-                raise ValueError("Failed to capture activations or gradients for Grad-CAM")
 
-            # 5. Compute Heatmap
-            grad = gradients[0]
-            act = activations[0]
-            
-            # Compute Weighted Sum of Activations
-            weights = torch.mean(grad, dim=(2, 3), keepdim=True)
-            cam = torch.sum(weights * act, dim=1).squeeze(0)
-            cam = torch.relu(cam).detach().cpu().numpy()
-        finally:
-            # Always remove hooks to prevent leaks and crashes
-            hf.remove()
-            hb.remove()
+            model.zero_grad()
+            logits[0, class_index].backward()
+
+            input_grad = sample_tensor.grad
+            if input_grad is None:
+                raise ValueError("Failed to compute input gradients for saliency fallback")
+
+            saliency = input_grad.detach().abs().squeeze(0).cpu()
+            if saliency.ndim == 3:
+                cam = saliency.max(dim=0).values.numpy()
+            else:
+                cam = saliency.numpy()
+
+        debug_lines.append("Mode: input-gradient saliency fallback")
+        debug_lines.append(f"Input gradient shape: {tuple(input_grad.shape)}")
+        debug_lines.append(f"Raw saliency range: [{cam.min():.4e}, {cam.max():.4e}]")
+    else:
+        # 3. Setup hooks & Inference (Locked for thread safety)
+        activations = []
+        gradients = []
+
+        def forward_hook(module, input, output):
+            activations.append(output)
+
+        def backward_hook(module, grad_input, grad_output):
+            gradients.append(grad_output[0])
+
+        with TRAINING_LOCK:
+            hf = target_layer.register_forward_hook(forward_hook)
+            hb = target_layer.register_full_backward_hook(backward_hook)
+
+            try:
+                # 4. Forward and backward pass
+                model.eval()
+                logits = model(sample_tensor)
+
+                num_classes = logits.shape[1]
+                if class_index >= num_classes:
+                    raise ValueError(f"Class index {class_index} is out of bounds for {num_classes} classes")
+
+                one_hot = torch.zeros_like(logits)
+                one_hot[0][class_index] = 1
+
+                model.zero_grad()
+                logits.backward(gradient=one_hot)
+
+                if not gradients or not activations:
+                    print(f"[Grad-CAM Error] Hooks failed for layer {target_layer}")
+                    raise ValueError("Failed to capture activations or gradients for Grad-CAM")
+
+                # 5. Compute Heatmap
+                grad = gradients[0]
+                act = activations[0]
+
+                weights = torch.mean(grad, dim=(2, 3), keepdim=True)
+                cam = torch.sum(weights * act, dim=1).squeeze(0)
+                cam = torch.relu(cam).detach().cpu().numpy()
+
+                debug_lines.append(f"Mode: Grad-CAM on {target_layer.__class__.__name__}")
+                debug_lines.append(f"Feature map shape: {tuple(act.shape)}")
+                debug_lines.append(f"Gradient shape: {tuple(grad.shape)}")
+                debug_lines.append(f"Activation range: [{act.min().item():.4e}, {act.max().item():.4e}]")
+                debug_lines.append(f"Gradient range:   [{grad.min().item():.4e}, {grad.max().item():.4e}]")
+                debug_lines.append(f"Raw CAM range:    [{cam.min():.4e}, {cam.max():.4e}]")
+                debug_lines.append(f"Raw CAM shape:    {cam.shape}")
+                debug_lines.append(f"Raw CAM unique values (first 20): {np.unique(cam.flatten())[:20]}")
+            finally:
+                hf.remove()
+                hb.remove()
     
     # Debug: write to file so we can inspect
     debug_path = Path(__file__).resolve().parents[2] / "data" / "gradcam_debug.txt"
     debug_path.parent.mkdir(parents=True, exist_ok=True)
     with open(debug_path, "w") as f:
-        f.write(f"Dataset: {dataset_id}, Class: {class_index}\n")
-        f.write(f"Feature map shape: {act.shape}, Gradient shape: {grad.shape}\n")
-        f.write(f"Activation range: [{act.min().item():.4e}, {act.max().item():.4e}]\n")
-        f.write(f"Gradient range:   [{grad.min().item():.4e}, {grad.max().item():.4e}]\n")
-        f.write(f"Raw CAM range:    [{cam.min():.4e}, {cam.max():.4e}]\n")
-        f.write(f"Raw CAM shape:    {cam.shape}\n")
-        f.write(f"Raw CAM unique values (first 20): {np.unique(cam.flatten())[:20]}\n")
+        f.write("\n".join(debug_lines))
+        f.write("\n")
 
     # Normalize: use percentile clipping for better contrast on weak signals
     cam_min, cam_max = cam.min(), cam.max()

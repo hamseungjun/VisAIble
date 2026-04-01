@@ -46,15 +46,15 @@ function optimizerCode(
   optimizerParams: OptimizerParamsForCode,
 ) {
   if (optimizer === 'SGD') {
-    return `torch.optim.SGD(model.parameters(), lr=${learningRate}, momentum=${optimizerParams.momentum}, weight_decay=${optimizerParams.weightDecay})`;
+    return `torch.optim.SGD(model.parameters(), lr=${learningRate}, momentum=${optimizerParams.momentum})`;
   }
   if (optimizer === 'AdaGrad') {
-    return `torch.optim.Adagrad(model.parameters(), lr=${learningRate}, weight_decay=${optimizerParams.weightDecay})`;
+    return `torch.optim.Adagrad(model.parameters(), lr=${learningRate})`;
   }
   if (optimizer === 'RMS Prop') {
-    return `torch.optim.RMSprop(model.parameters(), lr=${learningRate}, alpha=${optimizerParams.rho}, weight_decay=${optimizerParams.weightDecay})`;
+    return `torch.optim.RMSprop(model.parameters(), lr=${learningRate}, alpha=${optimizerParams.rho})`;
   }
-  return `torch.optim.Adam(model.parameters(), lr=${learningRate}, weight_decay=${optimizerParams.weightDecay})`;
+  return `torch.optim.Adam(model.parameters(), lr=${learningRate})`;
 }
 
 function classCountForDataset(dataset: DatasetItem) {

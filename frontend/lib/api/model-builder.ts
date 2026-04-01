@@ -23,7 +23,6 @@ export type TrainModelPayload = {
   optimizer: string;
   optimizerParams: {
     momentum: string;
-    weightDecay: string;
     rho: string;
   };
   nodes: CanvasNode[];

@@ -416,6 +416,13 @@ export function Inspector({
     currentDataset.id !== 'mnist' &&
     (currentDataset.sampleClasses?.length ?? 0) > 0 &&
     (currentDataset.classLabels?.length ?? 0) > 0;
+  const hasConvLayer =
+    (trainingStatus?.architecture ?? []).some((layer) => layer.includes('Conv2d('));
+  const showGradCam =
+    showSamplePredictor &&
+    currentDataset != null &&
+    (currentDataset.id === 'fashion_mnist' || currentDataset.id === 'cifar10') &&
+    hasConvLayer;
   const selectedSample =
     showSamplePredictor && currentDataset?.sampleClasses
       ? (currentDataset.sampleClasses[selectedSampleIndex] ?? currentDataset.sampleClasses[0])
@@ -717,7 +724,7 @@ export function Inspector({
         </section>
       ) : null}
 
-      {showSamplePredictor && currentDataset && (currentDataset.id === 'fashion_mnist' || currentDataset.id === 'cifar10') ? (
+      {showGradCam && currentDataset ? (
         <section className="rounded-[22px] bg-panel/80 p-3.5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <strong className="font-display text-lg font-bold text-ink">
@@ -846,18 +853,18 @@ export function Inspector({
           </div>
         </section>
       ) : showSamplePredictor && currentDataset && selectedSample ? (
-        <section className="rounded-[22px] bg-panel/80 p-3.5">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <strong className="font-display text-lg font-bold text-ink">
+        <section className="rounded-[20px] bg-panel/80 p-3">
+          <div className="mb-2.5 flex items-center justify-between gap-3">
+            <strong className="font-display text-[1rem] font-bold text-ink">
               {currentDataset.label} Sample Predictor
             </strong>
-            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted">
               Sample Selection
             </span>
           </div>
 
-          <div className="grid gap-3">
-            <div className="grid grid-cols-2 gap-2">
+          <div className="grid gap-2.5">
+            <div className="grid grid-cols-5 gap-2">
               {currentDataset.sampleClasses?.map((sample, index) => {
                 const active = index === selectedSampleIndex;
 
@@ -871,31 +878,38 @@ export function Inspector({
                       setSamplePredictError(null);
                     }}
                     className={[
-                      'overflow-hidden rounded-[16px] border text-left transition',
+                      'flex flex-col items-center gap-1.5 rounded-[12px] border py-2.5 transition-all',
                       active
-                        ? 'border-[#7aa2ff] bg-white shadow-[0_14px_28px_rgba(17,81,255,0.12)]'
-                        : 'border-[#dbe5f1] bg-white/80 hover:border-[#bdd1f3]',
+                        ? 'border-primary bg-primary/5 shadow-[0_4px_12px_rgba(17,81,255,0.1)]'
+                        : 'border-[#dbe5f1] bg-white/60 hover:border-[#bdd1f3] hover:bg-white',
                     ].join(' ')}
                   >
-                    {sample.imageSrc ? (
-                      <img
-                        src={sample.imageSrc}
-                        alt={sample.label}
-                        className="h-24 w-full object-cover"
-                      />
-                    ) : (
-                      <div className="grid h-24 place-items-center bg-[#eef4ff] text-sm font-bold text-ink">
-                        {sample.label}
-                      </div>
-                    )}
-                    <div className="px-3 py-2 text-[12px] font-semibold text-ink">{sample.label}</div>
+                    <div className="overflow-hidden rounded-full border border-[rgba(129,149,188,0.2)] bg-white p-1 shadow-sm">
+                      {sample.imageSrc ? (
+                        <img
+                          src={sample.imageSrc}
+                          alt={sample.label}
+                          className="h-7 w-7 rounded-full object-cover grayscale-[0.25]"
+                        />
+                      ) : (
+                        <div className="h-7 w-7 bg-slate-100" />
+                      )}
+                    </div>
+                    <span
+                      className={[
+                        'text-[9px] font-bold uppercase tracking-tight text-center',
+                        active ? 'text-primary' : 'text-muted',
+                      ].join(' ')}
+                    >
+                      {sample.label.split(' ')[0]}
+                    </span>
                   </button>
                 );
               })}
             </div>
 
             <div className="flex items-center justify-between gap-3">
-              <div className="text-[12px] font-semibold text-[#5e6e86]">
+              <div className="text-[11px] font-semibold leading-5 text-[#5e6e86]">
                 Select a sample image and inspect the model probability distribution.
               </div>
               <button
@@ -904,7 +918,7 @@ export function Inspector({
                   void runSamplePrediction();
                 }}
                 disabled={isSamplePredicting}
-                className="rounded-full bg-primary px-4 py-1.5 text-xs font-extrabold uppercase tracking-[0.12em] text-white disabled:cursor-not-allowed disabled:opacity-70"
+                className="rounded-full bg-primary px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.12em] text-white disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {isSamplePredicting ? 'Predicting...' : 'Predict Sample'}
               </button>

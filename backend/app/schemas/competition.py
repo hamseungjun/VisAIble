@@ -1,4 +1,7 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+ALLOWED_BATCH_SIZES = {1, 8, 16, 32, 64, 128}
 
 
 class CompetitionCreateRequest(BaseModel):
@@ -22,7 +25,14 @@ class CompetitionSubmitRequest(BaseModel):
     participantId: int = Field(..., ge=1)
     jobId: str = Field(..., min_length=1)
     optimizer: str = Field(..., min_length=1)
-    batchSize: int = Field(..., ge=1, le=1024)
+    batchSize: int = Field(...)
+
+    @field_validator("batchSize")
+    @classmethod
+    def validate_batch_size(cls, value: int) -> int:
+        if value not in ALLOWED_BATCH_SIZES:
+            raise ValueError("Batch size must be one of 1, 8, 16, 32, 64, 128")
+        return value
 
 
 class CompetitionParticipantResponse(BaseModel):

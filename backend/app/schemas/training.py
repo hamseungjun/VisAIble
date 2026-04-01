@@ -1,4 +1,7 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+ALLOWED_BATCH_SIZES = {1, 8, 16, 32, 64, 128}
 
 
 class NodeFieldPayload(BaseModel):
@@ -16,7 +19,6 @@ class CanvasNodePayload(BaseModel):
 
 class OptimizerParamsPayload(BaseModel):
     momentum: str = "0.90"
-    weightDecay: str = "0.0001"
     rho: str = "0.99"
 
 
@@ -24,10 +26,17 @@ class TrainModelRequest(BaseModel):
     datasetId: str = Field(..., min_length=1)
     learningRate: float = Field(..., gt=0)
     epochs: int = Field(..., ge=1, le=500)
-    batchSize: int = Field(default=128, ge=8, le=512)
+    batchSize: int = Field(default=128)
     optimizer: str = Field(..., min_length=1)
     optimizerParams: OptimizerParamsPayload
     nodes: list[CanvasNodePayload]
+
+    @field_validator("batchSize")
+    @classmethod
+    def validate_batch_size(cls, value: int) -> int:
+        if value not in ALLOWED_BATCH_SIZES:
+            raise ValueError("Batch size must be one of 1, 8, 16, 32, 64, 128")
+        return value
 
 
 class EpochMetrics(BaseModel):

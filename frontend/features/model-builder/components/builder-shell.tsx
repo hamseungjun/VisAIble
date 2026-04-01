@@ -28,6 +28,7 @@ import {
 } from '@/lib/api/model-builder';
 import { datasets } from '@/lib/constants/builder-data';
 import {
+  batchSizeOptions,
   optimizerConfigs,
   type OptimizerName,
   type OptimizerParams,
@@ -51,8 +52,6 @@ const competitionDataset = {
 } as const;
 
 const availableCompetitionDatasets = [...datasets, competitionDataset];
-
-const competitionBatchSizes = [8, 16, 32, 64, 128, 256, 512, 1024] as const;
 
 function formatCompetitionDateLabel(value?: string | null) {
   if (!value) {
@@ -146,7 +145,6 @@ export function BuilderShell() {
   const [batchSize, setBatchSize] = useState(128);
   const [optimizerParams, setOptimizerParams] = useState<OptimizerParams>({
     momentum: optimizerConfigs.SGD.parameter.defaultValue,
-    weightDecay: optimizerConfigs.ADAM.parameter.defaultValue,
     rho: optimizerConfigs['RMS Prop'].parameter.defaultValue,
   });
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -444,14 +442,17 @@ export function BuilderShell() {
           isTraining={isTraining}
           onLearningRateChange={setLearningRate}
           onEpochChange={setEpochs}
+          onBatchSizeChange={setBatchSize}
           onOptimizerChange={(value) => {
             const config = optimizerConfigs[value];
             setOptimizer(value);
             setLearningRate(config.defaultLearningRate);
-            setOptimizerParams((current) => ({
-              ...current,
-              [config.parameter.key]: config.parameter.defaultValue,
-            }));
+            if (config.parameter) {
+              setOptimizerParams((current) => ({
+                ...current,
+                [config.parameter!.key]: config.parameter!.defaultValue,
+              }));
+            }
           }}
           onOptimizerParamChange={(key, value) =>
             setOptimizerParams((current) => ({ ...current, [key]: value }))
@@ -831,22 +832,23 @@ export function BuilderShell() {
                         <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#71839d]">
                           Batch size
                         </div>
-                        <div className="mt-3 grid grid-cols-4 gap-2">
-                          {competitionBatchSizes.map((size) => (
-                            <button
-                              key={size}
-                              type="button"
-                              onClick={() => setBatchSize(size)}
-                              className={[
-                                'rounded-[12px] px-2 py-2 text-[12px] font-extrabold transition',
-                                batchSize === size
-                                  ? 'bg-[#2563eb] text-white shadow-[0_10px_20px_rgba(37,99,235,0.2)]'
-                                  : 'bg-[#f4f8fd] text-[#2563eb]',
-                              ].join(' ')}
-                            >
-                              {size}
-                            </button>
-                          ))}
+                        <div className="mt-3 flex items-center gap-3">
+                          <input
+                            type="range"
+                            min={0}
+                            max={batchSizeOptions.length - 1}
+                            step={1}
+                            value={Math.max(0, batchSizeOptions.indexOf(batchSize as (typeof batchSizeOptions)[number]))}
+                            onChange={(event) =>
+                              setBatchSize(
+                                batchSizeOptions[Number(event.target.value)] ?? batchSizeOptions[0],
+                              )
+                            }
+                            className="h-1 w-full accent-[#2563eb]"
+                          />
+                          <div className="min-w-[48px] text-right font-display text-[20px] font-bold text-[#10213b]">
+                            {batchSize}
+                          </div>
                         </div>
                       </div>
                       <div className="rounded-[20px] border border-[#dbe5f1] bg-white px-4 py-4">

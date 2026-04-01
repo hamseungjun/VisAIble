@@ -2,6 +2,7 @@
 
 import { Icon } from '@/features/model-builder/components/icons';
 import {
+  batchSizeOptions,
   optimizerConfigs,
   optimizerOrder,
   type OptimizerName,
@@ -23,6 +24,7 @@ type TopBarProps = {
   isTraining: boolean;
   onLearningRateChange: (value: string) => void;
   onEpochChange: (value: string) => void;
+  onBatchSizeChange: (value: number) => void;
   onOptimizerChange: (value: OptimizerName) => void;
   onOptimizerParamChange: (key: keyof OptimizerParams, value: string) => void;
   onTrainingStart: () => void;
@@ -60,6 +62,7 @@ export function TopBar({
   isTraining,
   onLearningRateChange,
   onEpochChange,
+  onBatchSizeChange,
   onOptimizerChange,
   onOptimizerParamChange,
   onTrainingStart,
@@ -72,11 +75,12 @@ export function TopBar({
   const optimizerConfig = optimizerConfigs[optimizer];
   const learningRates = optimizerConfig.learningRates;
   const optimizerField = optimizerConfig.parameter;
+  const batchSizeIndex = Math.max(0, batchSizeOptions.indexOf(batchSize as (typeof batchSizeOptions)[number]));
   const learningRateIndex = Math.max(0, learningRates.indexOf(learningRate));
-  const optimizerParamIndex = Math.max(
-    0,
-    optimizerField.values.indexOf(optimizerParams[optimizerField.key]),
-  );
+  const optimizerParamIndex =
+    optimizerField == null
+      ? 0
+      : Math.max(0, optimizerField.values.indexOf(optimizerParams[optimizerField.key]));
   const totalParameters = estimateTotalParameters(nodes);
   const summaryItems = [
     { label: 'Dataset', value: selectedDatasetLabel },
@@ -207,25 +211,22 @@ export function TopBar({
 
           <div className="rounded-[20px] bg-white/75 px-4 py-[clamp(10px,0.9vw,12px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
             <span className="ui-label">
-              {optimizerField.label}
+              Batch Size
             </span>
             <div className="mt-2.5 flex items-center gap-3">
               <input
                 type="range"
                 min={0}
-                max={optimizerField.values.length - 1}
+                max={batchSizeOptions.length - 1}
                 step={1}
-                value={optimizerParamIndex}
+                value={batchSizeIndex}
                 onChange={(event) =>
-                  onOptimizerParamChange(
-                    optimizerField.key,
-                    optimizerField.values[Number(event.target.value)] ?? optimizerField.values[0],
-                  )
+                  onBatchSizeChange(batchSizeOptions[Number(event.target.value)] ?? batchSizeOptions[0])
                 }
                 className="h-1 w-full max-w-[clamp(260px,34vw,420px)] accent-primary"
               />
               <code className="block min-w-[78px] text-right font-display text-[13px] font-bold tabular-nums text-primary">
-                {optimizerParams[optimizerField.key]}
+                {batchSize}
               </code>
             </div>
           </div>
@@ -268,6 +269,33 @@ export function TopBar({
                   className="mt-2.5 w-full rounded-[14px] border border-line bg-white/80 px-3 py-2.5 font-display text-[15px] font-bold text-primary outline-none transition-colors focus:border-primary"
                 />
               </div>
+
+              {optimizerField ? (
+                <div className="max-w-[280px]">
+                  <span className="ui-label">
+                    {optimizerField.label}
+                  </span>
+                  <div className="mt-2.5 flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={0}
+                      max={optimizerField.values.length - 1}
+                      step={1}
+                      value={optimizerParamIndex}
+                      onChange={(event) =>
+                        onOptimizerParamChange(
+                          optimizerField.key,
+                          optimizerField.values[Number(event.target.value)] ?? optimizerField.values[0],
+                        )
+                      }
+                      className="h-1 w-full accent-primary"
+                    />
+                    <code className="block min-w-[78px] text-right font-display text-[13px] font-bold tabular-nums text-primary">
+                      {optimizerParams[optimizerField.key]}
+                    </code>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         </section>

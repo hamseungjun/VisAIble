@@ -13,6 +13,10 @@ export type DatasetItem = {
     label: string;
     imageSrc?: string;
   }>;
+  infoSampleClasses?: Array<{
+    label: string;
+    imageSrc?: string;
+  }>;
   classLabels?: string[];
 };
 
@@ -101,7 +105,6 @@ export type TrainingJobStatus = {
 
 export type OptimizerParamsForCode = {
   momentum: string;
-  weightDecay: string;
   rho: string;
 };
 

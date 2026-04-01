@@ -1,12 +1,12 @@
 export const optimizerOrder = ['SGD', 'AdaGrad', 'RMS Prop', 'ADAM'] as const;
+export const batchSizeOptions = [1, 8, 16, 32, 64, 128] as const;
 
 export type OptimizerName = (typeof optimizerOrder)[number];
 
-export type OptimizerParamKey = 'momentum' | 'weightDecay' | 'rho';
+export type OptimizerParamKey = 'momentum' | 'rho';
 
 export type OptimizerParams = {
   momentum: string;
-  weightDecay: string;
   rho: string;
 };
 
@@ -39,7 +39,7 @@ export const optimizerConfigs: Record<
       label: string;
       values: string[];
       defaultValue: string;
-    };
+    } | null;
   }
 > = {
   SGD: {
@@ -55,12 +55,7 @@ export const optimizerConfigs: Record<
   AdaGrad: {
     learningRates: sharedLearningRates,
     defaultLearningRate: '0.01',
-    parameter: {
-      key: 'weightDecay',
-      label: 'Weight Decay',
-      values: ['0', '0.0001', '0.0005', '0.001', '0.003'],
-      defaultValue: '0.0001',
-    },
+    parameter: null,
   },
   'RMS Prop': {
     learningRates: sharedLearningRates,
@@ -75,11 +70,6 @@ export const optimizerConfigs: Record<
   ADAM: {
     learningRates: sharedLearningRates,
     defaultLearningRate: '0.001',
-    parameter: {
-      key: 'weightDecay',
-      label: 'Weight Decay',
-      values: ['0', '0.00001', '0.0001', '0.0005', '0.001'],
-      defaultValue: '0.0001',
-    },
+    parameter: null,
   },
 };
