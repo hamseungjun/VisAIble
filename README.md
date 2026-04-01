@@ -1,6 +1,7 @@
 # VisAIble
 
 2026 소프트웨어캡스톤 디자인 프로젝트
+<img width="1437" height="679" alt="KakaoTalk_Photo_2026-04-02-00-36-49" src="https://github.com/user-attachments/assets/bbb01427-cfd7-43aa-838d-d4404559c723" />
 
 ## Structure
 
