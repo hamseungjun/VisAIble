@@ -34,7 +34,6 @@ DATA_ROOT = Path(__file__).resolve().parents[2] / "data"
 MNIST_DATA_DIR = DATA_ROOT / "mnist"
 CIFAR10_DATA_DIR = DATA_ROOT / "cifar10"
 TINY_IMAGENET_DIR = DATA_ROOT / "tiny-imagenet-200"
-COCO_DATA_DIR = DATA_ROOT / "coco"
 
 DATASET_DEFINITIONS = [
     DatasetDefinition(
@@ -64,13 +63,6 @@ DATASET_DEFINITIONS = [
         input_shape="3 x 64 x 64",
         records="100K train / 10K val",
         domain="Compact ImageNet-style classification",
-    ),
-    DatasetDefinition(
-        id="coco",
-        label="COCO 2017",
-        input_shape="3 x 224 x 224",
-        records="5K val images (compact split in app)",
-        domain="Object classification proxy",
     ),
 ]
 
@@ -103,13 +95,6 @@ DATASET_SPECS: dict[str, DatasetRuntimeSpec] = {
         input_width=64,
         num_classes=200,
     ),
-    "coco": DatasetRuntimeSpec(
-        definition=DATASET_DEFINITIONS[4],
-        input_channels=3,
-        input_height=224,
-        input_width=224,
-        num_classes=80,
-    ),
 }
 
 MNIST_FILES = {
@@ -127,15 +112,6 @@ TINY_IMAGENET_URLS = [
     "https://cs231n.stanford.edu/tiny-imagenet-200.zip",
     "http://cs231n.stanford.edu/tiny-imagenet-200.zip",
 ]
-
-COCO_VAL_URLS = [
-    "https://images.cocodataset.org/zips/val2017.zip",
-]
-
-COCO_ANNOTATIONS_URLS = [
-    "https://images.cocodataset.org/annotations/annotations_trainval2017.zip",
-]
-
 
 def _build_direct_session() -> requests.Session:
     session = requests.Session()
@@ -191,13 +167,6 @@ def get_imagenet_root() -> Path:
     return TINY_IMAGENET_DIR
 
 
-def get_coco_root() -> Path:
-    configured_root = os.getenv("COCO_ROOT")
-    if configured_root:
-        return Path(configured_root)
-    return COCO_DATA_DIR
-
-
 def ensure_cifar10_downloaded() -> Path:
     from torchvision import datasets
 
@@ -228,27 +197,6 @@ def ensure_tiny_imagenet_downloaded() -> Path:
     _extract_archive(archive_path, DATA_ROOT)
     _prepare_tiny_imagenet_validation_split(TINY_IMAGENET_DIR)
     return TINY_IMAGENET_DIR
-
-
-def ensure_coco_compact_downloaded() -> Path:
-    coco_root = get_coco_root()
-    val_dir = coco_root / "val2017"
-    annotation_path = coco_root / "annotations" / "instances_val2017.json"
-    if val_dir.exists() and annotation_path.exists():
-        return coco_root
-
-    coco_root.mkdir(parents=True, exist_ok=True)
-    val_archive = coco_root / "val2017.zip"
-    annotations_archive = coco_root / "annotations_trainval2017.zip"
-    _download_file(COCO_VAL_URLS, val_archive)
-    _download_file(COCO_ANNOTATIONS_URLS, annotations_archive)
-    _ensure_valid_archive(val_archive)
-    _ensure_valid_archive(annotations_archive)
-    _extract_archive(val_archive, coco_root)
-    _extract_archive(annotations_archive, coco_root)
-    if not val_dir.exists() or not annotation_path.exists():
-        raise ValueError("COCO compact assets were downloaded but required val2017 files are still missing")
-    return coco_root
 
 
 def _is_valid_mnist_file(path: Path) -> bool:

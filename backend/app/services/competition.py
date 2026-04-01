@@ -21,7 +21,6 @@ from app.schemas.competition import (
 from app.services.datasets import (
     MNIST_DATA_DIR,
     ensure_cifar10_downloaded,
-    ensure_coco_compact_downloaded,
     ensure_mnist_downloaded,
     ensure_tiny_imagenet_downloaded,
     get_dataset_runtime_spec,
@@ -30,7 +29,6 @@ from app.services.training import (
     RANDOM_STATE,
     TRAINED_CLASSIFIERS,
     TRAINING_LOCK,
-    CocoClassificationDataset,
     _classification_transform,
     _read_idx_images,
     _read_idx_labels,
@@ -44,14 +42,12 @@ PUBLIC_EVAL_CONFIG = {
     "fashion_mnist": 100,
     "cifar10": 100,
     "imagenet": 12,
-    "coco": 4,
 }
 PRIVATE_EVAL_CONFIG = {
     "mnist": 100,
     "fashion_mnist": 100,
     "cifar10": 100,
     "imagenet": 12,
-    "coco": 4,
 }
 EVAL_BATCH_SIZE = 64
 KST = timezone(timedelta(hours=9))
@@ -432,7 +428,7 @@ def _build_mnist_eval_dataset() -> tuple[TensorDataset, np.ndarray]:
 def _build_fashion_mnist_eval_dataset():
     from torchvision import datasets
 
-    transform = _classification_transform(28)
+    transform = _classification_transform("fashion_mnist", 28)
     dataset = datasets.FashionMNIST(
         root=str(MNIST_DATA_DIR.parent / "fashion_mnist"),
         train=False,
@@ -446,7 +442,7 @@ def _build_cifar10_eval_dataset():
     from torchvision import datasets
 
     ensure_cifar10_downloaded()
-    transform = _classification_transform(32)
+    transform = _classification_transform("cifar10", 32)
     dataset = datasets.CIFAR10(
         root=str(MNIST_DATA_DIR.parent / "cifar10"),
         train=False,
@@ -461,22 +457,12 @@ def _build_imagenet_eval_dataset():
 
     imagenet_root = ensure_tiny_imagenet_downloaded()
     validation_dir = imagenet_root / "val-by-class"
-    dataset = datasets.ImageFolder(str(validation_dir), transform=_classification_transform(64))
+    dataset = datasets.ImageFolder(
+        str(validation_dir),
+        transform=_classification_transform("imagenet", 64),
+    )
     samples = getattr(dataset, "samples", [])
     labels = np.array([label for _, label in samples], dtype=np.int64)
-    return dataset, labels
-
-
-def _build_coco_eval_dataset():
-    coco_root = ensure_coco_compact_downloaded()
-    val_dir = coco_root / "val2017"
-    annotation_path = coco_root / "annotations" / "instances_val2017.json"
-    dataset = CocoClassificationDataset(
-        image_dir=val_dir,
-        annotation_path=annotation_path,
-        transform=_classification_transform(224),
-    )
-    labels = np.array([label for _, label in dataset.records], dtype=np.int64)
     return dataset, labels
 
 
@@ -492,9 +478,6 @@ def _build_competition_eval_loaders(dataset_id: str) -> tuple[DataLoader, DataLo
         return _build_eval_split_loaders(dataset, labels, dataset_id)
     if dataset_id == "imagenet":
         dataset, labels = _build_imagenet_eval_dataset()
-        return _build_eval_split_loaders(dataset, labels, dataset_id)
-    if dataset_id == "coco":
-        dataset, labels = _build_coco_eval_dataset()
         return _build_eval_split_loaders(dataset, labels, dataset_id)
     raise ValueError(f"Competition dataset '{dataset_id}' is not supported")
 

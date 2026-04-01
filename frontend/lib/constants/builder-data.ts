@@ -25,18 +25,6 @@ const cifar10ClassLabels = [
   'Ship',
   'Truck',
 ];
-const cocoClassLabels = [
-  'Person', 'Bicycle', 'Car', 'Motorcycle', 'Airplane', 'Bus', 'Train', 'Truck', 'Boat',
-  'Traffic light', 'Fire hydrant', 'Stop sign', 'Parking meter', 'Bench', 'Bird', 'Cat', 'Dog',
-  'Horse', 'Sheep', 'Cow', 'Elephant', 'Bear', 'Zebra', 'Giraffe', 'Backpack', 'Umbrella',
-  'Handbag', 'Tie', 'Suitcase', 'Frisbee', 'Skis', 'Snowboard', 'Sports ball', 'Kite',
-  'Baseball bat', 'Baseball glove', 'Skateboard', 'Surfboard', 'Tennis racket', 'Bottle',
-  'Wine glass', 'Cup', 'Fork', 'Knife', 'Spoon', 'Bowl', 'Banana', 'Apple', 'Sandwich',
-  'Orange', 'Broccoli', 'Carrot', 'Hot dog', 'Pizza', 'Donut', 'Cake', 'Chair', 'Couch',
-  'Potted plant', 'Bed', 'Dining table', 'Toilet', 'TV', 'Laptop', 'Mouse', 'Remote',
-  'Keyboard', 'Cell phone', 'Microwave', 'Oven', 'Toaster', 'Sink', 'Refrigerator', 'Book',
-  'Clock', 'Vase', 'Scissors', 'Teddy bear', 'Hair drier', 'Toothbrush',
-];
 
 export const datasets: DatasetItem[] = [
   {
@@ -117,27 +105,6 @@ export const datasets: DatasetItem[] = [
       { label: 'Horse', imageSrc: '/dataset-samples/cifar10/7.png' },
       { label: 'Ship', imageSrc: '/dataset-samples/cifar10/8.png' },
       { label: 'Truck', imageSrc: '/dataset-samples/cifar10/9.png' },
-    ],
-  },
-  {
-    id: 'coco',
-    icon: 'grid',
-    label: 'COCO 2017',
-    inputShape: '3 x 224 x 224',
-    records: '5,000 val images',
-    domain: 'Object classification proxy',
-    classCount: 80,
-    descriptionKo:
-      '원래는 객체 탐지와 분할용 데이터셋이지만, 현재 빌더에서는 이미지 내 대표 객체를 기준으로 분류 형태로 사용합니다. 앱에서는 가벼운 학습을 위해 compact split으로 나눠 사용합니다.',
-    shapeDescriptionKo: '입력 텐서 형태는 RGB 3채널 224x224 이미지입니다.',
-    classesDescriptionKo:
-      '클래스는 총 80개이며 사람, 자전거, 자동차, 개, 고양이, 의자, 병 등 일상 객체 중심으로 구성됩니다.',
-    classLabels: cocoClassLabels,
-    sampleClasses: [
-      { label: '사람', imageSrc: '/dataset-samples/coco/1.jpg' },
-      { label: '자동차', imageSrc: '/dataset-samples/coco/3.jpg' },
-      { label: '고양이', imageSrc: '/dataset-samples/coco/17.jpg' },
-      { label: '의자', imageSrc: '/dataset-samples/coco/62.jpg' },
     ],
   },
 ];

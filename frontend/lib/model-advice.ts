@@ -244,7 +244,7 @@ export function analyzeModelNodes(selectedDataset: DatasetItem, nodes: CanvasNod
         ),
         suggestedActivation: activationMismatch ? 'None' : existing?.suggestedActivation ?? null,
         activationError: activationMismatch,
-        activationHint: activationMismatch ? 'N___' : null,
+        activationHint: activationMismatch ? 'Activation?' : null,
       };
     }
   }

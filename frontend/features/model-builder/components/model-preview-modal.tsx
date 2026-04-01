@@ -66,7 +66,6 @@ function parseDatasetRuntime(dataset: DatasetItem): DatasetRuntimePreview {
     fashion_mnist: 10,
     cifar10: 10,
     imagenet: 200,
-    coco: 80,
   };
 
   const rawShape = dataset.inputShape?.split('x').map((item) => Number(item.trim())) ?? [1, 1, 1];

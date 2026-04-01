@@ -22,7 +22,6 @@ from app.schemas.training import CanvasNodePayload, EpochMetrics, TrainModelRequ
 from app.services.datasets import (
     MNIST_DATA_DIR,
     ensure_cifar10_downloaded,
-    ensure_coco_compact_downloaded,
     ensure_mnist_downloaded,
     get_dataset_runtime_spec,
     ensure_tiny_imagenet_downloaded,
@@ -35,13 +34,18 @@ COMPACT_CIFAR10_TRAIN_PER_CLASS = 400
 COMPACT_CIFAR10_VAL_PER_CLASS = 100
 COMPACT_TINY_IMAGENET_TRAIN_PER_CLASS = 20
 COMPACT_TINY_IMAGENET_VAL_PER_CLASS = 5
-COMPACT_COCO_TRAIN_PER_CLASS = 32
-COMPACT_COCO_VAL_PER_CLASS = 8
 TRAINING_JOBS: dict[str, dict[str, object]] = {}
 TRAINED_CLASSIFIERS: dict[str, tuple[nn.Module, torch.device, str]] = {}
 DATASET_CACHE: dict[str, tuple[Dataset, np.ndarray]] = {}
 DATASET_SAMPLE_INDICES: dict[str, dict[int, int]] = {}
 TRAINING_LOCK = Lock()
+
+DATASET_NORMALIZATION: dict[str, tuple[tuple[float, ...], tuple[float, ...]]] = {
+    "mnist": ((0.1307,), (0.3081,)),
+    "fashion_mnist": ((0.2860,), (0.3530,)),
+    "cifar10": ((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)),
+    "imagenet": ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+}
 
 
 class TrainingStoppedError(Exception):
@@ -54,60 +58,6 @@ class CompiledModel:
     architecture: list[str]
 
 
-class CocoClassificationDataset(Dataset):
-    def __init__(
-        self,
-        image_dir: Path,
-        annotation_path: Path,
-        transform,
-        category_to_index: dict[int, int] | None = None,
-    ) -> None:
-        payload = json.loads(annotation_path.read_text())
-        categories = sorted(payload.get("categories", []), key=lambda item: item["id"])
-        self.category_to_index = (
-            category_to_index
-            if category_to_index is not None
-            else {category["id"]: index for index, category in enumerate(categories)}
-        )
-        image_by_id = {image["id"]: image for image in payload.get("images", [])}
-        dominant_annotations: dict[int, tuple[int, float]] = {}
-
-        for annotation in payload.get("annotations", []):
-            image_id = annotation["image_id"]
-            category_id = annotation["category_id"]
-            if category_id not in self.category_to_index:
-                continue
-
-            area = float(annotation.get("area", 0) or 0)
-            current = dominant_annotations.get(image_id)
-            if current is None or area > current[1]:
-                dominant_annotations[image_id] = (self.category_to_index[category_id], area)
-
-        self.records: list[tuple[Path, int]] = []
-        for image_id, (label, _) in dominant_annotations.items():
-            image_meta = image_by_id.get(image_id)
-            if image_meta is None:
-                continue
-
-            image_path = image_dir / image_meta["file_name"]
-            if image_path.exists():
-                self.records.append((image_path, label))
-
-        self.transform = transform
-
-    def __len__(self) -> int:
-        return len(self.records)
-
-    def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
-        from PIL import Image
-
-        image_path, label = self.records[index]
-        image = Image.open(image_path).convert("RGB")
-        if self.transform is not None:
-            image = self.transform(image)
-        return image, label
-
-
 def _read_idx_images(path: Path) -> torch.Tensor:
     with gzip.open(path, "rb") as handle:
         magic, count, rows, cols = struct.unpack(">IIII", handle.read(16))
@@ -116,7 +66,9 @@ def _read_idx_images(path: Path) -> torch.Tensor:
         buffer = handle.read()
 
     data = np.frombuffer(buffer, dtype=np.uint8).reshape(count, rows, cols)
-    return torch.tensor(data, dtype=torch.float32).unsqueeze(1) / 255.0
+    images = torch.tensor(data, dtype=torch.float32).unsqueeze(1) / 255.0
+    mean, std = DATASET_NORMALIZATION["mnist"]
+    return (images - mean[0]) / std[0]
 
 
 def _read_idx_labels(path: Path) -> torch.Tensor:
@@ -144,13 +96,15 @@ def load_mnist_dataset() -> TensorDataset:
     return TensorDataset(images, labels)
 
 
-def _classification_transform(image_size: int):
+def _classification_transform(dataset_id: str, image_size: int):
     from torchvision import transforms
 
+    mean, std = DATASET_NORMALIZATION[dataset_id]
     return transforms.Compose(
         [
             transforms.Resize((image_size, image_size)),
             transforms.ToTensor(),
+            transforms.Normalize(mean, std),
         ]
     )
 
@@ -180,7 +134,7 @@ def _load_combined_torchvision_dataset(dataset_id: str) -> tuple[Dataset, np.nda
         return result
 
     if dataset_id == "fashion_mnist":
-        transform = _classification_transform(28)
+        transform = _classification_transform("fashion_mnist", 28)
         train_split = datasets.FashionMNIST(
             root=str(MNIST_DATA_DIR.parent / "fashion_mnist"),
             train=True,
@@ -195,7 +149,7 @@ def _load_combined_torchvision_dataset(dataset_id: str) -> tuple[Dataset, np.nda
         )
     elif dataset_id == "cifar10":
         ensure_cifar10_downloaded()
-        transform = _classification_transform(32)
+        transform = _classification_transform("cifar10", 32)
         train_split = datasets.CIFAR10(
             root=str(MNIST_DATA_DIR.parent / "cifar10"),
             train=True,
@@ -272,7 +226,7 @@ def _build_imagenet_loaders(batch_size: int) -> tuple[DataLoader, DataLoader, in
     train_dir = imagenet_root / "train"
     val_dir = imagenet_root / "val-by-class"
 
-    transform = _classification_transform(64)
+    transform = _classification_transform("imagenet", 64)
     train_dataset = datasets.ImageFolder(str(train_dir), transform=transform)
     validation_dataset = datasets.ImageFolder(str(val_dir), transform=transform)
     train_dataset = _limit_imagefolder_per_class(
@@ -289,33 +243,12 @@ def _build_imagenet_loaders(batch_size: int) -> tuple[DataLoader, DataLoader, in
     return train_loader, validation_loader, len(train_dataset), len(validation_dataset)
 
 
-def _build_coco_loaders(batch_size: int) -> tuple[DataLoader, DataLoader, int, int]:
-    coco_root = ensure_coco_compact_downloaded()
-    val_dir = coco_root / "val2017"
-    val_annotations = coco_root / "annotations" / "instances_val2017.json"
-
-    transform = _classification_transform(224)
-    source_dataset = CocoClassificationDataset(
-        image_dir=val_dir,
-        annotation_path=val_annotations,
-        transform=transform,
-    )
-    train_dataset, validation_dataset = _split_coco_dataset(source_dataset)
-
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False)
-    return train_loader, validation_loader, len(train_dataset), len(validation_dataset)
-
-
 def build_dataset_loaders(dataset_id: str, batch_size: int = BATCH_SIZE) -> tuple[DataLoader, DataLoader, int, int]:
     if dataset_id in {"mnist", "fashion_mnist", "cifar10"}:
         return _build_stratified_loaders(dataset_id, batch_size)
 
     if dataset_id == "imagenet":
         return _build_imagenet_loaders(batch_size)
-
-    if dataset_id == "coco":
-        return _build_coco_loaders(batch_size)
 
     raise ValueError(f"Dataset '{dataset_id}' is not implemented for training yet")
 
@@ -337,30 +270,6 @@ def _limit_imagefolder_per_class(dataset: Dataset, limit_per_class: int) -> Subs
 
     selected_indices = generator.permutation(selected_indices).tolist()
     return Subset(dataset, selected_indices)
-
-
-def _split_coco_dataset(dataset: CocoClassificationDataset) -> tuple[Subset, Subset]:
-    generator = np.random.default_rng(RANDOM_STATE)
-    label_buckets: dict[int, list[int]] = {}
-
-    for index, (_, label) in enumerate(dataset.records):
-        label_buckets.setdefault(label, []).append(index)
-
-    train_indices: list[int] = []
-    validation_indices: list[int] = []
-    for label, indices in label_buckets.items():
-        shuffled = generator.permutation(indices).tolist()
-        split_index = max(1, int(len(shuffled) * 0.8))
-        train_indices.extend(shuffled[: min(split_index, COMPACT_COCO_TRAIN_PER_CLASS)])
-        validation_indices.extend(
-            shuffled[split_index : split_index + COMPACT_COCO_VAL_PER_CLASS],
-        )
-
-    train_indices = generator.permutation(train_indices).tolist()
-    validation_indices = generator.permutation(validation_indices).tolist()
-    return Subset(dataset, train_indices), Subset(dataset, validation_indices)
-
-
 
 
 def _parse_int(field_map: dict[str, str], label: str) -> int:
