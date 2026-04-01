@@ -5,6 +5,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.schemas.training import (
+    GradCamRequest,
+    GradCamResponse,
     PredictDigitRequest,
     PredictDigitResponse,
     PredictSampleRequest,
@@ -15,6 +17,7 @@ from app.schemas.training import (
     TrainingJobStatusResponse,
 )
 from app.services.training import (
+    generate_gradcam,
     get_training_job,
     pause_training_job,
     predict_mnist_digit,
@@ -133,3 +136,13 @@ def predict_sample(job_id: str, payload: PredictSampleRequest) -> PredictDigitRe
         raise HTTPException(status_code=422, detail=str(error)) from error
 
     return PredictDigitResponse(**result)
+
+
+@router.post("/training/gradcam/{job_id}", response_model=GradCamResponse)
+def get_gradcam(job_id: str, payload: GradCamRequest) -> GradCamResponse:
+    try:
+        result = generate_gradcam(job_id, payload.classIndex)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+    return GradCamResponse(**result)

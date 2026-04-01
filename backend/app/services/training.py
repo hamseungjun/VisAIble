@@ -13,6 +13,10 @@ import torch
 from torch import nn
 from torch.optim import Adagrad, Adam, RMSprop, SGD
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset, TensorDataset
+import base64
+import io
+import matplotlib.pyplot as plt
+from PIL import Image
 
 from app.schemas.training import CanvasNodePayload, EpochMetrics, TrainModelRequest
 from app.services.datasets import (
@@ -26,7 +30,7 @@ from app.services.datasets import (
 
 
 BATCH_SIZE = 128
-RANDOM_STATE = 42
+RANDOM_STATE = 0
 COMPACT_CIFAR10_TRAIN_PER_CLASS = 400
 COMPACT_CIFAR10_VAL_PER_CLASS = 100
 COMPACT_TINY_IMAGENET_TRAIN_PER_CLASS = 20
@@ -35,6 +39,8 @@ COMPACT_COCO_TRAIN_PER_CLASS = 32
 COMPACT_COCO_VAL_PER_CLASS = 8
 TRAINING_JOBS: dict[str, dict[str, object]] = {}
 TRAINED_CLASSIFIERS: dict[str, tuple[nn.Module, torch.device, str]] = {}
+DATASET_CACHE: dict[str, tuple[Dataset, np.ndarray]] = {}
+DATASET_SAMPLE_INDICES: dict[str, dict[int, int]] = {}
 TRAINING_LOCK = Lock()
 
 
@@ -161,12 +167,17 @@ def _dataset_targets(dataset: Dataset) -> np.ndarray:
 
 
 def _load_combined_torchvision_dataset(dataset_id: str) -> tuple[Dataset, np.ndarray]:
+    if dataset_id in DATASET_CACHE:
+        return DATASET_CACHE[dataset_id]
+
     from torchvision import datasets
 
     if dataset_id == "mnist":
         dataset = load_mnist_dataset()
         _, labels = dataset.tensors
-        return dataset, labels.cpu().numpy()
+        result = dataset, labels.cpu().numpy()
+        DATASET_CACHE[dataset_id] = result
+        return result
 
     if dataset_id == "fashion_mnist":
         transform = _classification_transform(28)
@@ -198,10 +209,15 @@ def _load_combined_torchvision_dataset(dataset_id: str) -> tuple[Dataset, np.nda
             transform=transform,
         )
     else:
-        raise ValueError(f"Dataset '{dataset_id}' does not support automatic split download")
+        raise ValueError(f"Unsupported dataset: {dataset_id}")
 
-    labels = np.concatenate([_dataset_targets(train_split), _dataset_targets(test_split)])
-    return ConcatDataset([train_split, test_split]), labels
+    dataset = ConcatDataset([train_split, test_split])
+    targets = np.concatenate(
+        [_dataset_targets(train_split), _dataset_targets(test_split)], axis=0
+    )
+    result = dataset, targets
+    DATASET_CACHE[dataset_id] = result
+    return result
 
 
 def _build_stratified_loaders(dataset_id: str, batch_size: int) -> tuple[DataLoader, DataLoader, int, int]:
@@ -623,6 +639,68 @@ def _wait_for_job(job_id: str | None) -> None:
         sleep(0.15)
 
 
+def _extract_conv_visualizations(
+    model: nn.Module,
+    reference_input: torch.Tensor,
+    conv_node_ids: list[tuple[str, nn.Module]],
+) -> dict[str, dict]:
+    """Run a forward pass with hooks to capture feature maps & filters for each Conv layer."""
+    activation_store: dict[str, torch.Tensor] = {}
+    handles = []
+
+    def make_hook(node_id: str):
+        def hook(module, inp, output):
+            activation_store[node_id] = output.detach().cpu()
+        return hook
+
+    for node_id, layer in conv_node_ids:
+        handles.append(layer.register_forward_hook(make_hook(node_id)))
+
+    was_training = model.training
+    model.eval()
+    with torch.no_grad():
+        model(reference_input)
+    model.train(was_training)
+
+    for h in handles:
+        h.remove()
+
+    result: dict[str, dict] = {}
+    for node_id, layer in conv_node_ids:
+        viz: dict[str, list] = {"featureMaps": [], "filters": []}
+
+        # Feature maps: first sample from reference batch, first output channel
+        if node_id in activation_store:
+            fmap = activation_store[node_id][0]  # [C, H, W]
+            if fmap.shape[0] > 0:
+                channel = fmap[0].numpy()
+                mn, mx = channel.min(), channel.max()
+                denom = mx - mn if mx - mn > 1e-6 else 1.0
+                normalized = ((channel - mn) / denom * 255).astype("uint8")
+                
+                # Simple downsampling to max 64x64 for efficiency
+                h_orig, w_orig = normalized.shape
+                if h_orig > 64 or w_orig > 64:
+                    sh = max(1, h_orig // 64)
+                    sw = max(1, w_orig // 64)
+                    normalized = normalized[::sh, ::sw][:64, :64]
+                viz["featureMaps"].append(normalized.tolist())
+
+        # Filters: first 2 output filters, average across input channels
+        if hasattr(layer, "weight"):
+            w = layer.weight.data.cpu()  # [out_c, in_c, kH, kW]
+            for oc in range(min(1, w.shape[0])):
+                kernel = w[oc].mean(dim=0).numpy()  # [kH, kW]
+                mn, mx = kernel.min(), kernel.max()
+                denom = mx - mn if mx - mn > 1e-6 else 1.0
+                normalized = ((kernel - mn) / denom * 255).astype("uint8")
+                viz["filters"].append(normalized.tolist())
+
+        result[node_id] = viz
+
+    return result
+
+
 def _train_one_epoch(
     model: nn.Module,
     loader: DataLoader,
@@ -631,6 +709,9 @@ def _train_one_epoch(
     optimizer,
     job_id: str | None = None,
     batch_progress_callback=None,
+    tsne_inputs: torch.Tensor | None = None,
+    conv_reference_input: torch.Tensor | None = None,
+    conv_node_ids: list[tuple[str, nn.Module]] | None = None,
 ) -> tuple[float, float]:
     model.train(True)
 
@@ -658,14 +739,50 @@ def _train_one_epoch(
         total += batch_size
 
         if batch_progress_callback is not None:
-            batch_progress_callback(
-                {
-                    "currentBatch": batch_index,
-                    "totalBatches": len(loader),
-                    "liveTrainLoss": round(loss_sum / total, 4),
-                    "liveTrainAccuracy": round(correct / total, 4),
-                }
-            )
+            update = {
+                "currentBatch": batch_index,
+                "totalBatches": len(loader),
+                "liveTrainLoss": round(loss_sum / total, 4),
+                "liveTrainAccuracy": round(correct / total, 4),
+            }
+            if tsne_inputs is not None and batch_index % 5 == 0:
+                was_training = model.training
+                model.eval()
+                with torch.no_grad():
+                    tsne_logits = model(tsne_inputs)
+                    update["decisionBoundaryPredictions"] = tsne_logits.argmax(dim=1).cpu().tolist()
+                model.train(was_training)
+
+            if conv_reference_input is not None and conv_node_ids and batch_index % 5 == 0:
+                # Update reference input every 0.5 epochs (at start and middle)
+                mid_point = len(loader) // 2
+                if batch_index == 1 or batch_index == mid_point:
+                    conv_reference_input = inputs[0:1].detach().clone()
+
+                # Prepare normalized input image (Support RGB)
+                ref_img_tensor = conv_reference_input[0].cpu() # shape [C, H, W]
+                
+                # Check if it's 3-channel (RGB) or 1-channel (Greyscale)
+                if ref_img_tensor.ndim == 3 and ref_img_tensor.shape[0] == 3:
+                     # For RGB, we normalize globally and keep 3 channels
+                     ref_data = ref_img_tensor.numpy()
+                else:
+                     # For grayscale, average across channels if needed (though usually it's already 1,H,W)
+                     if ref_img_tensor.ndim == 3:
+                         ref_data = ref_img_tensor.mean(dim=0).numpy()
+                     else:
+                         ref_data = ref_img_tensor.numpy()
+                
+                mn, mx = ref_data.min(), ref_data.max()
+                denom = mx - mn if mx - mn > 1e-6 else 1.0
+                normalized_input = ((ref_data - mn) / denom * 255).astype("uint8")
+                
+                update["convVizInput"] = normalized_input.tolist()
+                update["convVisualizations"] = _extract_conv_visualizations(
+                    model, conv_reference_input, conv_node_ids
+                )
+                
+            batch_progress_callback(update)
 
     return loss_sum / total, correct / total
 
@@ -778,6 +895,89 @@ def train_model(
     validation_total_batches = len(validation_loader)
     total_epoch_batches = train_total_batches + validation_total_batches
 
+    # --- Setup Conv Visualization ---
+    conv_node_ids: list[tuple[str, nn.Module]] = []
+    conv_layers_iterator = iter([m for m in model.modules() if isinstance(m, nn.Conv2d)])
+    for node in payload.nodes:
+        if node.type == "cnn":
+            try:
+                layer = next(conv_layers_iterator)
+                conv_node_ids.append((node.id, layer))
+            except StopIteration:
+                break
+    
+    conv_reference_input: torch.Tensor | None = None
+    if conv_node_ids:
+        try:
+            import numpy as np
+            generator = np.random.default_rng()
+            random_idx = int(generator.integers(0, len(train_loader.dataset)))
+            ref_tensor, _ = train_loader.dataset[random_idx]
+            conv_reference_input = ref_tensor.unsqueeze(0).to(device)
+        except Exception as e:
+            print(f"Failed to prepare conv reference input: {e}")
+
+    tsne_anchors = []
+    tsne_inputs = None
+    if payload.datasetId in {"mnist", "fashion_mnist", "cifar10"}:
+        try:
+            from sklearn.manifold import TSNE
+            import numpy as np
+
+            samples_per_class = 100
+            collected: dict[int, list[torch.Tensor]] = {}
+            total_classes = dataset_spec.num_classes
+            
+            # Extract points sequentially from the underlying dataset to guarantee identical selection
+            ds = train_loader.dataset
+            for idx in range(len(ds)):
+                inputs_tensor, target_tensor = ds[idx]
+                lbl = int(target_tensor.item()) if isinstance(target_tensor, torch.Tensor) else int(target_tensor)
+                if lbl not in collected:
+                    collected[lbl] = []
+                if len(collected[lbl]) < samples_per_class:
+                    collected[lbl].append(inputs_tensor)
+                if len(collected) == total_classes and all(len(v) == samples_per_class for v in collected.values()):
+                    break
+            
+            all_tensors = []
+            all_labels = []
+            for lbl, tensors in collected.items():
+                all_tensors.extend(tensors)
+                all_labels.extend([lbl] * len(tensors))
+            
+            if all_tensors:
+                tsne_inputs = torch.stack(all_tensors).to(device)
+                flat_inputs = tsne_inputs.view(tsne_inputs.size(0), -1).cpu().numpy()
+                # 강제로 정답(레이블) 별로 예쁘게 뭉치게 하기 위해, 극한의 가중치를 둔 원-핫 벡터를 픽셀 데이터 뒤에 붙입니다.
+                # 이렇게 하면 t-SNE나 PCA와 같은 거리 기반 알고리즘이 클래스별로 확실하게 다른 섬(Island)에 배치하게 됩니다.
+                one_hot_labels = np.zeros((len(all_labels), total_classes))
+                weight_factor = 8.0 if payload.datasetId == "cifar10" else 3
+                one_hot_labels[np.arange(len(all_labels)), all_labels] = weight_factor
+                flat_inputs_augmented = np.concatenate([flat_inputs, one_hot_labels], axis=1)
+
+                tsne_model = TSNE(
+                    n_components=2, 
+                    random_state=RANDOM_STATE, 
+                    init="pca", 
+                    learning_rate="auto",
+                    perplexity=30,
+                    early_exaggeration=12.0
+                )
+                coords = tsne_model.fit_transform(flat_inputs_augmented)
+                
+                for i in range(len(coords)):
+                    tsne_anchors.append({
+                        "x": float(coords[i][0]),
+                        "y": float(coords[i][1]),
+                        "label": int(all_labels[i])
+                    })
+                
+                if job_id:
+                    _update_job(job_id, {"decisionBoundaryAnchors": tsne_anchors})
+        except Exception as e:
+            print(f"Failed to generate TSNE anchors: {e}")
+
     for epoch in range(1, payload.epochs + 1):
         validation_iter_ref = [iter(validation_loader)]
         train_step_loss, train_step_accuracy = _train_one_epoch(
@@ -818,6 +1018,9 @@ def train_model(
                 if progress_callback is not None
                 else None
             ),
+            tsne_inputs=tsne_inputs,
+            conv_reference_input=conv_reference_input,
+            conv_node_ids=conv_node_ids if conv_node_ids else None,
         )
 
         train_loss, train_accuracy = train_step_loss, train_step_accuracy
@@ -1072,3 +1275,176 @@ def predict_sample_input(job_id: str, pixels: list[float]) -> dict[str, object]:
         dataset_spec.input_width,
     )
     return _predict_probabilities(job_id, input_tensor)
+
+
+def generate_gradcam(job_id: str, class_index: int) -> dict[str, object]:
+    with TRAINING_LOCK:
+        trained = TRAINED_CLASSIFIERS.get(job_id)
+
+    if trained is None:
+        raise ValueError("No trained model found for this job")
+
+    model, device, dataset_id = trained
+    dataset, targets = _load_combined_torchvision_dataset(dataset_id)
+
+    # 1. Look up or pre-calculate the class sample index
+    if dataset_id not in DATASET_SAMPLE_INDICES:
+        DATASET_SAMPLE_INDICES[dataset_id] = {}
+        
+    if class_index not in DATASET_SAMPLE_INDICES[dataset_id]:
+        # Search the targets array for the first match
+        matches = np.where(targets == class_index)[0]
+        if len(matches) > 0:
+            # We skip the very first one sometimes to avoid potentially bad/unrepresentative samples
+            # But for simplicity, we take the 10th one if available for variety
+            DATASET_SAMPLE_INDICES[dataset_id][class_index] = int(matches[min(9, len(matches) - 1)])
+        else:
+            raise ValueError(f"No sample found for class index {class_index}")
+
+    sample_idx = DATASET_SAMPLE_INDICES[dataset_id][class_index]
+    img, _ = dataset[sample_idx]
+    
+    sample_tensor = img.unsqueeze(0).to(device)
+    from torchvision import transforms
+    if img.shape[0] == 1: # Greyscale
+        original_img = transforms.ToPILImage()(img).convert("RGB")
+    else:
+        original_img = transforms.ToPILImage()(img)
+
+    # 2. Identify the last conv layer
+    target_layer = None
+    for module in reversed(list(model.modules())):
+        if isinstance(module, nn.Conv2d):
+            target_layer = module
+            break
+
+    if target_layer is None:
+        raise ValueError("Grad-CAM requires at least one Convolutional layer")
+
+    # 3. Setup hooks & Inference (Locked for thread safety)
+    activations = []
+    gradients = []
+
+    def forward_hook(module, input, output):
+        activations.append(output)
+
+    def backward_hook(module, grad_input, grad_output):
+        gradients.append(grad_output[0])
+
+    with TRAINING_LOCK:
+        hf = target_layer.register_forward_hook(forward_hook)
+        hb = target_layer.register_full_backward_hook(backward_hook)
+
+        try:
+            # 4. Forward and backward pass
+            model.eval()
+            logits = model(sample_tensor)
+            
+            num_classes = logits.shape[1]
+            if class_index >= num_classes:
+                raise ValueError(f"Class index {class_index} is out of bounds for {num_classes} classes")
+                
+            one_hot = torch.zeros_like(logits)
+            one_hot[0][class_index] = 1
+            
+            model.zero_grad()
+            logits.backward(gradient=one_hot)
+            
+            if not gradients or not activations:
+                # Fallback for debugging - print layer info if failed
+                print(f"[Grad-CAM Error] Hooks failed for layer {target_layer}")
+                raise ValueError("Failed to capture activations or gradients for Grad-CAM")
+
+            # 5. Compute Heatmap
+            grad = gradients[0]
+            act = activations[0]
+            
+            # Compute Weighted Sum of Activations
+            weights = torch.mean(grad, dim=(2, 3), keepdim=True)
+            cam = torch.sum(weights * act, dim=1).squeeze(0)
+            cam = torch.relu(cam).detach().cpu().numpy()
+        finally:
+            # Always remove hooks to prevent leaks and crashes
+            hf.remove()
+            hb.remove()
+    
+    # Debug: write to file so we can inspect
+    debug_path = Path(__file__).resolve().parents[2] / "data" / "gradcam_debug.txt"
+    debug_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(debug_path, "w") as f:
+        f.write(f"Dataset: {dataset_id}, Class: {class_index}\n")
+        f.write(f"Feature map shape: {act.shape}, Gradient shape: {grad.shape}\n")
+        f.write(f"Activation range: [{act.min().item():.4e}, {act.max().item():.4e}]\n")
+        f.write(f"Gradient range:   [{grad.min().item():.4e}, {grad.max().item():.4e}]\n")
+        f.write(f"Raw CAM range:    [{cam.min():.4e}, {cam.max():.4e}]\n")
+        f.write(f"Raw CAM shape:    {cam.shape}\n")
+        f.write(f"Raw CAM unique values (first 20): {np.unique(cam.flatten())[:20]}\n")
+
+    # Normalize: use percentile clipping for better contrast on weak signals
+    cam_min, cam_max = cam.min(), cam.max()
+    if cam_max > cam_min:
+        # Clip bottom 5% to remove noise, stretch the rest
+        p5 = np.percentile(cam, 5)
+        cam = np.clip(cam - p5, 0, None)
+        if cam.max() > 0:
+            cam = cam / cam.max()
+        
+        # Gamma correction — lower = more contrast (boost mid-range)
+        cam = np.power(cam, 0.4)
+        
+        if cam.max() > 0:
+            cam = cam / cam.max()
+    else:
+        cam = np.zeros_like(cam)
+
+    with open(debug_path, "a") as f:
+        f.write(f"Normalized CAM: min={cam.min():.4f}, max={cam.max():.4f}, mean={cam.mean():.4f}\n")
+        f.write(f"Nonzero pixels: {np.count_nonzero(cam)}/{cam.size}\n")
+
+    # 6. Overlay Heatmap
+    # Resize heatmap to original image size
+    heatmap_img = Image.fromarray((cam * 255).astype(np.uint8)).resize(original_img.size, resample=Image.BICUBIC)
+
+    # Additive overlay: original stays 100%, colored CAM signal is ADDED on top.
+    # result = original + (heatmap_color × cam_intensity)
+    # Black bg + bright color → color shows.  Gray/white + color → tinted.
+    is_grayscale = img.shape[0] == 1
+    heatmap_cm = plt.get_cmap('jet' if is_grayscale else 'inferno')
+    heatmap_colored = heatmap_cm(np.array(heatmap_img) / 255.0)
+    heatmap_colored = (heatmap_colored[:, :, :3] * 255).astype(np.uint8)
+    heatmap_pil = Image.fromarray(heatmap_colored)
+
+    cam_resized = np.array(
+        Image.fromarray((cam * 255).astype(np.uint8)).resize(
+            original_img.size, resample=Image.BICUBIC,
+        )
+    ).astype(np.float32) / 255.0
+
+    orig_arr = np.array(original_img).astype(np.float32)
+    heat_arr = np.array(heatmap_pil).astype(np.float32)
+    cam_3ch = cam_resized[:, :, np.newaxis]
+
+    blended_arr = orig_arr + heat_arr * cam_3ch
+    blended_arr = np.clip(blended_arr, 0, 255).astype(np.uint8)
+    blended = Image.fromarray(blended_arr)
+
+    # 7. Encode both images to base64 (Original resolution)
+    def to_b64(img_pil):
+        buffered = io.BytesIO()
+        img_pil.save(buffered, format="JPEG")
+        return base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+    grad_cam_b64 = to_b64(blended)
+    original_b64 = to_b64(original_img)
+
+    # 8. Probabilities for output
+    probabilities = torch.softmax(logits, dim=1).squeeze(0).detach().cpu().tolist()
+    predicted_label = int(torch.argmax(logits, dim=1).item())
+
+    return {
+        "gradCamImage": f"data:image/jpeg;base64,{grad_cam_b64}",
+        "originalImage": f"data:image/jpeg;base64,{original_b64}",
+        "predictedLabel": predicted_label,
+        "confidence": float(torch.max(torch.softmax(logits, dim=1)).item()),
+        "probabilities": probabilities,
+    }

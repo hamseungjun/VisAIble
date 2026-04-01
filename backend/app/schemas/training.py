@@ -90,8 +90,12 @@ class TrainingJobStatusResponse(BaseModel):
     numClasses: int | None = None
     device: str | None = None
     architecture: list[str] = []
-    metrics: list[EpochMetrics] = []
+    metrics: list[EpochMetrics] = Field(default_factory=list)
     bestValidationAccuracy: float | None = None
+    decisionBoundaryAnchors: list[dict[str, float | int]] = Field(default_factory=list)
+    decisionBoundaryPredictions: list[int] = Field(default_factory=list)
+    convVisualizations: dict[str, dict] = Field(default_factory=dict)
+    convVizInput: list[list[int]] | list[list[list[int]]] | None = None
     currentEpoch: int | None = None
     currentBatch: int | None = None
     totalBatches: int | None = None
@@ -101,3 +105,15 @@ class TrainingJobStatusResponse(BaseModel):
     liveValidationLoss: float | None = None
     liveValidationAccuracy: float | None = None
     error: str | None = None
+
+
+class GradCamRequest(BaseModel):
+    classIndex: int
+
+
+class GradCamResponse(BaseModel):
+    gradCamImage: str
+    originalImage: str
+    predictedLabel: int
+    confidence: float
+    probabilities: list[float]

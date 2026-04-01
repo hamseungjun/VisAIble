@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Icon } from '@/features/model-builder/components/icons';
-import { predictDigit, predictSample } from '@/lib/api/model-builder';
+import { predictDigit, predictSample, generateGradCam } from '@/lib/api/model-builder';
+import { DecisionBoundaryCanvas } from './decision-boundary-canvas';
 import { datasets } from '@/lib/constants/builder-data';
 import type { DatasetItem, TrainingJobStatus } from '@/types/builder';
 
@@ -284,6 +285,18 @@ export function Inspector({
   const [samplePredictError, setSamplePredictError] = useState<string | null>(null);
   const [isSamplePredicting, setIsSamplePredicting] = useState(false);
   const drawingCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const [gradCamResult, setGradCamResult] = useState<{
+    gradCamImage: string;
+    originalImage: string;
+    predictedLabel: number;
+    confidence: number;
+    probabilities: number[];
+  } | null>(null);
+  const [isGradCamLoading, setIsGradCamLoading] = useState(false);
+  const [gradCamError, setGradCamError] = useState<string | null>(null);
+  const [selectedGradCamIndex, setSelectedGradCamIndex] = useState<number | null>(null);
+  const [isGradCamGuideOpen, setIsGradCamGuideOpen] = useState(false);
   const currentDataset = getDatasetFromStatus(trainingStatus);
   const metrics = trainingStatus?.metrics ?? [];
   const isReplayAvailable =
@@ -415,6 +428,10 @@ export function Inspector({
     samplePrediction && currentDataset?.classLabels
       ? getTopPredictions(samplePrediction.probabilities, currentDataset.classLabels, 5)
       : [];
+  const gradCamTopPredictions =
+    gradCamResult && currentDataset?.classLabels
+      ? getTopPredictions(gradCamResult.probabilities, currentDataset.classLabels, 5)
+      : [];
 
   useEffect(() => {
     if (!showMnistCanvas) {
@@ -442,6 +459,9 @@ export function Inspector({
     setPredictError(null);
     setSamplePrediction(null);
     setSamplePredictError(null);
+    setGradCamResult(null);
+    setGradCamError(null);
+    setSelectedGradCamIndex(null);
   }, [trainingStatus?.jobId, trainingStatus?.datasetId]);
 
   const startDrawing = (event: PointerEvent<HTMLCanvasElement>) => {
@@ -557,6 +577,24 @@ export function Inspector({
       setSamplePredictError(error instanceof Error ? error.message : 'Sample prediction failed');
     } finally {
       setIsSamplePredicting(false);
+    }
+  };
+
+  const runGradCam = async (classIndex: number) => {
+    if (!trainingStatus?.jobId) return;
+
+    setSelectedGradCamIndex(classIndex);
+    setIsGradCamLoading(true);
+    setGradCamResult(null);
+    setGradCamError(null);
+    try {
+      const result = await generateGradCam(trainingStatus.jobId, classIndex);
+      setGradCamResult(result);
+    } catch (error) {
+      console.error('Grad-CAM failed', error);
+      setGradCamError(error instanceof Error ? error.message : 'Grad-CAM generation failed');
+    } finally {
+      setIsGradCamLoading(false);
     }
   };
 
@@ -679,7 +717,135 @@ export function Inspector({
         </section>
       ) : null}
 
-      {showSamplePredictor && currentDataset && selectedSample ? (
+      {showSamplePredictor && currentDataset && (currentDataset.id === 'fashion_mnist' || currentDataset.id === 'cifar10') ? (
+        <section className="rounded-[22px] bg-panel/80 p-3.5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <strong className="font-display text-lg font-bold text-ink">
+              {currentDataset.label} Grad-CAM
+            </strong>
+            <button
+              type="button"
+              onClick={() => setIsGradCamGuideOpen(true)}
+              aria-label="Grad-CAM 설명 보기"
+              className="grid h-9 w-9 place-items-center rounded-full bg-[#f5f7fb] text-[#9daecc] transition hover:bg-[#eef3fb] hover:text-[#8498bb]"
+            >
+              <Icon name="help" className="h-8 w-8" />
+            </button>
+          </div>
+
+          <div className="grid gap-4">
+            <div className="grid grid-cols-5 gap-2">
+              {currentDataset.classLabels?.map((label, index) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => void runGradCam(index)}
+                  disabled={isGradCamLoading}
+                  className={[
+                    'flex flex-col items-center gap-1.5 rounded-[12px] border py-2.5 transition-all',
+                    selectedGradCamIndex === index
+                      ? 'border-primary bg-primary/5 shadow-[0_4px_12px_rgba(17,81,255,0.1)]'
+                      : 'border-[#dbe5f1] bg-white/60 hover:border-[#bdd1f3] hover:bg-white',
+                  ].join(' ')}
+                >
+                  <div className="overflow-hidden rounded-full border border-[rgba(129,149,188,0.2)] bg-white p-1 shadow-sm">
+                    {currentDataset.sampleClasses?.[index]?.imageSrc ? (
+                      <img 
+                        src={currentDataset.sampleClasses[index].imageSrc} 
+                        alt={label} 
+                        className="h-7 w-7 rounded-full object-cover grayscale-[0.4]" 
+                      />
+                    ) : (
+                      <div className="h-7 w-7 bg-slate-100" />
+                    )}
+                  </div>
+                  <span className={[
+                    'text-[9px] font-bold uppercase tracking-tight',
+                    selectedGradCamIndex === index ? 'text-primary' : 'text-muted'
+                  ].join(' ')}>
+                    {label.split(' ')[0]}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {isGradCamLoading ? (
+              <div className="flex h-48 flex-col items-center justify-center rounded-[20px] border border-dashed border-[#dbe5f1] bg-white/40">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <span className="mt-3 text-[10px] font-bold uppercase tracking-[0.16em] text-muted">Analyzing Attention ...</span>
+              </div>
+            ) : gradCamResult ? (
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <div className="flex gap-3">
+                  <div className="flex-1 overflow-hidden rounded-[16px] border border-[rgba(129,149,188,0.14)] bg-black shadow-md">
+                    <div className="bg-black/80 py-1 text-center text-[9px] font-bold uppercase tracking-widest text-white">Input</div>
+                    <img 
+                      src={gradCamResult.originalImage} 
+                      alt="Original" 
+                      className="aspect-square w-full object-contain" 
+                      style={{ imageRendering: 'pixelated' }}
+                    />
+                  </div>
+                  <div className="flex-1 overflow-hidden rounded-[16px] border border-[rgba(129,149,188,0.14)] bg-black shadow-md">
+                    <div className="bg-black/80 py-1 text-center text-[9px] font-bold uppercase tracking-widest text-white">Grad-CAM</div>
+                    <img 
+                      src={gradCamResult.gradCamImage} 
+                      alt="Grad-CAM" 
+                      className="aspect-square w-full object-contain" 
+                      style={{ imageRendering: 'pixelated' }}
+                    />
+                  </div>
+                </div>
+                <div className="mt-2 text-center text-[10px] font-bold text-muted uppercase tracking-wider">
+                  Target: {currentDataset.classLabels?.[selectedGradCamIndex ?? 0]}
+                </div>
+
+                <div className="mt-4 grid gap-3 rounded-[20px] bg-white/80 p-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">Model Belief</div>
+                      <div className="mt-0.5 font-display text-[22px] font-bold text-primary">
+                        {currentDataset.classLabels?.[gradCamResult.predictedLabel]}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">Confidence</div>
+                      <div className="mt-0.5 font-display text-[20px] font-bold text-ink">
+                        {(gradCamResult.confidence * 100).toFixed(1)}%
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2.5">
+                    {gradCamTopPredictions.map((prediction) => (
+                      <div key={prediction.index} className="grid gap-1.5">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-ink">
+                          <span>{prediction.label}</span>
+                          <span className="text-muted">{(prediction.probability * 100).toFixed(1)}%</span>
+                        </div>
+                        <div className="h-1.5 overflow-hidden rounded-full bg-[#f0f4fa]">
+                          <div
+                            className="h-full rounded-full bg-[linear-gradient(90deg,#1151ff,#4f7dff)] shadow-[0_0_8px_rgba(17,81,255,0.3)] transition-all duration-700"
+                            style={{ width: `${Math.max(prediction.probability * 100, 2)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : gradCamError ? (
+              <div className="rounded-[16px] bg-[#ffeef1] p-3 text-xs font-semibold text-[#a4384f]">
+                {gradCamError}
+              </div>
+            ) : (
+              <div className="flex h-32 flex-col items-center justify-center rounded-[20px] border border-dashed border-[#dbe5f1] bg-white/40 text-center px-6">
+                <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#7b8da9]">Select a class above to see where the model focuses its attention</span>
+              </div>
+            )}
+          </div>
+        </section>
+      ) : showSamplePredictor && currentDataset && selectedSample ? (
         <section className="rounded-[22px] bg-panel/80 p-3.5">
           <div className="mb-3 flex items-center justify-between gap-3">
             <strong className="font-display text-lg font-bold text-ink">
@@ -884,20 +1050,100 @@ export function Inspector({
             <strong className="font-display text-lg font-bold text-ink">Decision Boundary</strong>
             <span className="text-muted">↗</span>
           </div>
-          <div className="relative aspect-square overflow-hidden rounded-[18px] bg-white/85">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(194,212,251,0.28),transparent_58%)]" />
-            <div className="absolute inset-6 rounded-[20px] border border-dashed border-[rgba(129,149,188,0.28)] bg-[linear-gradient(180deg,rgba(244,247,255,0.78),rgba(236,241,252,0.48))]" />
-            <div className="absolute inset-x-6 bottom-6 rounded-[16px] bg-white/88 px-3.5 py-3 text-center shadow-[0_10px_24px_rgba(13,27,51,0.06)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
-              <div className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">
-                Frontend Placeholder
+          <div className="grid gap-2 rounded-[18px] border border-dashed border-[rgba(129,149,188,0.28)] bg-[linear-gradient(180deg,rgba(244,247,255,0.78),rgba(236,241,252,0.48))] p-2">
+            {trainingStatus?.decisionBoundaryAnchors ? (
+              <DecisionBoundaryCanvas
+                anchors={trainingStatus.decisionBoundaryAnchors}
+                predictions={trainingStatus.decisionBoundaryPredictions}
+                classLabels={currentDataset?.classLabels}
+              />
+            ) : (
+              <div className="flex aspect-square w-full items-center justify-center rounded-[12px] border border-dashed border-[rgba(129,149,188,0.3)] bg-[rgba(247,250,255,0.6)]">
+                <span className="text-sm font-semibold uppercase tracking-[0.16em] text-[#7b8da9] animate-pulse">Running ...</span>
               </div>
-              <div className="mt-2 text-[13px] font-semibold leading-6 text-[#5c6d89]">
-                Decision boundary visualization area
-              </div>
-            </div>
+            )}
           </div>
         </section>
       ) : null}
+      {isGradCamGuideOpen ? (
+        <GradCamGuideModal onClose={() => setIsGradCamGuideOpen(false)} />
+      ) : null}
     </aside>
+  );
+}
+
+function GradCamGuideModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,23,42,0.28)] p-6 backdrop-blur-sm">
+      <div className="relative w-full max-w-[1120px] overflow-hidden rounded-[34px] bg-[linear-gradient(180deg,#ffffff,#f7faff)] p-7 shadow-[0_30px_80px_rgba(13,27,51,0.22)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.14)] md:p-8">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-5 top-5 grid h-10 w-10 place-items-center rounded-full bg-white text-[#7b8da9] shadow-[0_12px_24px_rgba(13,27,51,0.08)] transition hover:text-[#12213f]"
+          aria-label="설명 닫기"
+        >
+          <span className="text-[22px] leading-none">×</span>
+        </button>
+
+        <div className="grid gap-6 md:grid-cols-[540px_minmax(0,1fr)] md:gap-8">
+          <div className="rounded-[28px] bg-[linear-gradient(180deg,#f3f7ff,#ffffff)] p-6 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="grid h-12 w-12 place-items-center rounded-[18px] bg-white text-primary">
+                <Icon name="help" className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="text-[12px] font-extrabold uppercase tracking-[0.18em] text-[#71839d]">
+                  Visualization Guide
+                </div>
+                <div className="font-display text-[26px] font-bold text-ink">Grad-CAM 이란?</div>
+              </div>
+            </div>
+            
+            <div className="overflow-hidden rounded-[24px] bg-white shadow-md">
+              <img 
+                src="/images/gradcam_guide.png" 
+                alt="Grad-CAM Cat and Dog Example" 
+                className="w-full object-cover"
+              />
+            </div>
+            <div className="mt-4 text-center text-[14px] font-bold text-primary">
+              인공지능이 분류할 때, 이미지의 어떤 부분을 보고 그렇게 판단했는지 시각적으로 보여줍니다.
+            </div>
+          </div>
+
+          <div className="grid content-start gap-5">
+            <div>
+              <div className="text-[13px] font-extrabold uppercase tracking-[0.18em] text-primary/70">
+                모델의 판단 근거를 시각화하는 도구
+              </div>
+              <div className="mt-2 text-[19px] leading-9 text-[#50617c]">
+                Grad-CAM은 신경망의 그래디언트(Gradient) 정보를 활용하여 특징 맵상의 중요도를 히트맵으로 표현합니다.
+              </div>
+            </div>
+
+            <div className="grid gap-4">
+              <div className="rounded-[20px] bg-white px-5 py-4 text-[16px] leading-8 text-[#50617c] shadow-[0_10px_24px_rgba(13,27,51,0.05)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
+                붉게 표시된 영역일수록 모델이 해당 클래스를 판별하는 데 결정적인 역할을 한 부분입니다.
+              </div>
+              <div className="rounded-[20px] bg-white px-5 py-4 text-[16px] leading-8 text-[#50617c] shadow-[0_10px_24px_rgba(13,27,51,0.05)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
+                모델이 엉뚱한 곳을 보고 있다면 데이터셋의 노이즈나 잘못된 학습 방향을 의심해볼 수 있습니다.
+              </div>
+              <div className="rounded-[20px] bg-white px-5 py-4 text-[16px] leading-8 text-[#50617c] shadow-[0_10px_24px_rgba(13,27,51,0.05)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
+                주로 마지막 컨볼루션(CNN) 레이어의 출력을 기반으로 계산하여 공간적인 정보를 보존합니다.
+              </div>
+            </div>
+
+            <div className="rounded-[22px] bg-[linear-gradient(135deg,#edf4ff,#f4f8ff)] px-5 py-5 shadow-[inset_0_0_0_1px_rgba(17,81,255,0.08)]">
+              <div className="text-[12px] font-extrabold uppercase tracking-[0.16em] text-primary">
+                Quick Tip
+              </div>
+              <div className="mt-2 text-[16px] leading-8 text-[#41526d]">
+                학습이 잘 된 모델은 인식하려는 사물의 핵심적인 특징(예: 개/고양이의 얼굴, 바지의 실루엣 등)에 강하게 반응합니다.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

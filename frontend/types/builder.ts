@@ -89,6 +89,13 @@ export type TrainingJobStatus = {
   liveTrainAccuracy?: number | null;
   liveValidationLoss?: number | null;
   liveValidationAccuracy?: number | null;
+  decisionBoundaryAnchors?: Array<{ x: number; y: number; label: number }> | null;
+  decisionBoundaryPredictions?: number[] | null;
+  convVisualizations?: Record<string, {
+    featureMaps: number[][][]; // [mapIndex][h][w]
+    filters: number[][][];     // [filterIndex][h][w]
+  }> | null;
+  convVizInput?: number[][] | null;
   error?: string | null;
 };
 

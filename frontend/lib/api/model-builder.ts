@@ -143,6 +143,19 @@ export async function predictSample(jobId: string, pixels: number[]) {
   );
 }
 
+export async function generateGradCam(jobId: string, classIndex: number) {
+  return apiClient<{
+    gradCamImage: string;
+    originalImage: string;
+    predictedLabel: number;
+    confidence: number;
+    probabilities: number[];
+  }>(`/training/gradcam/${jobId}`, {
+    method: 'POST',
+    body: JSON.stringify({ classIndex }),
+  });
+}
+
 export function subscribeTrainingStatus(
   jobId: string,
   handlers: {

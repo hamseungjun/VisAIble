@@ -1,6 +1,8 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import type { CanvasNode, DatasetItem, TrainingJobStatus } from '@/types/builder';
+import { FeatureMapPanel } from './feature-map-panel';
 
 type TrainingLiveOverlayProps = {
   dataset: DatasetItem;
@@ -226,45 +228,9 @@ function stagePalette(accent: string) {
   };
 }
 
-function ActivationMapCard({ title, index, status }: { title: string; index: number; status: TrainingJobStatus | null }) {
-  const base = 20 + index * 17;
-  const progress = status?.currentEpoch ?? 0;
-  const opacity = status?.status === 'running' ? 'animate-pulse' : '';
-
-  return (
-    <div className="rounded-[24px] border border-[rgba(129,149,188,0.16)] bg-white/82 p-3 shadow-[0_22px_46px_rgba(13,27,51,0.08)]">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#7b8da9]">{title}</div>
-        <div className="rounded-full bg-[#eef3ff] px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.16em] text-[#315dc8]">
-          map {index + 1}
-        </div>
-      </div>
-      <div
-        className={[
-          'relative aspect-[1.08] overflow-hidden rounded-[20px] border border-white/70',
-          opacity,
-        ].join(' ')}
-        style={{
-          background: `
-            radial-gradient(circle at 22% 24%, rgba(17,81,255,0.72), transparent 22%),
-            radial-gradient(circle at 76% 28%, rgba(109,40,217,0.58), transparent 24%),
-            radial-gradient(circle at 44% 74%, rgba(20,184,166,0.72), transparent 26%),
-            radial-gradient(circle at 72% 74%, rgba(245,158,11,0.48), transparent 22%),
-            linear-gradient(135deg, rgba(${base}, 91, 255, 0.12), rgba(255,255,255,0.98) 68%)
-          `,
-        }}
-      >
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(180deg,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:18px_18px]" />
-        <div className="absolute bottom-3 left-3 rounded-full bg-white/86 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.16em] text-[#314667] shadow-[0_8px_18px_rgba(13,27,51,0.10)]">
-          e{Math.max(progress, 1)}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StageFigure({ stage, isLast }: { stage: OverlayStage; isLast: boolean }) {
+function StageFigure({ stage, isLast, isSelected, onClick }: { stage: OverlayStage; isLast: boolean; isSelected?: boolean; onClick?: () => void }) {
   const palette = stagePalette(stage.accent);
+  const isClickable = stage.kind === 'cnn';
   let visual: JSX.Element;
 
   if (stage.kind === 'cnn') {
@@ -335,12 +301,25 @@ function StageFigure({ stage, isLast }: { stage: OverlayStage; isLast: boolean }
   }
 
   return (
-    <div className="relative pl-7">
+    <div 
+      className={[
+        'relative pl-7 transition-all',
+        isClickable ? 'cursor-pointer hover:translate-x-1' : '',
+      ].join(' ')}
+      onClick={isClickable ? onClick : undefined}
+    >
       {!isLast ? <div className="absolute bottom-[-40px] left-[17px] top-[60px] w-px bg-[linear-gradient(180deg,rgba(17,81,255,0.36),rgba(17,81,255,0.08))]" /> : null}
       <div className="absolute left-0 top-[50px] h-9 w-9 rounded-full border border-[rgba(17,81,255,0.12)] bg-white text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#315dc8] shadow-[0_12px_26px_rgba(13,27,51,0.08)] flex items-center justify-center">
         {isLast ? '✓' : ''}
       </div>
-      <div className="rounded-[26px] border border-[rgba(129,149,188,0.14)] bg-white/88 px-5 py-4 shadow-[0_20px_48px_rgba(13,27,51,0.08)] backdrop-blur-sm">
+      <div 
+        className={[
+          'rounded-[26px] border px-5 py-4 shadow-[0_20px_48px_rgba(13,27,51,0.08)] backdrop-blur-sm transition-all',
+          isSelected 
+            ? 'border-[#f59e0b] bg-white ring-2 ring-[#f59e0b]/20 shadow-[0_24px_54px_rgba(245,158,11,0.12)]' 
+            : 'border-[rgba(129,149,188,0.14)] bg-white/88'
+        ].join(' ')}
+      >
         <div className="flex items-center justify-between gap-4">
           <div>
             <div className="text-[9px] font-extrabold uppercase tracking-[0.18em] text-[#7b8da9]">{stage.kind}</div>
@@ -358,7 +337,16 @@ function StageFigure({ stage, isLast }: { stage: OverlayStage; isLast: boolean }
 
 export function TrainingLiveOverlay({ dataset, nodes, trainingStatus, isAvailable, isOpen, onClose, onOpen }: TrainingLiveOverlayProps) {
   const stages = buildOverlayStages(dataset, nodes);
-  const activationSources = stages.filter((stage) => stage.kind === 'cnn' || stage.kind === 'pooling' || stage.kind === 'linear' || stage.kind === 'output').slice(-6);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Select the first CNN stage by default if none selected
+    if (!selectedNodeId) {
+      const firstConv = stages.find(s => s.kind === 'cnn');
+      if (firstConv) setSelectedNodeId(firstConv.id);
+    }
+  }, [stages, selectedNodeId]);
+
   const shouldShowOpen = isAvailable;
 
   if (!isOpen) {
@@ -413,32 +401,23 @@ export function TrainingLiveOverlay({ dataset, nodes, trainingStatus, isAvailabl
             </div>
             <div className="grid gap-5 pb-8">
               {stages.map((stage, index) => (
-                <StageFigure key={stage.id} stage={stage} isLast={index === stages.length - 1} />
+                <StageFigure 
+                  key={stage.id} 
+                  stage={stage} 
+                  isLast={index === stages.length - 1} 
+                  isSelected={selectedNodeId === stage.id}
+                  onClick={() => setSelectedNodeId(stage.id)}
+                />
               ))}
             </div>
           </section>
 
-          <section className="min-h-0 overflow-auto px-6 py-6">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <div className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-[#7b8da9]">Activation Maps</div>
-                <div className="mt-2 font-display text-[22px] font-bold text-[#12213f]">Feature Response</div>
-              </div>
-              <div className="rounded-full bg-white/86 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#315dc8] shadow-[0_14px_30px_rgba(13,27,51,0.08)]">
-                {dataset.inputShape ?? 'input'}
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              {activationSources.map((stage, index) => (
-                <ActivationMapCard
-                  key={`${stage.id}-map`}
-                  title={stage.label}
-                  index={index}
-                  status={trainingStatus}
-                />
-              ))}
-            </div>
+          <section className="min-h-0 overflow-auto px-0 py-0">
+            <FeatureMapPanel 
+              nodeId={selectedNodeId}
+              inputImage={trainingStatus?.convVizInput ?? null}
+              data={selectedNodeId ? (trainingStatus?.convVisualizations?.[selectedNodeId] ?? null) : null}
+            />
           </section>
         </div>
       </div>
