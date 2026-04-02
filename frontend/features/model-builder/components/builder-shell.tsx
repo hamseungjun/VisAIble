@@ -141,11 +141,11 @@ export function BuilderShell() {
   const [activeWorkspace, setActiveWorkspace] = useState<'builder' | 'competition'>('builder');
   const [optimizer, setOptimizer] = useState<OptimizerName>('ADAM');
   const [learningRate, setLearningRate] = useState(optimizerConfigs.ADAM.defaultLearningRate);
-  const [epochs, setEpochs] = useState('3');
+  const [epochs, setEpochs] = useState('10');
   const [batchSize, setBatchSize] = useState(128);
   const [optimizerParams, setOptimizerParams] = useState<OptimizerParams>({
-    momentum: optimizerConfigs.SGD.parameter.defaultValue,
-    rho: optimizerConfigs['RMS Prop'].parameter.defaultValue,
+    momentum: optimizerConfigs.SGD.parameter!.defaultValue,
+    rho: optimizerConfigs['RMS Prop'].parameter!.defaultValue,
   });
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isTrainingOverlayOpen, setIsTrainingOverlayOpen] = useState(false);
