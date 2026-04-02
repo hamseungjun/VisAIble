@@ -221,7 +221,7 @@ function FeatureMapGuideModal({ onClose }: { onClose: () => void }) {
                 <div className="text-[12px] font-extrabold uppercase tracking-[0.18em] text-[#71839d]">
                   Feature Map Guide
                 </div>
-                <div className="font-display text-[26px] font-bold text-ink">CNN이 보는 중간 표현</div>
+                <div className="font-display text-[26px] font-bold text-ink">CNN이 추출한 특징 표현</div>
               </div>
             </div>
 
@@ -243,19 +243,19 @@ function FeatureMapGuideModal({ onClose }: { onClose: () => void }) {
                 어떻게 읽으면 되나
               </div>
               <div className="mt-2 text-[19px] leading-9 text-[#50617c]">
-                Feature map은 모델이 이미지를 보면서 "어디에 반응했는지"를 보여주는 중간 시각화입니다.
+                Feature map은 모델이 이미지를 보면서 추출한 특징들의 집합입니다.
               </div>
             </div>
 
             <div className="grid gap-4">
               <div className="rounded-[20px] bg-white px-5 py-4 text-[16px] leading-8 text-[#50617c] shadow-[0_10px_24px_rgba(13,27,51,0.05)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
-                밝은 부분은 모델이 "여기가 중요하다"고 본 위치입니다.
+                이미지의 공간적인 구조를 유지한 채로, 특정 특징이 어느 위치에 분포하는지 보여줍니다.
               </div>
               <div className="rounded-[20px] bg-white px-5 py-4 text-[16px] leading-8 text-[#50617c] shadow-[0_10px_24px_rgba(13,27,51,0.05)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
-                앞쪽 레이어는 선이나 모서리, 뒤쪽 레이어는 더 복잡한 모양을 봅니다.
+                하나의 레이어에서 사용된 필터의 개수만큼 서로 다른 특징을 담은 피처맵들이 생성됩니다.
               </div>
               <div className="rounded-[20px] bg-white px-5 py-4 text-[16px] leading-8 text-[#50617c] shadow-[0_10px_24px_rgba(13,27,51,0.05)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
-                feature map이 어두우면, 그 필터는 이번 입력에서 거의 못 찾은 것입니다.
+                레이어를 거듭할수록 불필요한 정보는 버리고 모델 학습에 필요한 핵심 특징만 남게 됩니다.
               </div>
             </div>
 
@@ -263,8 +263,8 @@ function FeatureMapGuideModal({ onClose }: { onClose: () => void }) {
               <div className="text-[12px] font-extrabold uppercase tracking-[0.16em] text-primary">
                 Quick Tip
               </div>
-              <div className="mt-2 text-[16px] leading-8 text-[#41526d]">
-                같은 이미지라도 레이어마다 보는 포인트가 다릅니다. 여러 레이어를 비교해 보면 CNN이 어떻게 점점 특징을 골라내는지 쉽게 이해할 수 있습니다.
+              <div className="rounded-[20px] bg-white px-5 py-4 text-[16px] leading-8 text-[#50617c] shadow-[0_10px_24px_rgba(13,27,51,0.05)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
+                본 시각화 기능은 입력 이미지가 필터를 거쳤을 때 어떻게 반응하는지를 확인할 수 있습니다.
               </div>
             </div>
           </div>
