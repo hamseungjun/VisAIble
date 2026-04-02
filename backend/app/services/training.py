@@ -30,6 +30,8 @@ from app.services.datasets import (
 
 BATCH_SIZE = 128
 RANDOM_STATE = 0
+COMPACT_CIFAR10_TRAIN_PER_CLASS = 1600
+COMPACT_CIFAR10_VAL_PER_CLASS = 400
 COMPACT_TINY_IMAGENET_TRAIN_PER_CLASS = 20
 COMPACT_TINY_IMAGENET_VAL_PER_CLASS = 5
 TRAINING_JOBS: dict[str, dict[str, object]] = {}
@@ -176,6 +178,10 @@ def _build_stratified_loaders(dataset_id: str, batch_size: int) -> tuple[DataLoa
     dataset, labels = _load_combined_torchvision_dataset(dataset_id)
     train_limit_per_class: int | None = None
     validation_limit_per_class: int | None = None
+
+    if dataset_id == "cifar10":
+        train_limit_per_class = COMPACT_CIFAR10_TRAIN_PER_CLASS
+        validation_limit_per_class = COMPACT_CIFAR10_VAL_PER_CLASS
 
     generator = np.random.default_rng(RANDOM_STATE)
     train_index_parts: list[np.ndarray] = []
