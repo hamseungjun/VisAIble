@@ -12,29 +12,29 @@ type DecisionBoundaryCanvasProps = {
 };
 
 const CLASS_COLORS: Record<number, string> = {
-  0: '#ef4444', // red
-  1: '#f97316', // orange
-  2: '#f59e0b', // amber
-  3: '#84cc16', // lime
-  4: '#10b981', // emerald
-  5: '#06b6d4', // cyan
-  6: '#3b82f6', // blue
-  7: '#8b5cf6', // violet
-  8: '#d946ef', // fuchsia
-  9: '#334155', // slate dark
+  0: '#ff6b6b',
+  1: '#ff8a4c',
+  2: '#f7b733',
+  3: '#9ad94f',
+  4: '#31c48d',
+  5: '#22c7d6',
+  6: '#4c8dff',
+  7: '#6d6bff',
+  8: '#c26bff',
+  9: '#5b6b82',
 };
 
 const CLASS_COLORS_RGB: Record<number, [number, number, number]> = {
-  0: [239, 68, 68],
-  1: [249, 115, 22],
-  2: [245, 158, 11],
-  3: [132, 204, 22],
-  4: [16, 185, 129],
-  5: [6, 182, 212],
-  6: [59, 130, 246],
-  7: [139, 92, 246],
-  8: [217, 70, 239],
-  9: [51, 65, 85],
+  0: [255, 107, 107],
+  1: [255, 138, 76],
+  2: [247, 183, 51],
+  3: [154, 217, 79],
+  4: [49, 196, 141],
+  5: [34, 199, 214],
+  6: [76, 141, 255],
+  7: [109, 107, 255],
+  8: [194, 107, 255],
+  9: [91, 107, 130],
 };
 
 function hexToRgba(hex: string, alpha: number) {
@@ -42,6 +42,10 @@ function hexToRgba(hex: string, alpha: number) {
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function mixChannel(color: number, base: number, tintStrength: number) {
+  return Math.round(color * tintStrength + base * (1 - tintStrength));
 }
 
 export function DecisionBoundaryCanvas({ anchors, predictions, classLabels, className = '' }: DecisionBoundaryCanvasProps) {
@@ -78,7 +82,7 @@ export function DecisionBoundaryCanvas({ anchors, predictions, classLabels, clas
       }
 
       // 1. Setup Scaling
-      const gridRes = 200; // Even higher resolution for ultra-smoothness
+      const gridRes = 220;
       const width = canvas.width;
       const height = canvas.height;
 
@@ -106,10 +110,10 @@ export function DecisionBoundaryCanvas({ anchors, predictions, classLabels, clas
       }));
 
       // 2. Clear Background
-      ctx.fillStyle = '#f8fafc';
+      ctx.fillStyle = '#f4f7fb';
       ctx.fillRect(0, 0, width, height);
 
-      // 3. Draw Decision Boundary (k-NN Majority Vote)
+      // 3. Draw Decision Boundary
       if (props.predictions && props.predictions.length > 0) {
         const virtualCanvas = document.createElement('canvas');
         virtualCanvas.width = gridRes;
@@ -117,13 +121,15 @@ export function DecisionBoundaryCanvas({ anchors, predictions, classLabels, clas
         const vCtx = virtualCanvas.getContext('2d', { alpha: false })!;
         const imgData = vCtx.createImageData(gridRes, gridRes);
         const data = imgData.data;
+        const labelGrid = new Int16Array(gridRes * gridRes).fill(-1);
+        const confidenceGrid = new Float32Array(gridRes * gridRes);
 
         for (let gy = 0; gy < gridRes; gy++) {
           for (let gx = 0; gx < gridRes; gx++) {
             const cx = gx * (width / gridRes) + (width / gridRes) / 2;
             const cy = gy * (height / gridRes) + (height / gridRes) / 2;
 
-            const K = 9; // Increased pool for more organic, rounded shapes
+            const K = 12;
             const topK = new Array(K).fill(null).map(() => ({ distSq: Infinity, label: -1 }));
 
             for (const a of scaledAnchors) {
@@ -138,32 +144,74 @@ export function DecisionBoundaryCanvas({ anchors, predictions, classLabels, clas
               }
             }
 
-            const counts: Record<number, number> = {};
+            const weights: Record<number, number> = {};
             let bestLabel = -1;
-            let maxCount = 0;
+            let bestWeight = 0;
+            let secondWeight = 0;
             
             for (let i = 0; i < K; i++) {
               const lbl = topK[i].label;
               if (lbl === -1) continue;
-              counts[lbl] = (counts[lbl] || 0) + 1;
-              if (counts[lbl] > maxCount) {
-                maxCount = counts[lbl];
+              const weight = 1 / Math.max(Math.sqrt(topK[i].distSq), 1);
+              weights[lbl] = (weights[lbl] || 0) + weight;
+            }
+
+            for (const [labelText, weight] of Object.entries(weights)) {
+              const lbl = Number(labelText);
+              if (weight > bestWeight) {
+                secondWeight = bestWeight;
+                bestWeight = weight;
                 bestLabel = lbl;
+              } else if (weight > secondWeight) {
+                secondWeight = weight;
               }
             }
 
-            const idx = (gy * gridRes + gx) * 4;
+            const cellIdx = gy * gridRes + gx;
+            const idx = cellIdx * 4;
             if (bestLabel !== -1 && CLASS_COLORS_RGB[bestLabel]) {
                const [r, g, b] = CLASS_COLORS_RGB[bestLabel];
-               data[idx] = Math.round(r * 0.4 + 248 * 0.6);
-               data[idx+1] = Math.round(g * 0.4 + 250 * 0.6);
-               data[idx+2] = Math.round(b * 0.4 + 252 * 0.6);
+               const confidence = Math.min(
+                 Math.max((bestWeight - secondWeight) / Math.max(bestWeight, 0.0001), 0.18),
+                 0.92,
+               );
+               const tintStrength = 0.18 + confidence * 0.14;
+               labelGrid[cellIdx] = bestLabel;
+               confidenceGrid[cellIdx] = confidence;
+               data[idx] = mixChannel(r, 244, tintStrength);
+               data[idx+1] = mixChannel(g, 247, tintStrength);
+               data[idx+2] = mixChannel(b, 251, tintStrength);
                data[idx+3] = 255;
             } else {
-               data[idx] = 248; data[idx+1] = 250; data[idx+2] = 252; data[idx+3] = 255;
+               data[idx] = 244; data[idx+1] = 247; data[idx+2] = 251; data[idx+3] = 255;
             }
           }
         }
+
+        for (let gy = 1; gy < gridRes - 1; gy++) {
+          for (let gx = 1; gx < gridRes - 1; gx++) {
+            const idx = gy * gridRes + gx;
+            const current = labelGrid[idx];
+            if (current === -1) continue;
+
+            const left = labelGrid[idx - 1];
+            const right = labelGrid[idx + 1];
+            const top = labelGrid[idx - gridRes];
+            const bottom = labelGrid[idx + gridRes];
+            const isBoundary =
+              current !== left || current !== right || current !== top || current !== bottom;
+
+            if (!isBoundary) continue;
+
+            const alpha = Math.round((120 + (1 - confidenceGrid[idx]) * 80) * 0.9);
+            const pixelIdx = idx * 4;
+            data[pixelIdx] = 255;
+            data[pixelIdx + 1] = 255;
+            data[pixelIdx + 2] = 255;
+            data[pixelIdx + 3] = alpha;
+          }
+        }
+
         vCtx.putImageData(imgData, 0, 0);
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
@@ -200,19 +248,27 @@ export function DecisionBoundaryCanvas({ anchors, predictions, classLabels, clas
   return (
     <div className={['flex flex-col gap-2', className].join(' ')}>
       <div className="relative aspect-square w-full overflow-hidden rounded-[12px] shadow-sm bg-[#f8fafc]">
+        <div
+          className="pointer-events-none absolute inset-0 z-20 opacity-70"
+          style={{
+            backgroundImage:
+              'linear-gradient(rgba(255,255,255,0.18) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.18) 1px, transparent 1px)',
+            backgroundSize: '28px 28px',
+          }}
+        />
         <canvas
           ref={bottomCanvasRef}
           width={400}
           height={400}
           className="absolute inset-0 h-full w-full object-cover z-0 opacity-100"
-          style={{ filter: 'blur(0.6px)' }}
+          style={{ filter: 'blur(0.9px)' }}
         />
         <canvas
           ref={topCanvasRef}
           width={400}
           height={400}
           className={`absolute inset-0 h-full w-full object-cover z-10 transition-opacity duration-500 ease-in-out ${activeIdx === 1 ? 'opacity-100' : 'opacity-0'}`}
-          style={{ filter: 'blur(0.6px)' }}
+          style={{ filter: 'blur(0.9px)' }}
         />
       </div>
       {classLabels && classLabels.length > 0 ? (

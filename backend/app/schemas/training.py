@@ -116,6 +116,17 @@ class TrainingJobStatusResponse(BaseModel):
     error: str | None = None
 
 
+class DecisionBoundaryAnchor(BaseModel):
+    x: float
+    y: float
+    label: int
+
+
+class DecisionBoundaryAnchorsResponse(BaseModel):
+    datasetId: str
+    anchors: list[DecisionBoundaryAnchor] = Field(default_factory=list)
+
+
 class GradCamRequest(BaseModel):
     classIndex: int
 

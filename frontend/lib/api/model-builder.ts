@@ -104,6 +104,12 @@ export async function getTrainingStatus(jobId: string) {
   return apiClient<TrainingJobStatus>(`/training/status/${jobId}`);
 }
 
+export async function getDecisionBoundaryAnchors(datasetId: string) {
+  return apiClient<{ datasetId: string; anchors: Array<{ x: number; y: number; label: number }> }>(
+    `/training/decision-boundary/${datasetId}`,
+  );
+}
+
 export async function pauseTraining(jobId: string) {
   return apiClient<{ jobId: string; status: string }>(`/training/pause/${jobId}`, {
     method: 'POST',

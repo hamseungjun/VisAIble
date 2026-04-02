@@ -46,6 +46,12 @@ DATASET_NORMALIZATION: dict[str, tuple[tuple[float, ...], tuple[float, ...]]] = 
     "cifar10": ((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)),
     "imagenet": ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
 }
+DECISION_BOUNDARY_WEIGHT_FACTORS: dict[str, float] = {
+    "mnist": 10.0,
+    "fashion_mnist": 10.0,
+    "cifar10": 26.0,
+}
+DECISION_BOUNDARY_DIR = Path(__file__).resolve().parent.parent / "data" / "decision_boundary"
 
 
 class TrainingStoppedError(Exception):
@@ -217,6 +223,121 @@ def _build_stratified_loaders(dataset_id: str, batch_size: int) -> tuple[DataLoa
     )
 
     return train_loader, validation_loader, len(train_indices), len(validation_indices)
+
+
+def _decision_boundary_path(dataset_id: str) -> Path:
+    return DECISION_BOUNDARY_DIR / f"{dataset_id}.json"
+
+
+def load_precomputed_decision_boundary(dataset_id: str) -> list[dict[str, float | int]]:
+    path = _decision_boundary_path(dataset_id)
+    if not path.exists():
+        return []
+
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except Exception:
+        return []
+
+    anchors = payload.get("anchors") if isinstance(payload, dict) else payload
+    if not isinstance(anchors, list):
+        return []
+
+    normalized: list[dict[str, float | int]] = []
+    for anchor in anchors:
+        if not isinstance(anchor, dict):
+            continue
+        try:
+            normalized.append(
+                {
+                    "x": float(anchor["x"]),
+                    "y": float(anchor["y"]),
+                    "label": int(anchor["label"]),
+                }
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    return normalized
+
+
+def _collect_tsne_inputs(dataset_id: str, total_classes: int, device: torch.device) -> tuple[torch.Tensor | None, list[int]]:
+    samples_per_class = 100
+    collected: dict[int, list[torch.Tensor]] = {}
+    dataset, _ = _load_combined_torchvision_dataset(dataset_id)
+
+    for idx in range(len(dataset)):
+        inputs_tensor, target_tensor = dataset[idx]
+        lbl = int(target_tensor.item()) if isinstance(target_tensor, torch.Tensor) else int(target_tensor)
+        if lbl not in collected:
+            collected[lbl] = []
+        if len(collected[lbl]) < samples_per_class:
+            collected[lbl].append(inputs_tensor)
+        if len(collected) == total_classes and all(len(v) == samples_per_class for v in collected.values()):
+            break
+
+    all_tensors: list[torch.Tensor] = []
+    all_labels: list[int] = []
+    for lbl, tensors in collected.items():
+        all_tensors.extend(tensors)
+        all_labels.extend([lbl] * len(tensors))
+
+    if not all_tensors:
+        return None, []
+
+    tsne_inputs = torch.stack(all_tensors).to(device)
+    return tsne_inputs, all_labels
+
+
+def _compute_tsne_anchors(dataset_id: str, dataset_spec, device: torch.device) -> tuple[list[dict[str, float | int]], torch.Tensor | None]:
+    from sklearn.manifold import TSNE
+
+    tsne_inputs, all_labels = _collect_tsne_inputs(dataset_id, dataset_spec.num_classes, device)
+    if tsne_inputs is None:
+        return [], None
+
+    flat_inputs = tsne_inputs.view(tsne_inputs.size(0), -1).cpu().numpy()
+    total_classes = dataset_spec.num_classes
+    one_hot_labels = np.zeros((len(all_labels), total_classes))
+    weight_factor = DECISION_BOUNDARY_WEIGHT_FACTORS.get(dataset_id, 3.0)
+    one_hot_labels[np.arange(len(all_labels)), all_labels] = weight_factor
+    flat_inputs_augmented = np.concatenate([flat_inputs, one_hot_labels], axis=1)
+
+    tsne_model = TSNE(
+        n_components=2,
+        random_state=RANDOM_STATE,
+        init="pca",
+        learning_rate="auto",
+        perplexity=30,
+        early_exaggeration=12.0,
+    )
+    coords = tsne_model.fit_transform(flat_inputs_augmented)
+    anchors = [
+        {"x": float(coords[i][0]), "y": float(coords[i][1]), "label": int(all_labels[i])}
+        for i in range(len(coords))
+    ]
+    return anchors, tsne_inputs
+
+
+def save_precomputed_decision_boundary(dataset_id: str) -> list[dict[str, float | int]]:
+    dataset_spec = get_dataset_runtime_spec(dataset_id)
+    device = torch.device("cpu")
+    anchors, _ = _compute_tsne_anchors(dataset_id, dataset_spec, device)
+    if not anchors:
+        return []
+
+    DECISION_BOUNDARY_DIR.mkdir(parents=True, exist_ok=True)
+    with _decision_boundary_path(dataset_id).open("w", encoding="utf-8") as handle:
+        json.dump({"datasetId": dataset_id, "anchors": anchors}, handle)
+    return anchors
+
+
+def get_decision_boundary_anchors(dataset_id: str) -> list[dict[str, float | int]]:
+    anchors = load_precomputed_decision_boundary(dataset_id)
+    if anchors:
+        return anchors
+    return save_precomputed_decision_boundary(dataset_id)
 
 
 def _build_imagenet_loaders(batch_size: int) -> tuple[DataLoader, DataLoader, int, int]:
@@ -827,58 +948,9 @@ def train_model(
     tsne_inputs = None
     if payload.datasetId in {"mnist", "fashion_mnist", "cifar10"}:
         try:
-            from sklearn.manifold import TSNE
-            import numpy as np
-
-            samples_per_class = 100
-            collected: dict[int, list[torch.Tensor]] = {}
-            total_classes = dataset_spec.num_classes
-            
-            # Extract points sequentially from the underlying dataset to guarantee identical selection
-            ds = train_loader.dataset
-            for idx in range(len(ds)):
-                inputs_tensor, target_tensor = ds[idx]
-                lbl = int(target_tensor.item()) if isinstance(target_tensor, torch.Tensor) else int(target_tensor)
-                if lbl not in collected:
-                    collected[lbl] = []
-                if len(collected[lbl]) < samples_per_class:
-                    collected[lbl].append(inputs_tensor)
-                if len(collected) == total_classes and all(len(v) == samples_per_class for v in collected.values()):
-                    break
-            
-            all_tensors = []
-            all_labels = []
-            for lbl, tensors in collected.items():
-                all_tensors.extend(tensors)
-                all_labels.extend([lbl] * len(tensors))
-            
-            if all_tensors:
-                tsne_inputs = torch.stack(all_tensors).to(device)
-                flat_inputs = tsne_inputs.view(tsne_inputs.size(0), -1).cpu().numpy()
-                # 강제로 정답(레이블) 별로 예쁘게 뭉치게 하기 위해, 극한의 가중치를 둔 원-핫 벡터를 픽셀 데이터 뒤에 붙입니다.
-                # 이렇게 하면 t-SNE나 PCA와 같은 거리 기반 알고리즘이 클래스별로 확실하게 다른 섬(Island)에 배치하게 됩니다.
-                one_hot_labels = np.zeros((len(all_labels), total_classes))
-                weight_factor = 8.0 if payload.datasetId == "cifar10" else 3
-                one_hot_labels[np.arange(len(all_labels)), all_labels] = weight_factor
-                flat_inputs_augmented = np.concatenate([flat_inputs, one_hot_labels], axis=1)
-
-                tsne_model = TSNE(
-                    n_components=2, 
-                    random_state=RANDOM_STATE, 
-                    init="pca", 
-                    learning_rate="auto",
-                    perplexity=30,
-                    early_exaggeration=12.0
-                )
-                coords = tsne_model.fit_transform(flat_inputs_augmented)
-                
-                for i in range(len(coords)):
-                    tsne_anchors.append({
-                        "x": float(coords[i][0]),
-                        "y": float(coords[i][1]),
-                        "label": int(all_labels[i])
-                    })
-                
+            tsne_anchors = get_decision_boundary_anchors(payload.datasetId)
+            if tsne_anchors:
+                tsne_inputs, _ = _collect_tsne_inputs(payload.datasetId, dataset_spec.num_classes, device)
                 if job_id:
                     _update_job(job_id, {"decisionBoundaryAnchors": tsne_anchors})
         except Exception as e:
@@ -1212,10 +1284,16 @@ def generate_gradcam(job_id: str, class_index: int) -> dict[str, object]:
     
     sample_tensor = img.unsqueeze(0).to(device)
     from torchvision import transforms
-    if img.shape[0] == 1: # Greyscale
-        original_img = transforms.ToPILImage()(img).convert("RGB")
+    mean, std = DATASET_NORMALIZATION[dataset_id]
+    mean_tensor = torch.tensor(mean, dtype=img.dtype).view(-1, 1, 1)
+    std_tensor = torch.tensor(std, dtype=img.dtype).view(-1, 1, 1)
+    denormalized_img = (img.detach().cpu() * std_tensor) + mean_tensor
+    denormalized_img = denormalized_img.clamp(0, 1)
+
+    if denormalized_img.shape[0] == 1:
+        original_img = transforms.ToPILImage()(denormalized_img).convert("RGB")
     else:
-        original_img = transforms.ToPILImage()(img)
+        original_img = transforms.ToPILImage()(denormalized_img)
 
     # 2. Identify the last conv layer. If none exists, fall back to input-gradient saliency
     target_layer = None

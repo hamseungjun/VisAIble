@@ -148,7 +148,7 @@ export function Sidebar({
               ))}
 
               {hoveredDataset ? (
-                <div className="pointer-events-none fixed left-[calc(clamp(248px,17vw,360px)+clamp(20px,2vw,40px)+32px)] top-6 z-40 hidden xl:block">
+                <div className="pointer-events-none fixed left-[calc(clamp(264px,18vw,372px)+clamp(20px,2vw,40px)+32px)] top-4 z-40 hidden xl:block">
                   <DatasetDetailPanel
                     dataset={hoveredDataset}
                     widthClassName="w-[640px]"
@@ -185,7 +185,7 @@ export function Sidebar({
           </div>
 
           {isCompetitionDatasetOpen ? (
-            <div className="fixed left-[calc(clamp(248px,17vw,360px)+clamp(20px,2vw,40px)+32px)] top-6 z-40 hidden xl:block">
+            <div className="fixed left-[calc(clamp(264px,18vw,372px)+clamp(20px,2vw,40px)+32px)] top-4 z-40 hidden xl:block">
               <DatasetDetailPanel
                 dataset={selectedDataset}
                 widthClassName="w-[680px]"
@@ -844,20 +844,22 @@ function DatasetDetailPanel({
       className={[
         widthClassName,
         'rounded-[22px] bg-white shadow-[0_24px_56px_rgba(13,27,51,0.18)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.16)]',
-        largeSamples ? 'px-7 py-7' : 'px-5 py-5',
+        largeSamples
+          ? 'max-h-[calc(100vh-0.5rem)] min-h-[44rem] overflow-y-auto px-6 pt-[1.375rem] pb-[2.5rem]'
+          : 'px-5 py-5',
       ].join(' ')}
     >
-      <div className={largeSamples ? 'mb-5 flex flex-wrap items-start justify-between gap-4' : 'mb-3 flex flex-wrap items-start justify-between gap-3'}>
+      <div className={largeSamples ? 'mb-4 flex flex-wrap items-start justify-between gap-3.5' : 'mb-3 flex flex-wrap items-start justify-between gap-3'}>
         <div className="min-w-0 flex-1">
-          <div className={largeSamples ? 'text-[12px] font-extrabold uppercase tracking-[0.2em] text-muted' : 'text-[11px] font-extrabold uppercase tracking-[0.18em] text-muted'}>
+          <div className={largeSamples ? 'text-[11px] font-extrabold uppercase tracking-[0.18em] text-muted' : 'text-[11px] font-extrabold uppercase tracking-[0.18em] text-muted'}>
             Dataset Detail
           </div>
-          <div className={largeSamples ? 'mt-2 truncate font-display text-[30px] font-bold leading-none text-ink' : 'mt-1 truncate font-display text-[20px] font-bold text-ink'}>
+          <div className={largeSamples ? 'mt-1.5 truncate font-display text-[24px] font-bold leading-none text-ink' : 'mt-1 truncate font-display text-[20px] font-bold text-ink'}>
             {dataset.label}
           </div>
         </div>
         <div className="flex flex-none items-center gap-2 self-start">
-          <div className={largeSamples ? 'rounded-full bg-[#eef3ff] px-4 py-2 text-[13px] font-extrabold uppercase tracking-[0.16em] text-primary' : 'rounded-full bg-[#eef3ff] px-3.5 py-2 text-[11px] font-extrabold uppercase tracking-[0.16em] text-primary'}>
+          <div className={largeSamples ? 'rounded-full bg-[#eef3ff] px-3.5 py-1.5 text-[12px] font-extrabold uppercase tracking-[0.14em] text-primary' : 'rounded-full bg-[#eef3ff] px-3.5 py-2 text-[11px] font-extrabold uppercase tracking-[0.16em] text-primary'}>
             {dataset.classCount ?? '-'} classes
           </div>
           {onClose ? (
@@ -872,31 +874,31 @@ function DatasetDetailPanel({
         </div>
       </div>
 
-      <div className={largeSamples ? 'grid gap-3 text-[16px] leading-8 text-[#53637f]' : 'grid gap-2 text-[14px] leading-6 text-[#53637f]'}>
+      <div className={largeSamples ? 'grid gap-2.5 text-[14px] leading-7 text-[#53637f]' : 'grid gap-2 text-[14px] leading-6 text-[#53637f]'}>
         <p>{dataset.descriptionKo}</p>
         <p>{dataset.shapeDescriptionKo}</p>
         <p>{dataset.classesDescriptionKo}</p>
       </div>
 
       {(dataset.infoSampleClasses ?? dataset.sampleClasses)?.length ? (
-        <div className={largeSamples ? 'mt-6' : 'mt-3'}>
-          <div className={largeSamples ? 'mb-4 text-[12px] font-extrabold uppercase tracking-[0.2em] text-muted' : 'mb-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-muted'}>
+        <div className={largeSamples ? 'mt-5' : 'mt-3'}>
+          <div className={largeSamples ? 'mb-3 text-[11px] font-extrabold uppercase tracking-[0.18em] text-muted' : 'mb-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-muted'}>
             Class Samples
           </div>
-          <div className={largeSamples ? 'grid grid-cols-2 gap-4' : 'grid grid-cols-2 gap-2'}>
+          <div className={largeSamples ? 'grid grid-cols-2 gap-3' : 'grid grid-cols-2 gap-2'}>
             {(dataset.infoSampleClasses ?? dataset.sampleClasses ?? []).map((sample) => (
               <div
                 key={`${dataset.id}-${sample.label}`}
                 className={[
                   'overflow-hidden rounded-[16px] bg-[#f6f8ff] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]',
-                  largeSamples ? 'px-5 py-5' : '',
+                  largeSamples ? 'px-4 py-4' : '',
                 ].join(' ')}
               >
                 {sample.imageSrc ? (
                   <div
                     className={[
                       'relative overflow-hidden rounded-[14px] bg-white',
-                      largeSamples ? 'mx-auto h-28 w-28' : 'h-24 w-full',
+                      largeSamples ? 'mx-auto h-24 w-24' : 'h-24 w-full',
                     ].join(' ')}
                   >
                     <Image
@@ -911,13 +913,13 @@ function DatasetDetailPanel({
                   <div
                     className={[
                       'grid place-items-center bg-[linear-gradient(135deg,#edf3ff,#dfe8fb)] text-[13px] font-extrabold uppercase tracking-[0.12em] text-[#51627e]',
-                      largeSamples ? 'mx-auto h-28 w-28 rounded-[14px]' : 'h-24 w-full',
+                      largeSamples ? 'mx-auto h-24 w-24 rounded-[14px]' : 'h-24 w-full',
                     ].join(' ')}
                   >
                     {sample.label}
                   </div>
                 )}
-                <div className={largeSamples ? 'pt-4 text-center text-[18px] font-semibold text-ink' : 'px-2.5 py-2 text-[13px] font-semibold text-ink'}>
+                <div className={largeSamples ? 'pt-3 text-center text-[16px] font-semibold text-ink' : 'px-2.5 py-2 text-[13px] font-semibold text-ink'}>
                   {sample.label}
                 </div>
               </div>
@@ -926,28 +928,28 @@ function DatasetDetailPanel({
         </div>
       ) : null}
 
-      <div className={largeSamples ? 'mt-6 grid gap-3 sm:grid-cols-3' : 'mt-3 grid gap-2 sm:grid-cols-3'}>
-        <div className={largeSamples ? 'rounded-[18px] bg-[#f6f8ff] px-4 py-4' : 'rounded-[16px] bg-[#f6f8ff] px-3 py-2'}>
-          <div className={largeSamples ? 'text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted' : 'text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted'}>
+      <div className={largeSamples ? 'mt-5 grid gap-2.5 sm:grid-cols-3' : 'mt-3 grid gap-2 sm:grid-cols-3'}>
+        <div className={largeSamples ? 'rounded-[18px] bg-[#f6f8ff] px-3.5 py-3.5' : 'rounded-[16px] bg-[#f6f8ff] px-3 py-2'}>
+          <div className={largeSamples ? 'text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted' : 'text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted'}>
             Input Shape
           </div>
-          <div className={largeSamples ? 'mt-2 font-mono text-[22px] font-semibold text-ink' : 'mt-1 font-mono text-[14px] font-semibold text-ink'}>
+          <div className={largeSamples ? 'mt-1.5 font-mono text-[18px] font-semibold text-ink' : 'mt-1 font-mono text-[14px] font-semibold text-ink'}>
             {dataset.inputShape}
           </div>
         </div>
-        <div className={largeSamples ? 'rounded-[18px] bg-[#f6f8ff] px-4 py-4' : 'rounded-[16px] bg-[#f6f8ff] px-3 py-2'}>
-          <div className={largeSamples ? 'text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted' : 'text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted'}>
+        <div className={largeSamples ? 'rounded-[18px] bg-[#f6f8ff] px-3.5 py-3.5' : 'rounded-[16px] bg-[#f6f8ff] px-3 py-2'}>
+          <div className={largeSamples ? 'text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted' : 'text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted'}>
             Class Num
           </div>
-          <div className={largeSamples ? 'mt-2 text-[22px] font-semibold text-ink' : 'mt-1 text-[14px] font-semibold text-ink'}>
+          <div className={largeSamples ? 'mt-1.5 text-[18px] font-semibold text-ink' : 'mt-1 text-[14px] font-semibold text-ink'}>
             {dataset.classCount ?? '-'}
           </div>
         </div>
-        <div className={largeSamples ? 'rounded-[18px] bg-[#f6f8ff] px-4 py-4' : 'rounded-[16px] bg-[#f6f8ff] px-3 py-2'}>
-          <div className={largeSamples ? 'text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted' : 'text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted'}>
+        <div className={largeSamples ? 'rounded-[18px] bg-[#f6f8ff] px-3.5 py-3.5' : 'rounded-[16px] bg-[#f6f8ff] px-3 py-2'}>
+          <div className={largeSamples ? 'text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted' : 'text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted'}>
             Samples
           </div>
-          <div className={largeSamples ? 'mt-2 text-[22px] font-semibold text-ink' : 'mt-1 text-[14px] font-semibold text-ink'}>
+          <div className={largeSamples ? 'mt-1.5 text-[18px] font-semibold text-ink' : 'mt-1 text-[14px] font-semibold text-ink'}>
             {dataset.records}
           </div>
         </div>

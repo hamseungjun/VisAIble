@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Icon } from '@/features/model-builder/components/icons';
-import { predictDigit, predictSample, generateGradCam } from '@/lib/api/model-builder';
+import {
+  generateGradCam,
+  getDecisionBoundaryAnchors,
+  predictDigit,
+  predictSample,
+} from '@/lib/api/model-builder';
 import { DecisionBoundaryCanvas } from './decision-boundary-canvas';
 import { datasets } from '@/lib/constants/builder-data';
 import type { DatasetItem, TrainingJobStatus } from '@/types/builder';
 
 type InspectorProps = {
   trainingStatus: TrainingJobStatus | null;
+  selectedDataset?: DatasetItem | null;
   liveHistory: {
     loss: number[];
     accuracy: number[];
@@ -256,6 +262,7 @@ async function extractSamplePixels(imageSrc: string, dataset: DatasetItem): Prom
 
 export function Inspector({
   trainingStatus,
+  selectedDataset = null,
   liveHistory = { loss: [], accuracy: [], validationLoss: [], validationAccuracy: [] },
   showDecisionBoundary = true,
   showMnistCanvas: allowMnistCanvas = true,
@@ -297,7 +304,11 @@ export function Inspector({
   const [gradCamError, setGradCamError] = useState<string | null>(null);
   const [selectedGradCamIndex, setSelectedGradCamIndex] = useState<number | null>(null);
   const [isGradCamGuideOpen, setIsGradCamGuideOpen] = useState(false);
-  const currentDataset = getDatasetFromStatus(trainingStatus);
+  const [precomputedAnchors, setPrecomputedAnchors] = useState<
+    Array<{ x: number; y: number; label: number }>
+  >([]);
+  const [isBoundaryLoading, setIsBoundaryLoading] = useState(false);
+  const currentDataset = selectedDataset ?? getDatasetFromStatus(trainingStatus);
   const metrics = trainingStatus?.metrics ?? [];
   const isReplayAvailable =
     (trainingStatus?.status === 'completed' ||
@@ -418,6 +429,44 @@ export function Inspector({
     (currentDataset.classLabels?.length ?? 0) > 0;
   const hasConvLayer =
     (trainingStatus?.architecture ?? []).some((layer) => layer.includes('Conv2d('));
+  const activeBoundaryAnchors =
+    trainingStatus?.datasetId === currentDataset?.id &&
+    trainingStatus?.decisionBoundaryAnchors &&
+    trainingStatus.decisionBoundaryAnchors.length > 0
+      ? trainingStatus.decisionBoundaryAnchors
+      : precomputedAnchors;
+
+  useEffect(() => {
+    const datasetId = currentDataset?.id;
+    if (!datasetId || !['mnist', 'fashion_mnist', 'cifar10'].includes(datasetId)) {
+      setPrecomputedAnchors([]);
+      setIsBoundaryLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsBoundaryLoading(true);
+    getDecisionBoundaryAnchors(datasetId)
+      .then((response) => {
+        if (!cancelled) {
+          setPrecomputedAnchors(response.anchors ?? []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPrecomputedAnchors([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsBoundaryLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentDataset?.id]);
   const showGradCam =
     showSamplePredictor &&
     currentDataset != null &&
@@ -1065,15 +1114,17 @@ export function Inspector({
             <span className="text-muted">↗</span>
           </div>
           <div className="grid gap-2 rounded-[18px] border border-dashed border-[rgba(129,149,188,0.28)] bg-[linear-gradient(180deg,rgba(244,247,255,0.78),rgba(236,241,252,0.48))] p-2">
-            {trainingStatus?.decisionBoundaryAnchors ? (
+            {activeBoundaryAnchors.length > 0 ? (
               <DecisionBoundaryCanvas
-                anchors={trainingStatus.decisionBoundaryAnchors}
-                predictions={trainingStatus.decisionBoundaryPredictions}
+                anchors={activeBoundaryAnchors}
+                predictions={trainingStatus?.decisionBoundaryPredictions}
                 classLabels={currentDataset?.classLabels}
               />
             ) : (
               <div className="flex aspect-square w-full items-center justify-center rounded-[12px] border border-dashed border-[rgba(129,149,188,0.3)] bg-[rgba(247,250,255,0.6)]">
-                <span className="text-sm font-semibold uppercase tracking-[0.16em] text-[#7b8da9] animate-pulse">Running ...</span>
+                <span className="text-sm font-semibold uppercase tracking-[0.16em] text-[#7b8da9] animate-pulse">
+                  {isBoundaryLoading ? 'Loading ...' : 'No Data'}
+                </span>
               </div>
             )}
           </div>

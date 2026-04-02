@@ -8,12 +8,12 @@
   }
 
   html {
-    font-size: 100%;
+    font-size: 72%;
   }
 
   @media (min-width: 1280px) {
     html {
-      font-size: 82%;
+      font-size: 72%;
     }
   }
 

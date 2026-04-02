@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Icon } from '@/features/model-builder/components/icons';
 
 type FeatureMapPanelProps = {
   nodeId: string | null;
@@ -88,6 +90,7 @@ export function FeatureMapPanel({ nodeId, inputImage, data }: FeatureMapPanelPro
   const inputRef = useRef<HTMLCanvasElement>(null);
   const fMapRefs = [useRef<HTMLCanvasElement>(null)];
   const filterRefs = [useRef<HTMLCanvasElement>(null)];
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   useEffect(() => {
     if (!nodeId || !data) return;
@@ -125,7 +128,17 @@ export function FeatureMapPanel({ nodeId, inputImage, data }: FeatureMapPanelPro
         <div className="mb-4 flex items-center justify-between">
           <div>
             <div className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#7b8da9]">Visualization</div>
-            <div className="mt-1 font-display text-[20px] font-bold text-[#12213f]">Feature Map</div>
+            <div className="mt-1 flex items-center gap-2">
+              <div className="font-display text-[20px] font-bold text-[#12213f]">Feature Map</div>
+              <button
+                type="button"
+                onClick={() => setIsGuideOpen(true)}
+                aria-label="Feature Map 설명 보기"
+                className="grid h-8 w-8 place-items-center rounded-full bg-[#f5f7fb] text-[#9daecc] transition hover:bg-[#eef3fb] hover:text-[#8498bb]"
+              >
+                <Icon name="help" className="h-4.5 w-4.5" />
+              </button>
+            </div>
           </div>
           <div className="rounded-full bg-[#eef3ff] px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#315dc8]">interactive sync</div>
         </div>
@@ -175,6 +188,89 @@ export function FeatureMapPanel({ nodeId, inputImage, data }: FeatureMapPanelPro
           ))}
         </div>
       </section>
+
+      {isGuideOpen ? <FeatureMapGuideModal onClose={() => setIsGuideOpen(false)} /> : null}
     </div>
+  );
+}
+
+function FeatureMapGuideModal({ onClose }: { onClose: () => void }) {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,23,42,0.28)] p-6 backdrop-blur-sm">
+      <div className="relative w-full max-w-[980px] overflow-hidden rounded-[32px] bg-[linear-gradient(180deg,#ffffff,#f7faff)] p-7 shadow-[0_30px_80px_rgba(13,27,51,0.22)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.14)] md:p-8">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-5 top-5 grid h-10 w-10 place-items-center rounded-full bg-white text-[#7b8da9] shadow-[0_12px_24px_rgba(13,27,51,0.08)] transition hover:text-[#12213f]"
+          aria-label="설명 닫기"
+        >
+          <span className="text-[22px] leading-none">×</span>
+        </button>
+
+        <div className="grid gap-6 md:grid-cols-[420px_minmax(0,1fr)] md:gap-8">
+          <div className="flex h-full flex-col rounded-[28px] bg-[linear-gradient(180deg,#eef4ff,#ffffff)] p-6 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="grid h-12 w-12 place-items-center rounded-[18px] bg-white text-primary">
+                <Icon name="layers" className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="text-[12px] font-extrabold uppercase tracking-[0.18em] text-[#71839d]">
+                  Feature Map Guide
+                </div>
+                <div className="font-display text-[26px] font-bold text-ink">CNN이 보는 중간 표현</div>
+              </div>
+            </div>
+
+            <div className="flex flex-1 flex-col overflow-hidden rounded-[22px] bg-white p-4 shadow-[0_10px_24px_rgba(13,27,51,0.05)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
+              <div className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da9]">Example</div>
+              <div className="mt-3 flex-1 overflow-hidden rounded-[16px] border border-[rgba(129,149,188,0.12)] bg-[#f8fbff]">
+                <img
+                  src="/images/feature-map-example.png"
+                  alt="Feature map example"
+                  className="h-full w-full object-cover object-top"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid content-start gap-5">
+            <div>
+              <div className="text-[13px] font-extrabold uppercase tracking-[0.18em] text-primary/70">
+                어떻게 읽으면 되나
+              </div>
+              <div className="mt-2 text-[19px] leading-9 text-[#50617c]">
+                Feature map은 모델이 이미지를 보면서 "어디에 반응했는지"를 보여주는 중간 시각화입니다.
+              </div>
+            </div>
+
+            <div className="grid gap-4">
+              <div className="rounded-[20px] bg-white px-5 py-4 text-[16px] leading-8 text-[#50617c] shadow-[0_10px_24px_rgba(13,27,51,0.05)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
+                밝은 부분은 모델이 "여기가 중요하다"고 본 위치입니다.
+              </div>
+              <div className="rounded-[20px] bg-white px-5 py-4 text-[16px] leading-8 text-[#50617c] shadow-[0_10px_24px_rgba(13,27,51,0.05)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
+                앞쪽 레이어는 선이나 모서리, 뒤쪽 레이어는 더 복잡한 모양을 봅니다.
+              </div>
+              <div className="rounded-[20px] bg-white px-5 py-4 text-[16px] leading-8 text-[#50617c] shadow-[0_10px_24px_rgba(13,27,51,0.05)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
+                feature map이 어두우면, 그 필터는 이번 입력에서 거의 못 찾은 것입니다.
+              </div>
+            </div>
+
+            <div className="rounded-[22px] bg-[linear-gradient(135deg,#edf4ff,#f4f8ff)] px-5 py-5 shadow-[inset_0_0_0_1px_rgba(17,81,255,0.08)]">
+              <div className="text-[12px] font-extrabold uppercase tracking-[0.16em] text-primary">
+                Quick Tip
+              </div>
+              <div className="mt-2 text-[16px] leading-8 text-[#41526d]">
+                같은 이미지라도 레이어마다 보는 포인트가 다릅니다. 여러 레이어를 비교해 보면 CNN이 어떻게 점점 특징을 골라내는지 쉽게 이해할 수 있습니다.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }

@@ -86,9 +86,7 @@ export function TopBar({
     { label: 'Dataset', value: selectedDatasetLabel },
     { label: 'Layers', value: `${layerCount}` },
     { label: 'Epochs', value: epochs },
-    { label: 'Optimizer', value: optimizer },
-    { label: 'Batch Size', value: `${batchSize}` },
-    { label: 'Total Parameters', value: totalParameters.toLocaleString() },
+    { label: 'Parameters', value: totalParameters.toLocaleString() },
   ];
   const trainingState = trainingStatus?.status ?? (isTraining ? 'running' : 'idle');
   const primaryTrainingLabel =
@@ -157,28 +155,28 @@ export function TopBar({
 
   return (
     <header className="border-b border-line bg-white/80 px-4 py-3 backdrop-blur-xl lg:px-5 lg:py-3.5">
-      <div className="grid gap-3 xl:grid-cols-[minmax(280px,1.1fr)_minmax(420px,1.35fr)_minmax(260px,0.95fr)]">
-        <section className="glass-panel ghost-border flex min-w-0 flex-col justify-start gap-[clamp(8px,0.8vw,12px)] rounded-[24px] px-[clamp(16px,1.2vw,20px)] py-[clamp(12px,1vw,16px)] shadow-panel xl:w-full">
+      <div className="grid gap-3 xl:grid-cols-[minmax(220px,0.74fr)_minmax(460px,1.42fr)_minmax(240px,0.84fr)]">
+        <section className="glass-panel ghost-border flex min-w-0 flex-col justify-start gap-[clamp(6px,0.6vw,9px)] rounded-[24px] px-[clamp(12px,0.95vw,16px)] py-[clamp(10px,0.8vw,12px)] shadow-panel xl:w-full">
           <div className="flex items-start gap-3">
             <button
               type="button"
               onClick={onLogoClick}
-              className="font-display text-[clamp(2.5rem,3vw,3.3rem)] font-bold tracking-[-0.07em] text-primary transition-opacity hover:opacity-80"
+              className="font-display text-[clamp(1.9rem,2.2vw,2.5rem)] font-bold tracking-[-0.07em] text-primary transition-opacity hover:opacity-80"
             >
-              VisAIble
+              VisAible
             </button>
           </div>
 
-          <div className="grid gap-[clamp(8px,0.8vw,12px)] sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid gap-[clamp(8px,0.75vw,11px)] sm:grid-cols-2 xl:grid-cols-2">
             {summaryItems.map((item) => (
               <div
                 key={item.label}
-                className="rounded-[18px] bg-[rgba(17,81,255,0.06)] px-3.5 py-2.5"
+                className="rounded-[16px] bg-[linear-gradient(180deg,rgba(17,81,255,0.04),rgba(17,81,255,0.08))] px-3.5 py-2.5"
               >
                 <div className="ui-label">
                   {item.label}
                 </div>
-                <div className="mt-1 break-words font-display text-[15px] font-bold leading-[1.15] text-ink">
+                <div className="mt-1 break-words font-display text-[14px] font-bold leading-[1.15] text-ink">
                   {item.value}
                 </div>
               </div>

@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.schemas.training import (
+    DecisionBoundaryAnchorsResponse,
     GradCamRequest,
     GradCamResponse,
     PredictDigitRequest,
@@ -18,6 +19,7 @@ from app.schemas.training import (
 )
 from app.services.training import (
     generate_gradcam,
+    get_decision_boundary_anchors,
     get_training_job,
     pause_training_job,
     predict_mnist_digit,
@@ -58,6 +60,19 @@ def get_training_status(job_id: str) -> TrainingJobStatusResponse:
         raise HTTPException(status_code=404, detail="Training job not found")
 
     return TrainingJobStatusResponse(**job)
+
+
+@router.get(
+    "/training/decision-boundary/{dataset_id}",
+    response_model=DecisionBoundaryAnchorsResponse,
+)
+def get_precomputed_decision_boundary(dataset_id: str) -> DecisionBoundaryAnchorsResponse:
+    try:
+        anchors = get_decision_boundary_anchors(dataset_id)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+    return DecisionBoundaryAnchorsResponse(datasetId=dataset_id, anchors=anchors)
 
 
 @router.post("/training/pause/{job_id}", response_model=TrainingControlResponse)

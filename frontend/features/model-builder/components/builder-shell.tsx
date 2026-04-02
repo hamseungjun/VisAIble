@@ -12,7 +12,6 @@ import { Sidebar } from '@/features/model-builder/components/sidebar';
 import { TopBar } from '@/features/model-builder/components/top-bar';
 import { TrainingLiveOverlay } from '@/features/model-builder/components/training-live-overlay';
 import { useBuilderBoard } from '@/features/model-builder/hooks/use-builder-board';
-import { analyzeModelNodes } from '@/lib/model-advice';
 import {
   createCompetitionRoom,
   enterCompetitionRoom,
@@ -132,7 +131,6 @@ export function BuilderShell() {
     addNode,
     removeNode,
     updateNodeField,
-    updateNodeFields,
     updateNodeActivation,
     moveNode,
     resetBoard,
@@ -190,27 +188,20 @@ export function BuilderShell() {
       : (datasets.find((dataset) => dataset.id === selectedDatasetId) ?? datasets[0]);
   const runtimeDatasetId = activeWorkspace === 'competition' ? competitionDatasetId : selectedDatasetId;
 
-  const alignNodesToDataset = (datasetId: string) => {
-    const nextDataset = datasets.find((dataset) => dataset.id === datasetId);
-    if (!nextDataset || nodes.length === 0) {
-      return;
+  const clearTrainingUiState = () => {
+    if (pollingRef.current !== null) {
+      window.clearInterval(pollingRef.current);
+      pollingRef.current = null;
     }
-
-    const { advice } = analyzeModelNodes(nextDataset, nodes);
-    nodes.forEach((node) => {
-      const nodeAdvice = advice[node.id];
-      if (!nodeAdvice) {
-        return;
-      }
-
-      if (Object.keys(nodeAdvice.suggestedFields).length > 0) {
-        updateNodeFields(node.id, nodeAdvice.suggestedFields);
-      }
-
-      if (nodeAdvice.suggestedActivation) {
-        updateNodeActivation(node.id, nodeAdvice.suggestedActivation);
-      }
-    });
+    streamRef.current?.close();
+    streamRef.current = null;
+    liveBatchKeyRef.current = null;
+    setIsTraining(false);
+    setIsTrainingOverlayOpen(false);
+    setTrainingStatus(null);
+    setLatestTrainingResult(null);
+    setLiveHistory({ loss: [], accuracy: [], validationLoss: [], validationAccuracy: [] });
+    setCurrentJobId(null);
   };
 
   const surfaceTrainingError = (message: string, jobId: string | null = currentJobId) => {
@@ -721,7 +712,7 @@ export function BuilderShell() {
           }}
         />
 
-        <div className="grid min-h-0 gap-3 px-4 py-2 xl:justify-center xl:grid-cols-[clamp(248px,17vw,360px)_minmax(0,1fr)_clamp(288px,22vw,460px)] xl:px-[clamp(20px,2vw,40px)]">
+        <div className="grid min-h-0 gap-3 px-4 py-2 xl:justify-center xl:grid-cols-[clamp(264px,18vw,372px)_minmax(0,1fr)_clamp(288px,22vw,460px)] xl:px-[clamp(20px,2vw,40px)]">
           <Sidebar
             selectedDatasetId={selectedDatasetId}
             activeWorkspace={activeWorkspace}
@@ -731,8 +722,12 @@ export function BuilderShell() {
               if (activeWorkspace === 'competition') {
                 return;
               }
+              if (currentJobId) {
+                void stopTraining(currentJobId).catch(() => {});
+              }
+              clearTrainingUiState();
+              resetBoard();
               setSelectedDatasetId(datasetId);
-              alignNodesToDataset(datasetId);
             }}
             onWorkspaceSelect={setActiveWorkspace}
             onBlockDragStart={setDraggingBlock}
@@ -952,6 +947,7 @@ export function BuilderShell() {
               ) : (
                 <Inspector
                   trainingStatus={trainingStatus ?? (latestTrainingResult as TrainingJobStatus | null)}
+                  selectedDataset={selectedDataset}
                   liveHistory={liveHistory}
                   showMnistCanvas={activeWorkspace !== 'competition'}
                 />
