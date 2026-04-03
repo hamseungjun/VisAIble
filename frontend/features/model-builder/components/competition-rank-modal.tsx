@@ -33,7 +33,7 @@ export function CompetitionRankModal({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#71839d]">
-                VisAIble Competition
+                VisAible Competition
               </div>
               <div className="mt-2 font-display text-[30px] font-bold tracking-[-0.04em] text-[#10213b]">
                 {roomTitle}

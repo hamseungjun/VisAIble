@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'VisAIble',
+  title: 'VisAible',
   description: 'Neural architecture builder UI',
 };
 

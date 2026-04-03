@@ -268,7 +268,7 @@ export function TopBar({
                 />
               </div>
 
-              {optimizerField ? (
+              {optimizerField && optimizer !== 'SGD' ? (
                 <div className="max-w-[280px]">
                   <span className="ui-label">
                     {optimizerField.label}

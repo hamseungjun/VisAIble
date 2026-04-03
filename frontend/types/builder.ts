@@ -22,6 +22,17 @@ export type DatasetItem = {
 
 export type BlockType = 'linear' | 'cnn' | 'pooling' | 'dropout';
 
+export type TrainingAugmentationId =
+  | 'mixup'
+  | 'cutmix'
+  | 'flip_rotate'
+  | 'random_crop'
+  | 'color_jitter'
+  | 'contrast_boost'
+  | 'grayscale';
+
+export type TrainingAugmentationParams = Partial<Record<TrainingAugmentationId, number>>;
+
 export type BlockAccent = 'blue' | 'amber' | 'violet' | 'rose' | 'emerald';
 
 export type LibraryBlock = {

@@ -29,6 +29,8 @@ class TrainModelRequest(BaseModel):
     batchSize: int = Field(default=128)
     optimizer: str = Field(..., min_length=1)
     optimizerParams: OptimizerParamsPayload
+    augmentations: list[str] = Field(default_factory=list)
+    augmentationParams: dict[str, float] = Field(default_factory=dict)
     nodes: list[CanvasNodePayload]
 
     @field_validator("batchSize")

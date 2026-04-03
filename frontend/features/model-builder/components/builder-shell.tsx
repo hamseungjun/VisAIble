@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { AugmentationPanel } from '@/features/model-builder/components/augmentation-panel';
 import { Canvas } from '@/features/model-builder/components/canvas';
 import { CompetitionPanel } from '@/features/model-builder/components/competition-panel';
 import { CompetitionRankModal } from '@/features/model-builder/components/competition-rank-modal';
@@ -25,6 +26,7 @@ import {
   submitCompetitionRun,
   subscribeTrainingStatus,
 } from '@/lib/api/model-builder';
+import { defaultAugmentationParams } from '@/lib/constants/augmentations';
 import { datasets } from '@/lib/constants/builder-data';
 import {
   batchSizeOptions,
@@ -33,10 +35,13 @@ import {
   type OptimizerParams,
 } from '@/lib/constants/training-controls';
 import type {
+  BlockType,
   CompetitionLeaderboard,
   CompetitionRoomSession,
   CompetitionSubmissionResult,
+  TrainingAugmentationId,
   TrainingJobStatus,
+  TrainingAugmentationParams,
   TrainingRunResult,
 } from '@/types/builder';
 
@@ -123,6 +128,30 @@ type CompetitionRunRecord = {
   completedAt?: string | null;
 };
 
+type WorkspaceMode = 'builder' | 'tutorial' | 'competition';
+
+type DatasetTeachingConfig = {
+  allowedBlocks: BlockType[];
+};
+
+function getDatasetTeachingConfig(datasetId: string): DatasetTeachingConfig {
+  if (datasetId === 'mnist') {
+    return {
+      allowedBlocks: ['linear', 'dropout'],
+    };
+  }
+
+  if (datasetId === 'fashion_mnist' || datasetId === 'cifar10') {
+    return {
+      allowedBlocks: ['linear', 'cnn', 'pooling', 'dropout'],
+    };
+  }
+
+  return {
+    allowedBlocks: ['linear', 'cnn', 'pooling', 'dropout'],
+  };
+}
+
 export function BuilderShell() {
   const {
     nodes,
@@ -134,17 +163,21 @@ export function BuilderShell() {
     updateNodeActivation,
     moveNode,
     resetBoard,
+    filterNodes,
   } = useBuilderBoard();
   const [selectedDatasetId, setSelectedDatasetId] = useState(datasets[0]?.id ?? 'mnist');
-  const [activeWorkspace, setActiveWorkspace] = useState<'builder' | 'competition'>('builder');
-  const [optimizer, setOptimizer] = useState<OptimizerName>('ADAM');
-  const [learningRate, setLearningRate] = useState(optimizerConfigs.ADAM.defaultLearningRate);
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceMode>('builder');
+  const [optimizer, setOptimizer] = useState<OptimizerName>('AdamW');
+  const [learningRate, setLearningRate] = useState(optimizerConfigs.AdamW.defaultLearningRate);
   const [epochs, setEpochs] = useState('10');
   const [batchSize, setBatchSize] = useState(128);
   const [optimizerParams, setOptimizerParams] = useState<OptimizerParams>({
     momentum: optimizerConfigs.SGD.parameter!.defaultValue,
     rho: optimizerConfigs['RMS Prop'].parameter!.defaultValue,
   });
+  const [selectedAugmentations, setSelectedAugmentations] = useState<TrainingAugmentationId[]>([]);
+  const [augmentationParams, setAugmentationParams] =
+    useState<TrainingAugmentationParams>(defaultAugmentationParams);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isTrainingOverlayOpen, setIsTrainingOverlayOpen] = useState(false);
   const [isTraining, setIsTraining] = useState(false);
@@ -187,6 +220,22 @@ export function BuilderShell() {
         competitionDataset)
       : (datasets.find((dataset) => dataset.id === selectedDatasetId) ?? datasets[0]);
   const runtimeDatasetId = activeWorkspace === 'competition' ? competitionDatasetId : selectedDatasetId;
+  const showAugmentationPanel =
+    activeWorkspace === 'builder' ||
+    (activeWorkspace === 'tutorial' && runtimeDatasetId === 'cifar10');
+  const activeAugmentations = showAugmentationPanel ? selectedAugmentations : [];
+  const activeAugmentationParams = showAugmentationPanel
+    ? Object.fromEntries(
+        activeAugmentations.map((augmentationId) => [
+          augmentationId,
+          augmentationParams[augmentationId] ?? defaultAugmentationParams[augmentationId],
+        ]),
+      )
+    : {};
+  const teachingConfig =
+    activeWorkspace === 'tutorial'
+      ? getDatasetTeachingConfig(runtimeDatasetId)
+      : { allowedBlocks: ['linear', 'cnn', 'pooling', 'dropout'] as BlockType[] };
 
   const clearTrainingUiState = () => {
     if (pollingRef.current !== null) {
@@ -235,6 +284,11 @@ export function BuilderShell() {
     setCurrentJobId(null);
   };
 
+  const applyTutorialPreset = (datasetId: string) => {
+    const nextConfig = getDatasetTeachingConfig(datasetId);
+    filterNodes(nextConfig.allowedBlocks);
+  };
+
   useEffect(() => {
     return () => {
       if (pollingRef.current !== null) {
@@ -251,6 +305,12 @@ export function BuilderShell() {
 
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (activeWorkspace === 'tutorial') {
+      applyTutorialPreset(runtimeDatasetId);
+    }
+  }, [activeWorkspace, runtimeDatasetId]);
 
   useEffect(() => {
     if (!competitionRoom) {
@@ -487,6 +547,8 @@ export function BuilderShell() {
                   batchSize,
                   optimizer,
                   optimizerParams,
+                  augmentations: activeAugmentations,
+                  augmentationParams: activeAugmentationParams,
                   nodes,
                 });
                 setCurrentJobId(jobId);
@@ -718,6 +780,7 @@ export function BuilderShell() {
             activeWorkspace={activeWorkspace}
             hasCompetitionRoom={competitionRoom !== null}
             selectedDataset={selectedDataset}
+            availableBlockTypes={teachingConfig.allowedBlocks}
             onDatasetSelect={(datasetId) => {
               if (activeWorkspace === 'competition') {
                 return;
@@ -727,6 +790,9 @@ export function BuilderShell() {
               }
               clearTrainingUiState();
               resetBoard();
+              if (activeWorkspace === 'tutorial') {
+                applyTutorialPreset(datasetId);
+              }
               setSelectedDatasetId(datasetId);
             }}
             onWorkspaceSelect={setActiveWorkspace}
@@ -749,7 +815,7 @@ export function BuilderShell() {
                       <div className="flex flex-wrap items-start justify-between gap-4">
                         <div>
                           <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/65">
-                            VisAIble Competition
+                            VisAible Competition
                           </div>
                           <div className="mt-1 font-display text-[28px] font-bold tracking-[-0.04em]">
                             {competitionRoom.title}
@@ -902,6 +968,25 @@ export function BuilderShell() {
                     </div>
                   </div>
                 ) : null}
+                {showAugmentationPanel ? (
+                  <AugmentationPanel
+                    selectedAugmentations={selectedAugmentations}
+                    augmentationParams={augmentationParams}
+                    onToggle={(augmentationId) =>
+                      setSelectedAugmentations((current) =>
+                        current.includes(augmentationId)
+                          ? current.filter((id) => id !== augmentationId)
+                          : [...current, augmentationId],
+                      )
+                    }
+                    onChangeParam={(augmentationId, value) =>
+                      setAugmentationParams((current) => ({
+                        ...current,
+                        [augmentationId]: value,
+                      }))
+                    }
+                  />
+                ) : null}
                 <Canvas
                   selectedDataset={selectedDataset}
                   nodes={nodes}
@@ -912,6 +997,10 @@ export function BuilderShell() {
                   onUpdateNodeActivation={updateNodeActivation}
                   onMoveNode={moveNode}
                   onDropBlock={(type, index) => {
+                    if (activeWorkspace === 'tutorial' && !teachingConfig.allowedBlocks.includes(type)) {
+                      setDraggingBlock(null);
+                      return;
+                    }
                     addNode(type, index);
                     setDraggingBlock(null);
                   }}

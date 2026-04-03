@@ -103,6 +103,11 @@ export function useBuilderBoard() {
     setDraggingBlock(null);
   };
 
+  const filterNodes = (allowedTypes: BlockType[]) => {
+    setNodes((current) => current.filter((node) => allowedTypes.includes(node.type)));
+    setDraggingBlock((current) => (current && !allowedTypes.includes(current) ? null : current));
+  };
+
   return {
     nodes,
     draggingBlock,
@@ -114,5 +119,6 @@ export function useBuilderBoard() {
     updateNodeActivation,
     moveNode,
     resetBoard,
+    filterNodes,
   };
 }

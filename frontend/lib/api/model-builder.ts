@@ -4,6 +4,8 @@ import type {
   CompetitionLeaderboard,
   CompetitionRoomSession,
   CompetitionSubmissionResult,
+  TrainingAugmentationId,
+  TrainingAugmentationParams,
   TrainingJobStatus,
   TrainingRunResult,
 } from '@/types/builder';
@@ -25,6 +27,8 @@ export type TrainModelPayload = {
     momentum: string;
     rho: string;
   };
+  augmentations?: TrainingAugmentationId[];
+  augmentationParams?: TrainingAugmentationParams;
   nodes: CanvasNode[];
 };
 

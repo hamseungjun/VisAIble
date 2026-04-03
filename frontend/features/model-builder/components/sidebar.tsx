@@ -8,14 +8,17 @@ import type { BlockAccent, BlockType, DatasetItem } from '@/types/builder';
 
 type SidebarProps = {
   selectedDatasetId: string;
-  activeWorkspace: 'builder' | 'competition';
+  activeWorkspace: 'builder' | 'tutorial' | 'competition';
   hasCompetitionRoom?: boolean;
   selectedDataset?: DatasetItem | null;
+  availableBlockTypes: BlockType[];
   onDatasetSelect: (datasetId: string) => void;
-  onWorkspaceSelect: (workspace: 'builder' | 'competition') => void;
+  onWorkspaceSelect: (workspace: 'builder' | 'tutorial' | 'competition') => void;
   onBlockDragStart: (type: BlockType) => void;
   onBlockDragEnd: () => void;
 };
+
+type StudyClassKey = 'mlp' | 'cnn' | 'augmentation';
 
 function accentClassName(accent: BlockAccent) {
   const palette: Record<BlockAccent, string> = {
@@ -29,11 +32,50 @@ function accentClassName(accent: BlockAccent) {
   return palette[accent];
 }
 
+function getStudyClassKey(datasetId: string): StudyClassKey {
+  if (datasetId === 'fashion_mnist') {
+    return 'cnn';
+  }
+
+  if (datasetId === 'cifar10') {
+    return 'augmentation';
+  }
+
+  return 'mlp';
+}
+
+function getStudyClassMeta(datasetId: string) {
+  const classKey = getStudyClassKey(datasetId);
+
+  if (classKey === 'cnn') {
+    return {
+      label: 'CNN',
+      icon: 'panel' as const,
+      paletteClass: 'bg-[#fff4ea] text-[#b95b16]',
+    };
+  }
+
+  if (classKey === 'augmentation') {
+    return {
+      label: 'Data Augmentation',
+      icon: 'flask' as const,
+      paletteClass: 'bg-[#ebfbf5] text-[#0b7d6f]',
+    };
+  }
+
+  return {
+    label: 'MLP',
+    icon: 'layers' as const,
+    paletteClass: 'bg-[#edf3ff] text-[#2456c9]',
+  };
+}
+
 export function Sidebar({
   selectedDatasetId,
   activeWorkspace,
   hasCompetitionRoom = false,
   selectedDataset,
+  availableBlockTypes,
   onDatasetSelect,
   onWorkspaceSelect,
   onBlockDragStart,
@@ -42,10 +84,22 @@ export function Sidebar({
   const [hoveredDatasetId, setHoveredDatasetId] = useState<string | null>(null);
   const [isCompetitionDatasetOpen, setIsCompetitionDatasetOpen] = useState(false);
   const [activeGuideBlockId, setActiveGuideBlockId] = useState<BlockType | null>(null);
+  const [openedTutorialDatasetId, setOpenedTutorialDatasetId] = useState<string | null>(null);
   const hoveredDataset =
     datasets.find((dataset) => dataset.id === hoveredDatasetId) ?? null;
+  const tutorialDatasets = datasets.filter(
+    (dataset) => dataset.id === 'mnist' || dataset.id === 'fashion_mnist' || dataset.id === 'cifar10',
+  );
+  const activeTutorialDataset =
+    activeWorkspace === 'tutorial' && openedTutorialDatasetId === selectedDatasetId
+      ? (selectedDataset ?? datasets.find((dataset) => dataset.id === selectedDatasetId) ?? null)
+      : null;
   const activeGuideBlock =
-    libraryBlocks.find((block) => block.id === activeGuideBlockId) ?? null;
+    libraryBlocks.find((block) => block.id === activeGuideBlockId && availableBlockTypes.includes(block.id)) ?? null;
+  const visibleBlocks =
+    activeWorkspace === 'tutorial'
+      ? libraryBlocks.filter((block) => availableBlockTypes.includes(block.id))
+      : libraryBlocks;
 
   return (
     <aside className="flex h-full flex-col gap-5 bg-surface p-4">
@@ -54,6 +108,39 @@ export function Sidebar({
           Workspace
         </h2>
         <div className="grid gap-2.5">
+          <button
+            type="button"
+            onClick={() => onWorkspaceSelect('tutorial')}
+            className={[
+              'flex items-center gap-3 rounded-[20px] px-3.5 py-4 text-left transition-all',
+              activeWorkspace === 'tutorial'
+                ? 'bg-[linear-gradient(135deg,#2456c9,#4f7cff)] text-white shadow-[0_14px_28px_rgba(36,86,201,0.22)]'
+                : 'bg-white text-[#41526d] shadow-[0_12px_28px_rgba(13,27,51,0.05)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)] hover:-translate-y-0.5 hover:bg-[#f8fbff]',
+            ].join(' ')}
+          >
+            <span
+              className={[
+                'grid h-10 w-10 place-items-center rounded-[14px]',
+                activeWorkspace === 'tutorial'
+                  ? 'bg-white/14 text-white'
+                  : 'bg-[#edf3ff] text-[#2456c9]',
+              ].join(' ')}
+            >
+              <Icon name="layers" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[15px] font-bold">VisAible Tutorial</span>
+              <span
+                className={[
+                  'mt-1 block text-[12px] font-semibold',
+                  activeWorkspace === 'tutorial' ? 'text-white/78' : 'text-[#70819a]',
+                ].join(' ')}
+              >
+                모델을 쌓고 학습 결과를 바로 확인
+              </span>
+            </span>
+          </button>
+
           <button
             type="button"
             onClick={() => onWorkspaceSelect('builder')}
@@ -75,14 +162,14 @@ export function Sidebar({
               <Icon name="flask" />
             </span>
             <span className="min-w-0">
-              <span className="block text-[15px] font-bold">VisAIble Lab</span>
+              <span className="block text-[15px] font-bold">VisAible Lab</span>
               <span
                 className={[
                   'mt-1 block text-[12px] font-semibold',
                   activeWorkspace === 'builder' ? 'text-white/78' : 'text-[#70819a]',
                 ].join(' ')}
               >
-                모델을 쌓고 학습 결과를 바로 확인
+                curriculum의 VisAible Lab 흐름으로 단계별 학습
               </span>
             </span>
           </button>
@@ -108,7 +195,7 @@ export function Sidebar({
               <Icon name="trophy" />
             </span>
             <span className="min-w-0">
-              <span className="block text-[15px] font-bold">VisAIble Competition</span>
+              <span className="block text-[15px] font-bold">VisAible Competition</span>
               <span
                 className={[
                   'mt-1 block text-[12px] font-semibold',
@@ -122,7 +209,7 @@ export function Sidebar({
         </div>
       </section>
 
-      {activeWorkspace !== 'competition' ? (
+      {activeWorkspace === 'builder' ? (
         <section className="grid gap-2.5">
             <h2 className="ui-label text-[12px] tracking-[0.2em]">
               Dataset Selection
@@ -158,6 +245,55 @@ export function Sidebar({
               ) : null}
             </div>
           </section>
+      ) : null}
+
+      {activeWorkspace === 'tutorial' ? (
+        <section className="grid gap-2.5">
+          <h2 className="ui-label text-[12px] tracking-[0.2em]">
+            Class Selection
+          </h2>
+          <div className="relative grid gap-2">
+            {tutorialDatasets.map((dataset) => {
+              const classMeta = getStudyClassMeta(dataset.id);
+
+              return (
+                <button
+                  key={dataset.id}
+                  type="button"
+                  onClick={() => {
+                    onDatasetSelect(dataset.id);
+                    setOpenedTutorialDatasetId(dataset.id);
+                  }}
+                  className={[
+                    'flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-[14px] font-semibold transition-colors',
+                    dataset.id === selectedDatasetId
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-[#4b5b77] hover:bg-white/60',
+                  ].join(' ')}
+                >
+                  <span
+                    className={[
+                      'grid h-8 w-8 place-items-center rounded-[12px]',
+                      classMeta.paletteClass,
+                    ].join(' ')}
+                  >
+                    <Icon name={classMeta.icon} />
+                  </span>
+                  <span>{classMeta.label}</span>
+                </button>
+              );
+            })}
+
+            {activeTutorialDataset ? (
+              <div className="fixed left-[calc(clamp(264px,18vw,372px)+clamp(20px,2vw,40px)+32px)] top-4 z-40 hidden xl:block">
+                <TutorialDatasetPanel
+                  dataset={activeTutorialDataset}
+                  onClose={() => setOpenedTutorialDatasetId(null)}
+                />
+              </div>
+            ) : null}
+          </div>
+        </section>
       ) : null}
 
       {activeWorkspace === 'competition' && hasCompetitionRoom && selectedDataset ? (
@@ -202,7 +338,7 @@ export function Sidebar({
             Block Library
           </h2>
           <div className="grid gap-2.5">
-            {libraryBlocks.map((block) => (
+            {visibleBlocks.map((block) => (
               <div
                 key={block.id}
                 className="ghost-border relative rounded-[20px] bg-white/85 shadow-[0_12px_28px_rgba(13,27,51,0.05)]"
@@ -228,8 +364,8 @@ export function Sidebar({
                     <Icon name={block.icon} />
                   </div>
                   <div className="grid gap-1">
-                    <h3 className="font-display text-base font-bold text-ink">{block.title}</h3>
-                    <p className="text-[13px] leading-5 text-muted">{block.description}</p>
+                    <h3 className="font-display text-[18px] font-bold leading-[1.18] text-ink">{block.title}</h3>
+                    <p className="text-[15px] leading-[1.3] text-muted">{block.description}</p>
                   </div>
                 </button>
                 <button
@@ -249,6 +385,191 @@ export function Sidebar({
         <LayerGuideModal block={activeGuideBlock} onClose={() => setActiveGuideBlockId(null)} />
       ) : null}
     </aside>
+  );
+}
+
+const tutorialCopy: Record<
+  StudyClassKey,
+  {
+    eyebrow: string;
+    title: string;
+    summary: string;
+    bullets: string[];
+    accentClassName: string;
+  }
+> = {
+  mlp: {
+    eyebrow: 'Study Focus',
+    title: 'MLP Class',
+    summary:
+      '숫자 이미지를 펼쳐서 완전연결층으로 분류하는 가장 기본적인 흐름을 익히는 수업입니다.',
+    bullets: [
+      '입력과 출력이 어떻게 연결되는지 먼저 감각적으로 볼 수 있습니다.',
+      '은닉층이 늘어날수록 더 복잡한 패턴을 표현한다는 점을 이해하기 좋습니다.',
+      'CNN으로 넘어가기 전에 신경망의 기본 구조를 잡는 데 적합합니다.',
+    ],
+    accentClassName: 'text-[#2456c9]',
+  },
+  cnn: {
+    eyebrow: 'Study Focus',
+    title: 'CNN Class',
+    summary:
+      '이미지에서 작은 필터가 패턴을 찾고, pooling으로 핵심 정보를 남기는 흐름을 배우는 수업입니다.',
+    bullets: [
+      '컨볼루션이 모서리와 질감 같은 로컬 특징을 찾는 방식에 집중합니다.',
+      '채널이 늘수록 더 다양한 특징을 동시에 본다는 점을 익힐 수 있습니다.',
+      '왜 이미지에는 MLP보다 CNN이 더 잘 맞는지 자연스럽게 비교할 수 있습니다.',
+    ],
+    accentClassName: 'text-[#b95b16]',
+  },
+  augmentation: {
+    eyebrow: 'Study Focus',
+    title: 'Data Augmentation Class',
+    summary:
+      '같은 이미지라도 조금씩 바뀐 입력을 보여주면 모델이 더 일반화된 규칙을 배운다는 점을 설명하는 수업입니다.',
+    bullets: [
+      'flip, crop, color 변화가 들어와도 같은 대상을 같은 클래스로 보게 만드는 감각을 익힙니다.',
+      '같은 구조라도 데이터 준비 방식에 따라 성능 차이가 날 수 있다는 점을 보여줍니다.',
+      '실전 데이터가 흔들리거나 다양한 환경에서 들어올 때 왜 augmentation이 중요한지 연결해줍니다.',
+    ],
+    accentClassName: 'text-[#0b7d6f]',
+  },
+};
+
+function TutorialDatasetPanel({
+  dataset,
+  onClose,
+}: {
+  dataset: DatasetItem;
+  onClose: () => void;
+}) {
+  const copy = tutorialCopy[getStudyClassKey(dataset.id)];
+  const previewSamples = (dataset.sampleClasses ?? []).slice(0, 4);
+
+  return (
+    <div className="flex max-h-[calc(100vh-40px)] w-[min(860px,calc(100vw-460px))] min-w-[720px] flex-col overflow-hidden rounded-[30px] border border-[rgba(110,132,174,0.24)] bg-[linear-gradient(180deg,#ffffff,#f8fbff)] px-6 py-5 shadow-[0_34px_80px_rgba(13,27,51,0.2)]">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="text-[12px] font-extrabold uppercase tracking-[0.2em] text-[#70819a]">
+            {copy.eyebrow}
+          </div>
+          <div className="mt-2 font-display text-[32px] font-bold leading-[1.02] tracking-[-0.04em] text-[#10213b]">
+            {copy.title}
+          </div>
+          <div className="mt-3 max-w-[700px] text-[14px] leading-6.5 text-[#53637f]">
+            {copy.summary}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-full border border-[#fecaca] bg-[#fff1f2] px-4 py-2 text-[13px] font-extrabold uppercase tracking-[0.16em] text-[#b42318] shadow-[0_8px_18px_rgba(180,35,24,0.16)] transition hover:bg-[#ffe4e6]"
+        >
+          Close
+        </button>
+      </div>
+
+      <div className="mt-4 grid min-h-0 flex-1 gap-4 overflow-y-auto pr-1 md:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
+        <div className="grid content-start gap-3">
+          <div className="rounded-[22px] border border-[rgba(129,149,188,0.18)] bg-[linear-gradient(135deg,#eef4ff,#f8fbff)] px-4 py-4 shadow-[0_12px_28px_rgba(13,27,51,0.05)]">
+            <div className={`text-[11px] font-extrabold uppercase tracking-[0.18em] ${copy.accentClassName}`}>
+              VisAible Lab
+            </div>
+            <div className="mt-3 grid gap-2.5">
+              {copy.bullets.map((item) => (
+                <div
+                  key={item}
+                  className="rounded-[18px] border border-[rgba(129,149,188,0.14)] bg-white px-4 py-3 text-[13px] leading-6 text-[#53637f] shadow-[0_10px_24px_rgba(13,27,51,0.04)]"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-2.5 sm:grid-cols-3">
+            <div className="rounded-[18px] bg-[#f6f8ff] px-3.5 py-3">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted">
+                Input
+              </div>
+              <div className="mt-2 font-mono text-[17px] font-semibold text-ink">
+                {dataset.inputShape}
+              </div>
+            </div>
+            <div className="rounded-[18px] bg-[#f6f8ff] px-3.5 py-3">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted">
+                Classes
+              </div>
+              <div className="mt-2 text-[17px] font-semibold text-ink">
+                {dataset.classCount ?? '-'}
+              </div>
+            </div>
+            <div className="rounded-[18px] bg-[#f6f8ff] px-3.5 py-3">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted">
+                Samples
+              </div>
+              <div className="mt-2 text-[17px] font-semibold text-ink">
+                {dataset.records}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid content-start gap-3">
+          <div className="rounded-[22px] border border-[rgba(129,149,188,0.18)] bg-white px-4 py-4 shadow-[0_12px_28px_rgba(13,27,51,0.05)]">
+            <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#71839d]">
+              Class Info
+            </div>
+            <div className="mt-3 grid gap-2">
+              <div className="rounded-[16px] bg-[#f6f8ff] px-3.5 py-3 text-[12px] leading-5.5 text-[#53637f]">
+                {dataset.descriptionKo}
+              </div>
+              <div className="rounded-[16px] bg-[#f6f8ff] px-3.5 py-3 text-[12px] leading-5.5 text-[#53637f]">
+                {dataset.shapeDescriptionKo}
+              </div>
+              <div className="rounded-[16px] bg-[#f6f8ff] px-3.5 py-3 text-[12px] leading-5.5 text-[#53637f]">
+                {dataset.classesDescriptionKo}
+              </div>
+            </div>
+          </div>
+
+          {previewSamples.length ? (
+            <div className="rounded-[22px] border border-[rgba(129,149,188,0.18)] bg-white px-4 py-4 shadow-[0_12px_28px_rgba(13,27,51,0.05)]">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#71839d]">
+                Sample Preview
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2.5">
+                {previewSamples.map((sample) => (
+                  <div
+                    key={`${dataset.id}-tutorial-${sample.label}`}
+                    className="overflow-hidden rounded-[18px] border border-[rgba(129,149,188,0.12)] bg-[#f6f8ff] px-2.5 py-2.5 shadow-[0_8px_20px_rgba(13,27,51,0.03)]"
+                  >
+                    {sample.imageSrc ? (
+                      <div className="relative h-20 overflow-hidden rounded-[14px] bg-white">
+                        <Image
+                          src={sample.imageSrc}
+                          alt={`${dataset.label} ${sample.label}`}
+                          fill
+                          unoptimized
+                          className={dataset.id === 'cifar10' ? 'object-cover' : 'object-contain p-2'}
+                        />
+                      </div>
+                    ) : (
+                      <div className="grid h-20 place-items-center rounded-[14px] bg-[linear-gradient(135deg,#edf3ff,#dfe8fb)] text-[12px] font-extrabold uppercase tracking-[0.12em] text-[#51627e]">
+                        {sample.label}
+                      </div>
+                    )}
+                    <div className="pt-2 text-center text-[11px] font-semibold text-[#10213b]">
+                      {sample.label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
   );
 }
 

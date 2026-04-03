@@ -71,7 +71,7 @@ export function CompetitionSidebar({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#71839d]">
-              VisAIble Competition
+              VisAible Competition
             </div>
             <div className="mt-1 font-display text-[22px] font-bold text-[#10213b]">{room.title}</div>
             <div className="mt-2 text-[12px] font-semibold text-[#64748b]">

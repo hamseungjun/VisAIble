@@ -11,7 +11,7 @@ from uuid import uuid4
 import numpy as np
 import torch
 from torch import nn
-from torch.optim import Adagrad, Adam, RMSprop, SGD
+from torch.optim import Adagrad, AdamW, RMSprop, SGD
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset, TensorDataset
 import base64
 import io
@@ -30,6 +30,11 @@ from app.services.datasets import (
 
 BATCH_SIZE = 128
 RANDOM_STATE = 0
+MIX_AUGMENTATION_ALPHA = 0.4
+COMPACT_MNIST_TRAIN_PER_CLASS = 1600
+COMPACT_MNIST_VAL_PER_CLASS = 400
+COMPACT_FASHION_MNIST_TRAIN_PER_CLASS = 1600
+COMPACT_FASHION_MNIST_VAL_PER_CLASS = 400
 COMPACT_CIFAR10_TRAIN_PER_CLASS = 1600
 COMPACT_CIFAR10_VAL_PER_CLASS = 400
 COMPACT_TINY_IMAGENET_TRAIN_PER_CLASS = 20
@@ -45,6 +50,33 @@ DATASET_NORMALIZATION: dict[str, tuple[tuple[float, ...], tuple[float, ...]]] = 
     "fashion_mnist": ((0.2860,), (0.3530,)),
     "cifar10": ((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)),
     "imagenet": ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+}
+SUPPORTED_AUGMENTATIONS = {
+    "mixup",
+    "cutmix",
+    "flip_rotate",
+    "random_crop",
+    "color_jitter",
+    "contrast_boost",
+    "grayscale",
+}
+AUGMENTATION_PARAM_DEFAULTS: dict[str, float] = {
+    "mixup": 45.0,
+    "cutmix": 38.0,
+    "flip_rotate": 50.0,
+    "random_crop": 122.0,
+    "color_jitter": 18.0,
+    "contrast_boost": 135.0,
+    "grayscale": 100.0,
+}
+AUGMENTATION_PARAM_RANGES: dict[str, tuple[float, float]] = {
+    "mixup": (10.0, 80.0),
+    "cutmix": (24.0, 56.0),
+    "flip_rotate": (10.0, 100.0),
+    "random_crop": (108.0, 145.0),
+    "color_jitter": (0.0, 40.0),
+    "contrast_boost": (100.0, 170.0),
+    "grayscale": (0.0, 100.0),
 }
 DECISION_BOUNDARY_WEIGHT_FACTORS: dict[str, float] = {
     "mnist": 10.0,
@@ -102,17 +134,58 @@ def load_mnist_dataset() -> TensorDataset:
     return TensorDataset(images, labels)
 
 
-def _classification_transform(dataset_id: str, image_size: int):
+def _classification_transform(
+    dataset_id: str,
+    image_size: int,
+    augmentations: list[str] | None = None,
+    augmentation_params: dict[str, float] | None = None,
+):
     from torchvision import transforms
 
     mean, std = DATASET_NORMALIZATION[dataset_id]
-    return transforms.Compose(
+    augmentations = augmentations or []
+    augmentation_params = augmentation_params or {}
+    steps: list[object] = [transforms.Resize((image_size, image_size))]
+
+    if "random_crop" in augmentations:
+        crop_padding = max(1, round((augmentation_params["random_crop"] - 100.0) / 5.0))
+        steps.append(transforms.RandomCrop(image_size, padding=crop_padding))
+    if "flip_rotate" in augmentations:
+        steps.append(transforms.RandomHorizontalFlip(p=augmentation_params["flip_rotate"] / 100.0))
+    if "color_jitter" in augmentations:
+        jitter_strength = augmentation_params["color_jitter"] / 100.0
+        if len(mean) == 1:
+            steps.append(
+                transforms.ColorJitter(
+                    brightness=jitter_strength,
+                    contrast=jitter_strength,
+                )
+            )
+        else:
+            steps.append(
+                transforms.ColorJitter(
+                    brightness=jitter_strength,
+                    contrast=jitter_strength,
+                    saturation=jitter_strength,
+                    hue=min(jitter_strength / 4.0, 0.5),
+                )
+            )
+    if "contrast_boost" in augmentations:
+        steps.append(
+            transforms.ColorJitter(
+                contrast=max((augmentation_params["contrast_boost"] - 100.0) / 100.0, 0.0)
+            )
+        )
+    if "grayscale" in augmentations and len(mean) == 3:
+        steps.append(transforms.RandomGrayscale(p=augmentation_params["grayscale"] / 100.0))
+
+    steps.extend(
         [
-            transforms.Resize((image_size, image_size)),
             transforms.ToTensor(),
             transforms.Normalize(mean, std),
         ]
     )
+    return transforms.Compose(steps)
 
 
 def _dataset_targets(dataset: Dataset) -> np.ndarray:
@@ -126,21 +199,100 @@ def _dataset_targets(dataset: Dataset) -> np.ndarray:
     return np.array(targets, dtype=np.int64)
 
 
-def _load_combined_torchvision_dataset(dataset_id: str) -> tuple[Dataset, np.ndarray]:
-    if dataset_id in DATASET_CACHE:
-        return DATASET_CACHE[dataset_id]
+def _normalize_augmentations(raw_augmentations: list[str]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+
+    for augmentation in raw_augmentations:
+        if augmentation not in SUPPORTED_AUGMENTATIONS:
+            raise ValueError(f"Unsupported augmentation: {augmentation}")
+        if augmentation in seen:
+            continue
+        normalized.append(augmentation)
+        seen.add(augmentation)
+
+    return normalized
+
+
+def _normalize_augmentation_params(
+    raw_params: dict[str, float],
+    augmentations: list[str],
+) -> dict[str, float]:
+    normalized: dict[str, float] = {}
+
+    for augmentation, value in raw_params.items():
+        if augmentation not in SUPPORTED_AUGMENTATIONS:
+            raise ValueError(f"Unsupported augmentation parameter: {augmentation}")
+        min_value, max_value = AUGMENTATION_PARAM_RANGES[augmentation]
+        normalized[augmentation] = min(max(float(value), min_value), max_value)
+
+    for augmentation in augmentations:
+        normalized.setdefault(augmentation, AUGMENTATION_PARAM_DEFAULTS[augmentation])
+
+    return normalized
+
+
+def _build_dataset_cache_key(
+    dataset_id: str,
+    augmentations: list[str] | None = None,
+    augmentation_params: dict[str, float] | None = None,
+) -> str:
+    normalized_augmentations = sorted(augmentations or [])
+    normalized_params = augmentation_params or {}
+
+    if not normalized_augmentations:
+        return dataset_id
+
+    params_key = ",".join(
+        f"{name}:{normalized_params.get(name, AUGMENTATION_PARAM_DEFAULTS[name]):.4f}"
+        for name in normalized_augmentations
+    )
+    return f"{dataset_id}|{','.join(normalized_augmentations)}|{params_key}"
+
+
+def _load_combined_torchvision_dataset(
+    dataset_id: str,
+    augmentations: list[str] | None = None,
+    augmentation_params: dict[str, float] | None = None,
+) -> tuple[Dataset, np.ndarray]:
+    cache_key = _build_dataset_cache_key(dataset_id, augmentations, augmentation_params)
+    if cache_key in DATASET_CACHE:
+        return DATASET_CACHE[cache_key]
 
     from torchvision import datasets
 
+    augmentations = augmentations or []
+    augmentation_params = augmentation_params or {}
+
     if dataset_id == "mnist":
-        dataset = load_mnist_dataset()
-        _, labels = dataset.tensors
-        result = dataset, labels.cpu().numpy()
-        DATASET_CACHE[dataset_id] = result
+        if augmentations:
+            transform = _classification_transform("mnist", 28, augmentations, augmentation_params)
+            train_split = datasets.MNIST(
+                root=str(MNIST_DATA_DIR.parent / "mnist"),
+                train=True,
+                download=True,
+                transform=transform,
+            )
+            test_split = datasets.MNIST(
+                root=str(MNIST_DATA_DIR.parent / "mnist"),
+                train=False,
+                download=True,
+                transform=transform,
+            )
+            dataset = ConcatDataset([train_split, test_split])
+            targets = np.concatenate(
+                [_dataset_targets(train_split), _dataset_targets(test_split)], axis=0
+            )
+            result = dataset, targets
+        else:
+            dataset = load_mnist_dataset()
+            _, labels = dataset.tensors
+            result = dataset, labels.cpu().numpy()
+        DATASET_CACHE[cache_key] = result
         return result
 
     if dataset_id == "fashion_mnist":
-        transform = _classification_transform("fashion_mnist", 28)
+        transform = _classification_transform("fashion_mnist", 28, augmentations, augmentation_params)
         train_split = datasets.FashionMNIST(
             root=str(MNIST_DATA_DIR.parent / "fashion_mnist"),
             train=True,
@@ -155,7 +307,7 @@ def _load_combined_torchvision_dataset(dataset_id: str) -> tuple[Dataset, np.nda
         )
     elif dataset_id == "cifar10":
         ensure_cifar10_downloaded()
-        transform = _classification_transform("cifar10", 32)
+        transform = _classification_transform("cifar10", 32, augmentations, augmentation_params)
         train_split = datasets.CIFAR10(
             root=str(MNIST_DATA_DIR.parent / "cifar10"),
             train=True,
@@ -176,15 +328,26 @@ def _load_combined_torchvision_dataset(dataset_id: str) -> tuple[Dataset, np.nda
         [_dataset_targets(train_split), _dataset_targets(test_split)], axis=0
     )
     result = dataset, targets
-    DATASET_CACHE[dataset_id] = result
+    DATASET_CACHE[cache_key] = result
     return result
 
 
-def _build_stratified_loaders(dataset_id: str, batch_size: int) -> tuple[DataLoader, DataLoader, int, int]:
-    dataset, labels = _load_combined_torchvision_dataset(dataset_id)
+def _build_stratified_loaders(
+    dataset_id: str,
+    batch_size: int,
+    augmentations: list[str] | None = None,
+    augmentation_params: dict[str, float] | None = None,
+) -> tuple[DataLoader, DataLoader, int, int]:
+    dataset, labels = _load_combined_torchvision_dataset(dataset_id, augmentations, augmentation_params)
     train_limit_per_class: int | None = None
     validation_limit_per_class: int | None = None
 
+    if dataset_id == "mnist":
+        train_limit_per_class = COMPACT_MNIST_TRAIN_PER_CLASS
+        validation_limit_per_class = COMPACT_MNIST_VAL_PER_CLASS
+    elif dataset_id == "fashion_mnist":
+        train_limit_per_class = COMPACT_FASHION_MNIST_TRAIN_PER_CLASS
+        validation_limit_per_class = COMPACT_FASHION_MNIST_VAL_PER_CLASS
     if dataset_id == "cifar10":
         train_limit_per_class = COMPACT_CIFAR10_TRAIN_PER_CLASS
         validation_limit_per_class = COMPACT_CIFAR10_VAL_PER_CLASS
@@ -364,9 +527,14 @@ def _build_imagenet_loaders(batch_size: int) -> tuple[DataLoader, DataLoader, in
     return train_loader, validation_loader, len(train_dataset), len(validation_dataset)
 
 
-def build_dataset_loaders(dataset_id: str, batch_size: int = BATCH_SIZE) -> tuple[DataLoader, DataLoader, int, int]:
+def build_dataset_loaders(
+    dataset_id: str,
+    batch_size: int = BATCH_SIZE,
+    augmentations: list[str] | None = None,
+    augmentation_params: dict[str, float] | None = None,
+) -> tuple[DataLoader, DataLoader, int, int]:
     if dataset_id in {"mnist", "fashion_mnist", "cifar10"}:
-        return _build_stratified_loaders(dataset_id, batch_size)
+        return _build_stratified_loaders(dataset_id, batch_size, augmentations, augmentation_params)
 
     if dataset_id == "imagenet":
         return _build_imagenet_loaders(batch_size)
@@ -631,8 +799,8 @@ def build_optimizer(model: nn.Module, payload: TrainModelRequest):
             lr=learning_rate,
             alpha=rho,
         )
-    if payload.optimizer == "ADAM":
-        return Adam(model.parameters(), lr=learning_rate)
+    if payload.optimizer == "AdamW":
+        return AdamW(model.parameters(), lr=learning_rate)
 
     raise ValueError(f"Unsupported optimizer: {payload.optimizer}")
 
@@ -664,6 +832,90 @@ def _wait_for_job(job_id: str | None) -> None:
             return
 
         sleep(0.15)
+
+
+def _apply_mixup(
+    inputs: torch.Tensor,
+    targets: torch.Tensor,
+    alpha: float = MIX_AUGMENTATION_ALPHA,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, float]:
+    lam = float(np.random.beta(alpha, alpha))
+    index = torch.randperm(inputs.size(0), device=inputs.device)
+    mixed_inputs = lam * inputs + (1.0 - lam) * inputs[index]
+    return mixed_inputs, targets, targets[index], lam
+
+
+def _rand_bbox(width: int, height: int, lam: float) -> tuple[int, int, int, int]:
+    cut_ratio = math.sqrt(1.0 - lam)
+    cut_width = int(width * cut_ratio)
+    cut_height = int(height * cut_ratio)
+
+    center_x = np.random.randint(width)
+    center_y = np.random.randint(height)
+
+    x1 = max(center_x - cut_width // 2, 0)
+    y1 = max(center_y - cut_height // 2, 0)
+    x2 = min(center_x + cut_width // 2, width)
+    y2 = min(center_y + cut_height // 2, height)
+    return x1, y1, x2, y2
+
+
+def _apply_cutmix(
+    inputs: torch.Tensor,
+    targets: torch.Tensor,
+    alpha: float = MIX_AUGMENTATION_ALPHA,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, float]:
+    lam = float(np.random.beta(alpha, alpha))
+    index = torch.randperm(inputs.size(0), device=inputs.device)
+    mixed_inputs = inputs.clone()
+    _, _, height, width = mixed_inputs.size()
+    x1, y1, x2, y2 = _rand_bbox(width, height, lam)
+    mixed_inputs[:, :, y1:y2, x1:x2] = mixed_inputs[index, :, y1:y2, x1:x2]
+    lam_adjusted = 1.0 - (((x2 - x1) * (y2 - y1)) / max(width * height, 1))
+    return mixed_inputs, targets, targets[index], lam_adjusted
+
+
+def _train_batch_with_optional_augmentation(
+    model: nn.Module,
+    inputs: torch.Tensor,
+    targets: torch.Tensor,
+    criterion: nn.Module,
+    train_augmentations: list[str],
+    augmentation_params: dict[str, float],
+) -> tuple[torch.Tensor, torch.Tensor, float]:
+    if "mixup" not in train_augmentations and "cutmix" not in train_augmentations:
+        logits = model(inputs)
+        loss = criterion(logits, targets)
+        correct = (logits.argmax(dim=1) == targets).sum().item()
+        return logits, loss, float(correct)
+
+    if "mixup" in train_augmentations and "cutmix" in train_augmentations:
+        mode = "mixup" if float(np.random.rand()) < 0.5 else "cutmix"
+    elif "mixup" in train_augmentations:
+        mode = "mixup"
+    else:
+        mode = "cutmix"
+
+    if mode == "mixup":
+        augmented_inputs, targets_a, targets_b, lam = _apply_mixup(
+            inputs,
+            targets,
+            alpha=max(augmentation_params["mixup"] / 100.0, 0.1),
+        )
+    else:
+        augmented_inputs, targets_a, targets_b, lam = _apply_cutmix(
+            inputs,
+            targets,
+            alpha=max(augmentation_params["cutmix"] / 100.0, 0.1),
+        )
+
+    logits = model(augmented_inputs)
+    loss = criterion(logits, targets_a) * lam + criterion(logits, targets_b) * (1.0 - lam)
+    predictions = logits.argmax(dim=1)
+    correct = lam * (predictions == targets_a).sum().item() + (1.0 - lam) * (
+        predictions == targets_b
+    ).sum().item()
+    return logits, loss, float(correct)
 
 
 def _extract_conv_visualizations(
@@ -734,6 +986,8 @@ def _train_one_epoch(
     criterion: nn.Module,
     device: torch.device,
     optimizer,
+    train_augmentations: list[str] | None = None,
+    augmentation_params: dict[str, float] | None = None,
     job_id: str | None = None,
     batch_progress_callback=None,
     tsne_inputs: torch.Tensor | None = None,
@@ -741,6 +995,8 @@ def _train_one_epoch(
     conv_node_ids: list[tuple[str, nn.Module]] | None = None,
 ) -> tuple[float, float]:
     model.train(True)
+    train_augmentations = train_augmentations or []
+    augmentation_params = augmentation_params or AUGMENTATION_PARAM_DEFAULTS
 
     loss_sum = 0.0
     correct = 0
@@ -753,16 +1009,20 @@ def _train_one_epoch(
         targets = targets.to(device)
 
         optimizer.zero_grad()
-
-        logits = model(inputs)
-        loss = criterion(logits, targets)
+        logits, loss, correct_count = _train_batch_with_optional_augmentation(
+            model=model,
+            inputs=inputs,
+            targets=targets,
+            criterion=criterion,
+            train_augmentations=train_augmentations,
+            augmentation_params=augmentation_params,
+        )
         loss.backward()
         optimizer.step()
 
         batch_size = targets.size(0)
         loss_sum += loss.item() * batch_size
-        predictions = logits.argmax(dim=1)
-        correct += (predictions == targets).sum().item()
+        correct += correct_count
         total += batch_size
 
         if batch_progress_callback is not None:
@@ -892,6 +1152,11 @@ def train_model(
     trained_model_sink=None,
 ) -> dict[str, object]:
     dataset_spec = get_dataset_runtime_spec(payload.datasetId)
+    normalized_augmentations = _normalize_augmentations(payload.augmentations)
+    normalized_augmentation_params = _normalize_augmentation_params(
+        payload.augmentationParams,
+        normalized_augmentations,
+    )
     if dataset_spec.task != "classification":
         raise ValueError(
             f"{dataset_spec.definition.label} is a {dataset_spec.task} dataset and is not supported by this builder yet",
@@ -909,6 +1174,8 @@ def train_model(
     train_loader, validation_loader, train_size, validation_size = build_dataset_loaders(
         payload.datasetId,
         payload.batchSize,
+        normalized_augmentations,
+        normalized_augmentation_params,
     )
 
     device = _get_training_device()
@@ -964,6 +1231,8 @@ def train_model(
             criterion=criterion,
             device=device,
             optimizer=optimizer,
+            train_augmentations=normalized_augmentations,
+            augmentation_params=normalized_augmentation_params,
             job_id=job_id,
             batch_progress_callback=(
                 lambda update, current_epoch=epoch: (

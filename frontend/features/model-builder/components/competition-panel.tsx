@@ -127,7 +127,7 @@ export function CompetitionPanel({
 }: CompetitionPanelProps) {
   const [mode, setMode] = useState<'idle' | 'make' | 'enter'>('idle');
   const [hostName, setHostName] = useState('Host');
-  const [title, setTitle] = useState('VisAIble Competition');
+  const [title, setTitle] = useState('VisAible Competition');
   const [datasetId, setDatasetId] = useState(datasets[0]?.id ?? 'mnist');
   const [roomCode, setRoomCode] = useState(makeRandomCode());
   const [password, setPassword] = useState(makeRandomPassword());
@@ -161,10 +161,10 @@ export function CompetitionPanel({
         <div className="overflow-hidden rounded-[28px] border border-[#d5e3f2] bg-[linear-gradient(135deg,#0f172a,#173968_48%,#2563eb)] px-6 py-6 text-white shadow-[0_30px_80px_rgba(15,23,42,0.22)]">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/82">
             <Icon name="grid" className="h-4 w-4" />
-            VisAIble Competition
+            VisAible Competition
           </div>
           <h1 className="mt-4 max-w-[560px] font-display text-[34px] font-bold tracking-[-0.05em]">
-            VisAIble Competition으로 수업형 AI 대회를 바로 시작하세요.
+            VisAible Competition으로 수업형 AI 대회를 바로 시작하세요.
           </h1>
           <p className="mt-3 max-w-[620px] text-[15px] leading-7 text-white/78">{helperText}</p>
 
