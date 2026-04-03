@@ -166,7 +166,7 @@ export function BuilderShell() {
     filterNodes,
   } = useBuilderBoard();
   const [selectedDatasetId, setSelectedDatasetId] = useState(datasets[0]?.id ?? 'mnist');
-  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceMode>('builder');
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceMode>('tutorial');
   const [optimizer, setOptimizer] = useState<OptimizerName>('AdamW');
   const [learningRate, setLearningRate] = useState(optimizerConfigs.AdamW.defaultLearningRate);
   const [epochs, setEpochs] = useState('10');

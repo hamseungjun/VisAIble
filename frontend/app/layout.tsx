@@ -1,6 +1,17 @@
 import type { Metadata } from 'next';
+import { Manrope, Space_Grotesk } from 'next/font/google';
 import type { ReactNode } from 'react';
 import './globals.css';
+
+const manrope = Manrope({
+  subsets: ['latin'],
+  variable: '--font-manrope',
+});
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-space-grotesk',
+});
 
 export const metadata: Metadata = {
   title: 'VisAible',
@@ -14,7 +25,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-hero-fade font-body text-ink antialiased">
+      <body
+        className={`${manrope.variable} ${spaceGrotesk.variable} min-h-screen bg-hero-fade font-body text-ink antialiased`}
+      >
         {children}
       </body>
     </html>
