@@ -89,6 +89,8 @@ export function TopBar({
     { label: 'Parameters', value: totalParameters.toLocaleString() },
   ];
   const trainingState = trainingStatus?.status ?? (isTraining ? 'running' : 'idle');
+  const trainingStateLabel =
+    trainingState === 'running' ? 'Training in progress' : trainingState === 'paused' ? 'Paused' : 'Ready';
   const primaryTrainingLabel =
     trainingState === 'paused' ? 'Resume' : isTraining ? 'Running' : 'Start';
   const actionButtons: ActionButton[] = [
@@ -154,29 +156,37 @@ export function TopBar({
   ];
 
   return (
-    <header className="border-b border-line bg-white/80 px-4 py-3 backdrop-blur-xl lg:px-5 lg:py-3.5">
-      <div className="grid gap-3 xl:grid-cols-[minmax(220px,0.74fr)_minmax(460px,1.42fr)_minmax(240px,0.84fr)]">
-        <section className="glass-panel ghost-border flex min-w-0 flex-col justify-start gap-[clamp(6px,0.6vw,9px)] rounded-[24px] px-[clamp(12px,0.95vw,16px)] py-[clamp(10px,0.8vw,12px)] shadow-panel xl:w-full">
-          <div className="flex items-start gap-3">
-            <button
-              type="button"
-              onClick={onLogoClick}
-              className="font-display text-[clamp(1.9rem,2.2vw,2.5rem)] font-bold tracking-[-0.07em] text-primary transition-opacity hover:opacity-80"
-            >
-              VisAible
-            </button>
+    <header className="ui-surface px-4 py-4 lg:px-5 lg:py-4">
+      <div className="grid gap-4 xl:grid-cols-[minmax(260px,0.78fr)_minmax(520px,1.44fr)_minmax(280px,0.92fr)]">
+        <section className="flex min-w-0 flex-col justify-start gap-3 rounded-[24px] bg-[linear-gradient(145deg,rgba(11,17,29,0.98),rgba(28,44,76,0.95))] px-[clamp(14px,1vw,18px)] py-[clamp(14px,1vw,16px)] text-white shadow-[0_22px_44px_rgba(17,24,39,0.22)] xl:w-full">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.24em] text-white/50">
+                Visual Deep Learning Studio
+              </div>
+              <button
+                type="button"
+                onClick={onLogoClick}
+                className="mt-1 font-display text-[clamp(2rem,2.2vw,2.7rem)] font-bold tracking-[-0.07em] text-white transition-opacity hover:opacity-85"
+              >
+                VisAible
+              </button>
+            </div>
+            <div className="rounded-full border border-white/10 bg-white/8 px-3 py-1.5 text-[11px] font-bold text-white/75">
+              {trainingStateLabel}
+            </div>
           </div>
 
           <div className="grid gap-[clamp(8px,0.75vw,11px)] sm:grid-cols-2 xl:grid-cols-2">
             {summaryItems.map((item) => (
               <div
                 key={item.label}
-                className="rounded-[16px] bg-[linear-gradient(180deg,rgba(17,81,255,0.04),rgba(17,81,255,0.08))] px-3.5 py-2.5"
+                className="rounded-[18px] border border-white/10 bg-white/8 px-3.5 py-3"
               >
-                <div className="ui-label">
+                <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/52">
                   {item.label}
                 </div>
-                <div className="mt-1 break-words font-display text-[14px] font-bold leading-[1.15] text-ink">
+                <div className="mt-1.5 break-words font-display text-[15px] font-bold leading-[1.15] text-white">
                   {item.value}
                 </div>
               </div>
@@ -184,9 +194,15 @@ export function TopBar({
           </div>
         </section>
 
-        <section className="glass-panel ghost-border grid min-w-0 gap-[clamp(10px,0.9vw,14px)] rounded-[24px] px-[clamp(16px,1.2vw,20px)] py-[clamp(12px,1vw,16px)] shadow-panel sm:grid-cols-2 xl:w-full">
-          <div className="rounded-[20px] bg-white/75 px-4 py-[clamp(10px,0.9vw,12px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
-            <span className="ui-label">
+        <section className="ui-subtle-surface grid min-w-0 gap-[clamp(10px,0.9vw,14px)] px-[clamp(16px,1.2vw,20px)] py-[clamp(14px,1vw,18px)] sm:grid-cols-2 xl:w-full">
+          <div className="sm:col-span-2">
+            <div className="ui-section-title">Training Controls</div>
+            <div className="mt-1 text-[14px] font-semibold text-[#64748b]">
+              자주 조절하는 값들만 위쪽에 모아서, 현재 설정을 한눈에 읽기 쉽게 정리했습니다.
+            </div>
+          </div>
+          <div className="rounded-[20px] border border-[#dce5f1] bg-white px-4 py-[clamp(12px,0.9vw,14px)] shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+            <span className="ui-section-title">
               Learning Rate
             </span>
             <div className="mt-2.5 flex items-center gap-3">
@@ -201,14 +217,14 @@ export function TopBar({
                 }
                 className="h-1 w-full max-w-[clamp(260px,34vw,420px)] accent-primary"
               />
-              <code className="block min-w-[78px] text-right font-display text-[13px] font-bold tabular-nums text-primary">
+              <code className="block min-w-[78px] text-right font-display text-[13px] font-bold tabular-nums text-[#153ea8]">
                 {learningRate}
               </code>
             </div>
           </div>
 
-          <div className="rounded-[20px] bg-white/75 px-4 py-[clamp(10px,0.9vw,12px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
-            <span className="ui-label">
+          <div className="rounded-[20px] border border-[#dce5f1] bg-white px-4 py-[clamp(12px,0.9vw,14px)] shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+            <span className="ui-section-title">
               Batch Size
             </span>
             <div className="mt-2.5 flex items-center gap-3">
@@ -223,23 +239,23 @@ export function TopBar({
                 }
                 className="h-1 w-full max-w-[clamp(260px,34vw,420px)] accent-primary"
               />
-              <code className="block min-w-[78px] text-right font-display text-[13px] font-bold tabular-nums text-primary">
+              <code className="block min-w-[78px] text-right font-display text-[13px] font-bold tabular-nums text-[#153ea8]">
                 {batchSize}
               </code>
             </div>
           </div>
 
-          <div className="rounded-[20px] bg-white/75 px-4 py-[clamp(10px,0.9vw,12px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)] sm:col-span-2">
+          <div className="rounded-[20px] border border-[#dce5f1] bg-white px-4 py-[clamp(12px,0.9vw,14px)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:col-span-2">
             <div className="grid gap-3 md:grid-cols-2">
               <div className="max-w-[280px]">
-                <span className="ui-label">
+                <span className="ui-section-title">
                   Optimizer
                 </span>
                 <div className="relative mt-2.5 max-w-[280px]">
                   <select
                     value={optimizer}
                     onChange={(event) => onOptimizerChange(event.target.value as OptimizerName)}
-                    className="w-full appearance-none rounded-[14px] border border-line bg-white/80 px-3 py-2.5 pr-9 font-display text-[15px] font-bold text-primary outline-none transition-colors focus:border-primary"
+                    className="w-full appearance-none rounded-[14px] border border-[#d5deeb] bg-[#f8fbff] px-3 py-2.5 pr-9 font-display text-[15px] font-bold text-[#153ea8] outline-none transition-colors focus:border-primary"
                   >
                     {optimizerOrder.map((option) => (
                       <option key={option} value={option}>
@@ -255,7 +271,7 @@ export function TopBar({
               </div>
 
               <div className="max-w-[220px]">
-                <span className="ui-label">
+                <span className="ui-section-title">
                   Epochs
                 </span>
                 <input
@@ -264,13 +280,13 @@ export function TopBar({
                   max={500}
                   value={epochs}
                   onChange={(event) => onEpochChange(event.target.value)}
-                  className="mt-2.5 w-full rounded-[14px] border border-line bg-white/80 px-3 py-2.5 font-display text-[15px] font-bold text-primary outline-none transition-colors focus:border-primary"
+                  className="mt-2.5 w-full rounded-[14px] border border-[#d5deeb] bg-[#f8fbff] px-3 py-2.5 font-display text-[15px] font-bold text-[#153ea8] outline-none transition-colors focus:border-primary"
                 />
               </div>
 
               {optimizerField && optimizer !== 'SGD' ? (
                 <div className="max-w-[280px]">
-                  <span className="ui-label">
+                  <span className="ui-section-title">
                     {optimizerField.label}
                   </span>
                   <div className="mt-2.5 flex items-center gap-3">
@@ -288,7 +304,7 @@ export function TopBar({
                       }
                       className="h-1 w-full accent-primary"
                     />
-                    <code className="block min-w-[78px] text-right font-display text-[13px] font-bold tabular-nums text-primary">
+                    <code className="block min-w-[78px] text-right font-display text-[13px] font-bold tabular-nums text-[#153ea8]">
                       {optimizerParams[optimizerField.key]}
                     </code>
                   </div>
@@ -298,7 +314,13 @@ export function TopBar({
           </div>
         </section>
 
-        <section className="glass-panel ghost-border flex min-w-0 flex-col gap-[clamp(8px,0.8vw,12px)] rounded-[24px] px-[clamp(14px,1.1vw,18px)] py-[clamp(12px,1vw,16px)] shadow-panel xl:w-full">
+        <section className="ui-subtle-surface flex min-w-0 flex-col gap-[clamp(8px,0.8vw,12px)] px-[clamp(14px,1.1vw,18px)] py-[clamp(14px,1vw,18px)] xl:w-full">
+          <div>
+            <div className="ui-section-title">Actions</div>
+            <div className="mt-1 text-[14px] font-semibold text-[#64748b]">
+              학습 실행, 일시정지, 미리보기, 초기화를 여기서 바로 제어할 수 있어요.
+            </div>
+          </div>
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-2">
             {actionButtons.map((action) => (
               <button
@@ -306,8 +328,9 @@ export function TopBar({
                 type="button"
                 onClick={action.onClick}
                 disabled={action.disabled}
+                data-tutorial-target={action.key === 'start' ? 'tutorial-start-button' : undefined}
                 className={[
-                  'group flex items-center gap-3 rounded-[18px] px-3.5 text-left transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 xl:px-4',
+                  'group flex items-center gap-3 rounded-[18px] border px-3.5 text-left transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 xl:px-4',
                   action.compact ? 'py-2.5 xl:py-3' : 'py-3 xl:py-3.5',
                   action.wide ? 'sm:col-span-2 xl:col-span-2' : '',
                   action.className,

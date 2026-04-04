@@ -24,7 +24,12 @@
   }
 
   body {
+    background:
+      radial-gradient(circle at top, rgba(89, 126, 255, 0.16), transparent 28%),
+      radial-gradient(circle at 85% 18%, rgba(12, 118, 105, 0.1), transparent 24%),
+      linear-gradient(180deg, #f4f7fb 0%, #eef3f8 48%, #f8fafc 100%);
     background-attachment: fixed;
+    color: #10213b;
   }
 
   button,
@@ -35,6 +40,34 @@
 }
 
 @layer utilities {
+  .ui-surface {
+    @apply rounded-[24px] border border-white/70 bg-white/80 shadow-[0_20px_50px_rgba(15,23,42,0.08)] backdrop-blur-xl;
+  }
+
+  .ui-subtle-surface {
+    @apply rounded-[20px] border border-[#d9e2ef] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,249,253,0.98))] shadow-[0_12px_28px_rgba(15,23,42,0.05)];
+  }
+
+  .ui-section-title {
+    @apply text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#7c8ca5];
+  }
+
+  .ui-panel-title {
+    @apply font-display text-[20px] font-bold tracking-[-0.03em] text-[#10213b];
+  }
+
+  .animate-mascot-float {
+    animation: mascot-float 2.8s ease-in-out infinite;
+  }
+
+  .animate-floor-pulse {
+    animation: floor-pulse 1.7s ease-in-out infinite;
+  }
+
+  .animate-quest-orb {
+    animation: quest-orb 2s ease-in-out infinite;
+  }
+
   @keyframes guide-flow {
     0%,
     100% {
@@ -576,5 +609,67 @@
 
   .animate-guide-pool-pick {
     animation: guide-pool-pick 4s steps(1, end) infinite;
+  }
+
+  .tutorial-spotlight-ring {
+    animation: tutorial-spotlight-pulse 1.8s ease-in-out infinite;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.15),
+      0 0 0 8px rgba(17, 81, 255, 0.12),
+      0 18px 42px rgba(17, 81, 255, 0.24);
+  }
+}
+
+  @keyframes tutorial-spotlight-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.01);
+    opacity: 0.92;
+  }
+}
+
+@keyframes mascot-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes floor-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(37, 99, 235, 0);
+  }
+
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 0 0 8px rgba(37, 99, 235, 0.08);
+  }
+}
+
+@keyframes quest-orb {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow:
+      0 26px 60px rgba(37, 99, 235, 0.44),
+      0 0 0 0 rgba(96, 165, 250, 0.18);
+  }
+
+  50% {
+    transform: translateY(-4px) scale(1.04);
+    box-shadow:
+      0 30px 70px rgba(37, 99, 235, 0.52),
+      0 0 0 12px rgba(96, 165, 250, 0.08);
   }
 }

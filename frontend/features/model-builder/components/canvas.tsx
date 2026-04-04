@@ -12,6 +12,8 @@ type CanvasProps = {
   nodes: CanvasNode[];
   draggingBlock: BlockType | null;
   zoom: number;
+  tutorialTargetFieldName?: string | null;
+  tutorialTargetActivationName?: string | null;
   onRemoveNode: (id: string) => void;
   onUpdateNodeField: (id: string, fieldLabel: string, value: string) => void;
   onUpdateNodeActivation: (id: string, activation: string) => void;
@@ -200,6 +202,9 @@ function NodeCard({
   node,
   dimensions,
   advice,
+  tutorialTargetFieldLabel,
+  tutorialTargetName,
+  tutorialTargetActivationName,
   onRemove,
   onFieldChange,
   onActivationChange,
@@ -209,6 +214,9 @@ function NodeCard({
   node: CanvasNode;
   dimensions?: NodeDimensionInfo;
   advice?: NodeAdviceInfo;
+  tutorialTargetFieldLabel?: string;
+  tutorialTargetName?: string;
+  tutorialTargetActivationName?: string;
   onRemove: () => void;
   onFieldChange: (fieldLabel: string, value: string) => void;
   onActivationChange: (activation: string) => void;
@@ -497,6 +505,9 @@ function NodeCard({
             <label
               key={field.label}
               className="grid min-w-0 gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
+              data-tutorial-target={
+                tutorialTargetFieldLabel === field.label ? tutorialTargetName : undefined
+              }
             >
               <span className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
                 {field.label}
@@ -528,6 +539,9 @@ function NodeCard({
             <label
               key={field.label}
               className="grid min-w-0 gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
+              data-tutorial-target={
+                tutorialTargetFieldLabel === field.label ? tutorialTargetName : undefined
+              }
             >
               <span className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
                 {field.label}
@@ -547,7 +561,10 @@ function NodeCard({
             </label>
           ))}
 
-          <label className="grid gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
+          <label
+            className="grid gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
+            data-tutorial-target={tutorialTargetActivationName}
+          >
             <span className="shrink-0 text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
               Activation Function
             </span>
@@ -618,6 +635,8 @@ export function Canvas({
   nodes,
   draggingBlock,
   zoom,
+  tutorialTargetFieldName,
+  tutorialTargetActivationName,
   onRemoveNode,
   onUpdateNodeField,
   onUpdateNodeActivation,
@@ -632,9 +651,12 @@ export function Canvas({
   const starterBlocks = libraryBlocks.slice(0, 4);
 
   return (
-    <main className="relative min-h-[clamp(840px,76vh,1240px)] overflow-hidden bg-background">
-      <div className="pointer-events-none canvas-grid absolute inset-0 opacity-35" />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(17,81,255,0.06),transparent_42%),radial-gradient(circle_at_78%_72%,rgba(10,96,127,0.1),transparent_26%)]" />
+    <main
+      className="ui-surface relative min-h-[clamp(840px,76vh,1240px)] overflow-hidden bg-[linear-gradient(180deg,#f9fbff,#f4f8fd)]"
+      data-tutorial-target="tutorial-builder-canvas"
+    >
+      <div className="pointer-events-none canvas-grid absolute inset-0 opacity-[0.2]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(17,81,255,0.08),transparent_42%),radial-gradient(circle_at_78%_72%,rgba(10,96,127,0.08),transparent_26%)]" />
 
       <div
         onDragOver={(event) => {
@@ -686,7 +708,20 @@ export function Canvas({
           draggingBlock || draggingNodeId ? 'bg-primary/[0.03]' : '',
         ].join(' ')}
       >
-        <div className="relative w-full max-w-[clamp(920px,74vw,1480px)] overflow-hidden rounded-[30px] border border-white/50 bg-white/28 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-sm">
+        <div className="relative w-full max-w-[clamp(920px,74vw,1480px)] overflow-hidden rounded-[32px] border border-[#dbe5f1] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(247,250,253,0.96))] shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-sm">
+          <div className="border-b border-[#e2e8f0] px-[clamp(20px,1.6vw,24px)] py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="ui-section-title">Builder Canvas</div>
+                <div className="mt-1 text-[15px] font-semibold text-[#5f7088]">
+                  블록을 쌓으면서 모델 흐름을 시각적으로 확인할 수 있는 작업 공간입니다.
+                </div>
+              </div>
+              <div className="rounded-full bg-[#eef3ff] px-4 py-2 text-[12px] font-bold text-primary">
+                {nodes.length === 0 ? 'Drop blocks to begin' : `${nodes.length} layers in canvas`}
+              </div>
+            </div>
+          </div>
           <div className="px-[clamp(20px,1.6vw,24px)] py-[clamp(24px,2vw,28px)]">
             <div
               ref={stackRef}
@@ -696,7 +731,7 @@ export function Canvas({
               <DataBlockCard dataset={selectedDataset} />
 
               {nodes.length === 0 ? (
-                <div className="-mt-2 w-full rounded-b-[28px] border border-dashed border-primary/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.84),rgba(244,248,255,0.9))] px-[clamp(20px,1.8vw,28px)] py-[clamp(24px,2.2vw,32px)] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
+                <div className="-mt-2 w-full rounded-b-[28px] border border-dashed border-primary/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,248,255,0.92))] px-[clamp(20px,1.8vw,28px)] py-[clamp(24px,2.2vw,32px)] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
                   <div className="grid min-h-[clamp(220px,28vh,360px)] content-center gap-[clamp(20px,2vw,28px)]">
                     <div className="mx-auto max-w-[clamp(560px,58vw,760px)] text-center">
                       <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-primary/70">
@@ -786,6 +821,17 @@ export function Canvas({
                       node={node}
                       dimensions={nodeDimensions[node.id]}
                       advice={nodeAdvice[node.id]}
+                      tutorialTargetFieldLabel={
+                        tutorialTargetFieldName && node.type === 'linear' && index === nodes.length - 1
+                          ? 'Output'
+                          : undefined
+                      }
+                      tutorialTargetName={tutorialTargetFieldName ?? undefined}
+                      tutorialTargetActivationName={
+                        tutorialTargetActivationName && node.type === 'linear' && index === nodes.length - 1
+                          ? tutorialTargetActivationName
+                          : undefined
+                      }
                       onRemove={() => onRemoveNode(node.id)}
                       onFieldChange={(fieldLabel, value) =>
                         onUpdateNodeField(node.id, fieldLabel, value)

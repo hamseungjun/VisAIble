@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AugmentationPanel } from '@/features/model-builder/components/augmentation-panel';
 import { Canvas } from '@/features/model-builder/components/canvas';
 import { CompetitionPanel } from '@/features/model-builder/components/competition-panel';
@@ -8,11 +8,17 @@ import { CompetitionRankModal } from '@/features/model-builder/components/compet
 import { CompetitionSidebar } from '@/features/model-builder/components/competition-sidebar';
 import { Icon } from '@/features/model-builder/components/icons';
 import { Inspector } from '@/features/model-builder/components/inspector';
+import { MnistElevatorMission } from '@/features/model-builder/components/mnist-elevator-mission';
 import { ModelPreviewModal } from '@/features/model-builder/components/model-preview-modal';
 import { Sidebar } from '@/features/model-builder/components/sidebar';
 import { TopBar } from '@/features/model-builder/components/top-bar';
 import { TrainingLiveOverlay } from '@/features/model-builder/components/training-live-overlay';
+import { TutorialCoachOverlay } from '@/features/model-builder/components/tutorial-coach-overlay';
 import { useBuilderBoard } from '@/features/model-builder/hooks/use-builder-board';
+import {
+  tutorialSequence,
+  type TutorialStepKey,
+} from '@/features/model-builder/lib/tutorial-steps';
 import {
   createCompetitionRoom,
   enterCompetitionRoom,
@@ -210,6 +216,11 @@ export function BuilderShell() {
   const [competitionCopyFeedback, setCompetitionCopyFeedback] = useState<string | null>(null);
   const [isCompetitionInfoOpen, setIsCompetitionInfoOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const [isHomeGuideOpen, setIsHomeGuideOpen] = useState(false);
+  const [tutorialGuideOpen, setTutorialGuideOpen] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState<TutorialStepKey>('story-intro');
+  const [tutorialPredictionDone, setTutorialPredictionDone] = useState(false);
+  const [isMnistMissionMinimized, setIsMnistMissionMinimized] = useState(false);
   const pollingRef = useRef<number | null>(null);
   const streamRef = useRef<EventSource | null>(null);
   const liveBatchKeyRef = useRef<string | null>(null);
@@ -236,6 +247,122 @@ export function BuilderShell() {
     activeWorkspace === 'tutorial'
       ? getDatasetTeachingConfig(runtimeDatasetId)
       : { allowedBlocks: ['linear', 'cnn', 'pooling', 'dropout'] as BlockType[] };
+  const linearNodeExists = nodes.some((node) => node.type === 'linear');
+  const lastLinearNode = [...nodes].reverse().find((node) => node.type === 'linear') ?? null;
+  const mnistTutorialOutputValue =
+    lastLinearNode?.fields.find((field) => field.label === 'Output')?.value ?? '';
+  const isMnistTutorialOutputReady =
+    lastLinearNode?.type === 'linear' && mnistTutorialOutputValue === '10';
+  const isMnistTutorialActivationReady =
+    lastLinearNode?.type === 'linear' && lastLinearNode.activation === 'None';
+  const showTutorialMnistMission =
+    activeWorkspace === 'tutorial' &&
+    runtimeDatasetId === 'mnist' &&
+    trainingStatus?.status === 'completed' &&
+    trainingStatus.datasetId === 'mnist' &&
+    !!trainingStatus.jobId;
+  const isMnistTutorialActive = activeWorkspace === 'tutorial' && runtimeDatasetId === 'mnist';
+  const mnistQuestPhase =
+    tutorialStep === 'story-intro'
+      ? 'intro'
+      : tutorialStep === 'play-mission'
+        ? 'mission'
+        : tutorialStep === 'complete'
+          ? 'complete'
+          : null;
+  const shellGridClassName = isMnistTutorialActive
+    ? 'mt-3 grid min-h-0 gap-4 xl:grid-cols-[clamp(280px,18vw,382px)_minmax(0,1fr)]'
+    : 'mt-3 grid min-h-0 gap-4 xl:justify-center xl:grid-cols-[clamp(280px,18vw,382px)_minmax(0,1fr)_clamp(320px,22vw,468px)]';
+
+  const tutorialOverlayCopy = useMemo(
+    () =>
+      ({
+        'story-intro': {
+          title: '버튼 없는 엘리베이터',
+          description:
+            '이번 미션은 버튼이 없는 엘리베이터예요. 승객이 층수를 손글씨로 적으면, 모델이 그 숫자를 읽고 해당 층으로 엘리베이터를 보내야 합니다.',
+          targetName: null,
+          canAdvance: true,
+          advanceLabel: '미션 시작',
+        },
+        'build-model': {
+          title: '먼저 숫자 판별기를 만들자',
+          description:
+            '왼쪽 Block Library에서 Linear 블록을 잡아 끌어주세요. 먼저 드래그를 시작하면, 그다음 어디에 쌓을지 바로 보여줄게요.',
+          targetName: 'tutorial-block-library',
+          canAdvance: false,
+        },
+        'stack-block': {
+          title: '이제 블록을 캔버스에 쌓자',
+          description:
+            '지금 잡은 Linear 블록을 Builder Canvas 안에 내려놓아 데이터 블록 아래에 쌓아주세요. 이 레이어가 숫자 판별기의 시작점이 됩니다.',
+          targetName: 'tutorial-builder-canvas',
+          canAdvance: false,
+        },
+        'edit-dimensions': {
+          title: '이제 출력 차원을 10으로 맞추자',
+          description:
+            '방금 쌓은 Linear 블록의 Output 값을 10으로 바꿔주세요. MNIST는 0부터 9까지 총 10개의 숫자를 구분해야 하므로 마지막 출력 차원도 10이어야 합니다.',
+          targetName: 'tutorial-linear-output-field',
+          canAdvance: false,
+        },
+        'set-activation': {
+          title: 'Activation도 확인해보자',
+          description:
+            '이제 Activation Function을 `None`으로 바꿔주세요. 마지막 출력층은 숫자 10개에 대한 점수를 그대로 내보내야 해서, 이 단계에서는 활성화 함수를 끄고 다음으로 넘어갑니다.',
+          targetName: 'tutorial-linear-activation-field',
+          canAdvance: false,
+        },
+        'train-model': {
+          title: '이제 엘리베이터의 두뇌를 학습시켜보자',
+          description:
+            '좋아요. 블록을 쌓았으니 이제 상단의 Start 버튼으로 엘리베이터 두뇌를 학습시켜주세요. 학습이 끝나면 손글씨 층수 요청을 읽을 수 있습니다.',
+          targetName: 'tutorial-start-button',
+          canAdvance: false,
+        },
+        'play-mission': {
+          title: '손글씨 층수를 읽어 엘리베이터를 보내자',
+          description:
+            '오른쪽 미션 패널이 열렸어요. 목표 층수를 손글씨로 적고 Predict Floor를 눌러, 승객을 정확한 층에 도착시켜보세요.',
+          targetName: 'tutorial-mnist-story',
+          canAdvance: false,
+        },
+        complete: {
+          title: '엘리베이터 미션 완료',
+          description:
+            '성공입니다. 손글씨 층수를 읽어 버튼 없는 엘리베이터를 작동시켰어요. 다음에는 Fashion MNIST나 CIFAR 스토리도 같은 방식으로 확장할 수 있습니다.',
+          targetName: null,
+          canAdvance: true,
+          advanceLabel: '닫기',
+        },
+      }) satisfies Record<
+        TutorialStepKey,
+        {
+          title: string;
+          description: string;
+          targetName: string | null;
+          canAdvance: boolean;
+          advanceLabel?: string;
+        }
+      >,
+    [],
+  );
+  const activeTutorialOverlayStep = tutorialOverlayCopy[tutorialStep];
+
+  const closeHomeGuide = () => {
+    setIsHomeGuideOpen(false);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('visaible-home-guide-seen', 'true');
+    }
+  };
+
+  const exitMnistQuest = () => {
+    setTutorialGuideOpen(false);
+    setTutorialStep('story-intro');
+    setTutorialPredictionDone(false);
+    setIsMnistMissionMinimized(false);
+    setActiveWorkspace('builder');
+  };
 
   const clearTrainingUiState = () => {
     if (pollingRef.current !== null) {
@@ -307,10 +434,106 @@ export function BuilderShell() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const seen = window.localStorage.getItem('visaible-home-guide-seen');
+    if (!seen) {
+      setIsHomeGuideOpen(true);
+    }
+  }, []);
+
+  useEffect(() => {
     if (activeWorkspace === 'tutorial') {
       applyTutorialPreset(runtimeDatasetId);
     }
   }, [activeWorkspace, runtimeDatasetId]);
+
+  useEffect(() => {
+    if (!isMnistTutorialActive) {
+      setTutorialGuideOpen(false);
+      setTutorialStep('story-intro');
+      setTutorialPredictionDone(false);
+      setIsMnistMissionMinimized(false);
+      return;
+    }
+
+    if (selectedDatasetId === 'mnist' && nodes.length === 0 && currentJobId === null) {
+      setTutorialGuideOpen(true);
+      setTutorialStep('story-intro');
+      setTutorialPredictionDone(false);
+      setIsMnistMissionMinimized(false);
+    }
+  }, [isMnistTutorialActive, selectedDatasetId, nodes.length, currentJobId]);
+
+  useEffect(() => {
+    if (!isMnistTutorialActive) {
+      return;
+    }
+
+    if (tutorialStep === 'build-model') {
+      if (linearNodeExists) {
+        setTutorialStep('edit-dimensions');
+        return;
+      }
+
+      if (draggingBlock === 'linear') {
+        setTutorialStep('stack-block');
+      }
+      return;
+    }
+
+    if (tutorialStep === 'stack-block' && linearNodeExists) {
+      setTutorialStep('edit-dimensions');
+      return;
+    }
+
+    if (tutorialStep === 'edit-dimensions' && isMnistTutorialOutputReady) {
+      setTutorialStep('set-activation');
+      return;
+    }
+
+    if (tutorialStep === 'set-activation' && isMnistTutorialActivationReady) {
+      setTutorialStep('train-model');
+      return;
+    }
+
+    if (tutorialStep === 'train-model' && showTutorialMnistMission) {
+      setTutorialStep('play-mission');
+      return;
+    }
+
+    if (tutorialStep === 'play-mission' && tutorialPredictionDone) {
+      setTutorialStep('complete');
+    }
+  }, [
+    isMnistTutorialActive,
+    draggingBlock,
+    isMnistTutorialActivationReady,
+    isMnistTutorialOutputReady,
+    linearNodeExists,
+    showTutorialMnistMission,
+    tutorialPredictionDone,
+    tutorialStep,
+  ]);
+
+  useEffect(() => {
+    if (!isMnistTutorialActive) {
+      return;
+    }
+
+    if (
+      tutorialStep === 'story-intro' ||
+      tutorialStep === 'play-mission' ||
+      tutorialStep === 'complete'
+    ) {
+      setIsMnistMissionMinimized(false);
+      return;
+    }
+
+    setIsMnistMissionMinimized(true);
+  }, [isMnistTutorialActive, tutorialStep]);
 
   useEffect(() => {
     if (!competitionRoom) {
@@ -477,8 +700,8 @@ export function BuilderShell() {
   };
 
   return (
-    <div className="min-h-screen">
-      <div className="mx-auto w-full max-w-[min(2280px,calc(100vw-12px))] 2xl:max-w-[min(2440px,calc(100vw-20px))]">
+    <div className="min-h-screen px-3 py-3 xl:px-4 xl:py-4">
+      <div className="mx-auto w-full max-w-[min(2320px,calc(100vw-8px))]">
         <TopBar
           learningRate={learningRate}
           epochs={epochs}
@@ -771,10 +994,11 @@ export function BuilderShell() {
             setActiveWorkspace('builder');
             setIsCompetitionInfoOpen(false);
             setIsCompetitionRankOpen(false);
+            setTutorialGuideOpen(false);
           }}
         />
 
-        <div className="grid min-h-0 gap-3 px-4 py-2 xl:justify-center xl:grid-cols-[clamp(264px,18vw,372px)_minmax(0,1fr)_clamp(288px,22vw,460px)] xl:px-[clamp(20px,2vw,40px)]">
+        <div className={shellGridClassName}>
           <Sidebar
             selectedDatasetId={selectedDatasetId}
             activeWorkspace={activeWorkspace}
@@ -792,10 +1016,41 @@ export function BuilderShell() {
               resetBoard();
               if (activeWorkspace === 'tutorial') {
                 applyTutorialPreset(datasetId);
+                setTutorialGuideOpen(datasetId === 'mnist');
+                setTutorialStep('story-intro');
+                setTutorialPredictionDone(false);
+                setIsMnistMissionMinimized(false);
               }
               setSelectedDatasetId(datasetId);
             }}
-            onWorkspaceSelect={setActiveWorkspace}
+            onWorkspaceSelect={(workspace) => {
+              if (workspace === activeWorkspace) {
+                return;
+              }
+
+              if (workspace !== 'competition' && currentJobId) {
+                void stopTraining(currentJobId).catch(() => {});
+              }
+
+              clearTrainingUiState();
+              resetBoard();
+
+              if (workspace === 'tutorial') {
+                setSelectedDatasetId('mnist');
+                setTutorialGuideOpen(true);
+                setTutorialStep('story-intro');
+                setTutorialPredictionDone(false);
+                setIsMnistMissionMinimized(false);
+              }
+
+              if (workspace !== 'tutorial') {
+                setTutorialGuideOpen(false);
+                setTutorialPredictionDone(false);
+                setIsMnistMissionMinimized(false);
+              }
+
+              setActiveWorkspace(workspace);
+            }}
             onBlockDragStart={setDraggingBlock}
             onBlockDragEnd={() => setDraggingBlock(null)}
           />
@@ -992,6 +1247,16 @@ export function BuilderShell() {
                   nodes={nodes}
                   draggingBlock={draggingBlock}
                   zoom={1}
+                  tutorialTargetFieldName={
+                    isMnistTutorialActive && tutorialStep === 'edit-dimensions'
+                      ? 'tutorial-linear-output-field'
+                      : null
+                  }
+                  tutorialTargetActivationName={
+                    isMnistTutorialActive && tutorialStep === 'set-activation'
+                      ? 'tutorial-linear-activation-field'
+                      : null
+                  }
                   onRemoveNode={removeNode}
                   onUpdateNodeField={updateNodeField}
                   onUpdateNodeActivation={updateNodeActivation}
@@ -1033,12 +1298,13 @@ export function BuilderShell() {
                   onSelectRun={setSelectedCompetitionRunJobId}
                   onSubmitRun={(jobId) => void handleSubmitCompetitionRun(jobId)}
                 />
-              ) : (
+              ) : isMnistTutorialActive ? null : (
                 <Inspector
                   trainingStatus={trainingStatus ?? (latestTrainingResult as TrainingJobStatus | null)}
                   selectedDataset={selectedDataset}
                   liveHistory={liveHistory}
                   showMnistCanvas={activeWorkspace !== 'competition'}
+                  onDigitPredictionComplete={() => setTutorialPredictionDone(true)}
                 />
               )}
             </>
@@ -1065,6 +1331,97 @@ export function BuilderShell() {
           isHost={competitionRoom.participantRole === 'host'}
           onClose={() => setIsCompetitionRankOpen(false)}
         />
+      ) : null}
+
+      {isHomeGuideOpen ? (
+        <TutorialCoachOverlay
+          open={isHomeGuideOpen}
+          stepKey="home-intro"
+          stepIndex={0}
+          totalSteps={1}
+          title="VisAible에 온 걸 환영해요"
+          description="처음 접속한 사용자를 위해 한 번만 보여드리는 안내예요. 왼쪽 Workspace에서 Tutorial을 고르면 데이터셋별 스토리형 미션을 시작할 수 있습니다."
+          canAdvance
+          advanceLabel="둘러보기"
+          onAdvance={closeHomeGuide}
+          onSkip={closeHomeGuide}
+        />
+      ) : null}
+
+      {isMnistTutorialActive &&
+      tutorialGuideOpen &&
+      (tutorialStep === 'build-model' ||
+        tutorialStep === 'stack-block' ||
+        tutorialStep === 'edit-dimensions' ||
+        tutorialStep === 'set-activation' ||
+        tutorialStep === 'train-model') ? (
+        <TutorialCoachOverlay
+          open={tutorialGuideOpen}
+          stepKey={tutorialStep}
+          stepIndex={tutorialSequence.indexOf(tutorialStep)}
+          totalSteps={tutorialSequence.length}
+          title={activeTutorialOverlayStep.title}
+          description={activeTutorialOverlayStep.description}
+          targetName={activeTutorialOverlayStep.targetName}
+          canAdvance={activeTutorialOverlayStep.canAdvance}
+          advanceLabel={'advanceLabel' in activeTutorialOverlayStep ? activeTutorialOverlayStep.advanceLabel : undefined}
+          onAdvance={() => {}}
+          onSkip={() => setTutorialGuideOpen(false)}
+        />
+      ) : null}
+
+      {isMnistTutorialActive &&
+      mnistQuestPhase &&
+      !(mnistQuestPhase !== 'intro' && isMnistMissionMinimized) ? (
+        <MnistElevatorMission
+          phase={mnistQuestPhase}
+          trainingStatus={trainingStatus ?? (latestTrainingResult as TrainingJobStatus | null)}
+          isMissionComplete={tutorialPredictionDone}
+          onMissionComplete={() => setTutorialPredictionDone(true)}
+          onMinimize={() => setIsMnistMissionMinimized(true)}
+          onExitQuest={exitMnistQuest}
+          onStartQuest={() => {
+            setTutorialGuideOpen(true);
+            setTutorialStep('build-model');
+            setIsMnistMissionMinimized(false);
+          }}
+        />
+      ) : null}
+
+      {isMnistTutorialActive &&
+      (((tutorialStep === 'build-model' ||
+        tutorialStep === 'stack-block' ||
+        tutorialStep === 'edit-dimensions' ||
+        tutorialStep === 'set-activation' ||
+        tutorialStep === 'train-model') &&
+        !tutorialGuideOpen) ||
+        (mnistQuestPhase && mnistQuestPhase !== 'intro' && isMnistMissionMinimized)) ? (
+        <button
+          type="button"
+          onClick={() => {
+            if (
+              tutorialStep === 'build-model' ||
+              tutorialStep === 'stack-block' ||
+              tutorialStep === 'edit-dimensions' ||
+              tutorialStep === 'set-activation' ||
+              tutorialStep === 'train-model'
+            ) {
+              setTutorialGuideOpen(true);
+              return;
+            }
+
+            setIsMnistMissionMinimized(false);
+          }}
+          className="animate-quest-orb fixed bottom-5 right-5 z-[85] grid h-[74px] w-[74px] place-items-center rounded-full border-4 border-white/24 bg-[radial-gradient(circle_at_35%_30%,#60a5fa,#2563eb_58%,#172554_100%)] text-[32px] font-black text-white shadow-[0_26px_60px_rgba(37,99,235,0.44)] transition hover:scale-105 hover:brightness-105"
+          aria-label="미션 창 다시 열기"
+        >
+          <span className="relative">
+            !
+            <span className="absolute -right-4 -top-3 rounded-full bg-[#ef4444] px-1.5 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-white shadow-[0_8px_16px_rgba(239,68,68,0.3)]">
+              quest
+            </span>
+          </span>
+        </button>
       ) : null}
     </div>
   );

@@ -6,6 +6,7 @@ import {
   predictDigit,
   predictSample,
 } from '@/lib/api/model-builder';
+import { extractMnistPixels } from '@/lib/mnist-canvas';
 import { DecisionBoundaryCanvas } from './decision-boundary-canvas';
 import { datasets } from '@/lib/constants/builder-data';
 import type { DatasetItem, TrainingJobStatus } from '@/types/builder';
@@ -21,6 +22,7 @@ type InspectorProps = {
   };
   showDecisionBoundary?: boolean;
   showMnistCanvas?: boolean;
+  onDigitPredictionComplete?: () => void;
 };
 
 const GRAPH_WIDTH = 320;
@@ -82,125 +84,6 @@ function buildSinglePointY(values: number[], height: number, domain: [number, nu
     GRAPH_PADDING_Y -
     ((values[0] - min) / range) * (height - GRAPH_PADDING_Y * 2)
   );
-}
-
-function extractMnistPixels(canvas: HTMLCanvasElement) {
-  const sourceContext = canvas.getContext('2d');
-  if (!sourceContext) {
-    return [];
-  }
-
-  const sourceWidth = canvas.width;
-  const sourceHeight = canvas.height;
-  const sourceImage = sourceContext.getImageData(0, 0, sourceWidth, sourceHeight);
-  const threshold = 16;
-
-  let minX = sourceWidth;
-  let minY = sourceHeight;
-  let maxX = -1;
-  let maxY = -1;
-
-  for (let y = 0; y < sourceHeight; y += 1) {
-    for (let x = 0; x < sourceWidth; x += 1) {
-      const offset = (y * sourceWidth + x) * 4;
-      const intensity = sourceImage.data[offset];
-      if (intensity <= threshold) {
-        continue;
-      }
-
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      maxX = Math.max(maxX, x);
-      maxY = Math.max(maxY, y);
-    }
-  }
-
-  if (maxX < minX || maxY < minY) {
-    return [];
-  }
-
-  const cropWidth = maxX - minX + 1;
-  const cropHeight = maxY - minY + 1;
-  const workingCanvas = document.createElement('canvas');
-  workingCanvas.width = 28;
-  workingCanvas.height = 28;
-  const workingContext = workingCanvas.getContext('2d');
-  if (!workingContext) {
-    return [];
-  }
-
-  workingContext.fillStyle = '#000000';
-  workingContext.fillRect(0, 0, 28, 28);
-  workingContext.imageSmoothingEnabled = true;
-
-  const normalizedDigitSize = 20;
-  const scale = Math.min(normalizedDigitSize / cropWidth, normalizedDigitSize / cropHeight);
-  const scaledWidth = Math.max(1, Math.round(cropWidth * scale));
-  const scaledHeight = Math.max(1, Math.round(cropHeight * scale));
-  const offsetX = Math.floor((28 - scaledWidth) / 2);
-  const offsetY = Math.floor((28 - scaledHeight) / 2);
-
-  const croppedCanvas = document.createElement('canvas');
-  croppedCanvas.width = cropWidth;
-  croppedCanvas.height = cropHeight;
-  const croppedContext = croppedCanvas.getContext('2d');
-  if (!croppedContext) {
-    return [];
-  }
-
-  croppedContext.putImageData(sourceImage, -minX, -minY);
-  workingContext.drawImage(
-    croppedCanvas,
-    0,
-    0,
-    cropWidth,
-    cropHeight,
-    offsetX,
-    offsetY,
-    scaledWidth,
-    scaledHeight,
-  );
-
-  const centeredImage = workingContext.getImageData(0, 0, 28, 28);
-  let totalMass = 0;
-  let massX = 0;
-  let massY = 0;
-
-  for (let y = 0; y < 28; y += 1) {
-    for (let x = 0; x < 28; x += 1) {
-      const offset = (y * 28 + x) * 4;
-      const intensity = centeredImage.data[offset] / 255;
-      totalMass += intensity;
-      massX += x * intensity;
-      massY += y * intensity;
-    }
-  }
-
-  if (totalMass > 0) {
-    const centroidX = massX / totalMass;
-    const centroidY = massY / totalMass;
-    const shiftX = Math.round(13.5 - centroidX);
-    const shiftY = Math.round(13.5 - centroidY);
-
-    if (shiftX !== 0 || shiftY !== 0) {
-      const recenteredCanvas = document.createElement('canvas');
-      recenteredCanvas.width = 28;
-      recenteredCanvas.height = 28;
-      const recenteredContext = recenteredCanvas.getContext('2d');
-      if (!recenteredContext) {
-        return [];
-      }
-
-      recenteredContext.fillStyle = '#000000';
-      recenteredContext.fillRect(0, 0, 28, 28);
-      recenteredContext.putImageData(centeredImage, shiftX, shiftY);
-      const recenteredImage = recenteredContext.getImageData(0, 0, 28, 28).data;
-
-      return Array.from({ length: 28 * 28 }, (_, index) => recenteredImage[index * 4] / 255);
-    }
-  }
-
-  return Array.from({ length: 28 * 28 }, (_, index) => centeredImage.data[index * 4] / 255);
 }
 
 function getDatasetFromStatus(trainingStatus: TrainingJobStatus | null) {
@@ -266,6 +149,7 @@ export function Inspector({
   liveHistory = { loss: [], accuracy: [], validationLoss: [], validationAccuracy: [] },
   showDecisionBoundary = true,
   showMnistCanvas: allowMnistCanvas = true,
+  onDigitPredictionComplete,
 }: InspectorProps) {
   const safeLiveHistory = {
     loss: liveHistory.loss ?? [],
@@ -598,6 +482,7 @@ export function Inspector({
         confidence: result.confidence,
         probabilities: result.probabilities,
       });
+      onDigitPredictionComplete?.();
     } catch (error) {
       console.error('Digit prediction failed', error);
       setPredictError(error instanceof Error ? error.message : 'Prediction failed');
@@ -655,9 +540,9 @@ export function Inspector({
   };
 
   return (
-    <aside className="grid content-start gap-4 bg-[linear-gradient(180deg,#fbfcff_0%,#f7f9ff_100%)] p-4">
+    <aside className="ui-surface grid content-start gap-4 bg-[linear-gradient(180deg,#fbfcff_0%,#f7f9ff_100%)] p-4">
       <section className="grid gap-4 px-1 pt-1">
-        <div className="rounded-[18px] bg-white/70 px-3 py-3 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
+        <div className="rounded-[20px] border border-[#d9e2ef] bg-[linear-gradient(180deg,#ffffff,#f8fbff)] px-4 py-4 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
           <div className="mb-2 flex items-center justify-between text-[12px] font-bold uppercase tracking-[0.12em] text-muted">
             <span>Progress</span>
             <div className="flex items-center gap-2">
@@ -685,7 +570,7 @@ export function Inspector({
       </section>
 
       {showMnistCanvas ? (
-        <section className="rounded-[22px] bg-panel/80 p-3.5">
+        <section className="rounded-[22px] border border-[#d9e2ef] bg-[linear-gradient(180deg,#ffffff,#f7faff)] p-4 shadow-[0_14px_34px_rgba(15,23,42,0.05)]" data-tutorial-target="tutorial-mnist-canvas">
           <div className="mb-3 flex items-center justify-between">
             <strong className="font-display text-lg font-bold text-ink">MNIST Canvas</strong>
             <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">
@@ -698,7 +583,7 @@ export function Inspector({
               ref={drawingCanvasRef}
               width={280}
               height={280}
-              className="h-[220px] w-full touch-none rounded-[14px] bg-black"
+              className="h-[220px] w-full touch-none rounded-[16px] border border-[#cbd5e1] bg-black shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
               onPointerDown={startDrawing}
               onPointerMove={drawDigit}
               onPointerUp={stopDrawing}
@@ -709,7 +594,7 @@ export function Inspector({
               <button
                 type="button"
                 onClick={clearDrawing}
-                className="rounded-full border border-[#c7d6ef] px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.12em] text-muted"
+                className="rounded-full border border-[#c7d6ef] bg-white px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.12em] text-muted shadow-sm"
               >
                 Clear
               </button>
@@ -719,14 +604,14 @@ export function Inspector({
                   void runDigitPrediction();
                 }}
                 disabled={isPredicting}
-                className="rounded-full bg-primary px-4 py-1.5 text-xs font-extrabold uppercase tracking-[0.12em] text-white disabled:cursor-not-allowed disabled:opacity-70"
+                className="rounded-full bg-[linear-gradient(135deg,#1151ff,#3d73ff)] px-4 py-1.5 text-xs font-extrabold uppercase tracking-[0.12em] text-white shadow-[0_10px_22px_rgba(17,81,255,0.2)] disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {isPredicting ? 'Predicting...' : 'Predict'}
               </button>
             </div>
 
             {digitPrediction ? (
-              <div className="grid gap-3 rounded-[16px] bg-[linear-gradient(135deg,#ffffff,#eef4ff)] px-3.5 py-3 shadow-[0_12px_28px_rgba(17,81,255,0.08)]">
+              <div className="grid gap-3 rounded-[18px] border border-[#dce6f6] bg-[linear-gradient(135deg,#ffffff,#eef4ff)] px-4 py-4 shadow-[0_12px_28px_rgba(17,81,255,0.08)]">
                 <div className="flex items-end justify-between gap-3">
                   <div>
                     <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
@@ -774,7 +659,7 @@ export function Inspector({
       ) : null}
 
       {showGradCam && currentDataset ? (
-        <section className="rounded-[22px] bg-panel/80 p-3.5">
+        <section className="rounded-[22px] border border-[#d9e2ef] bg-[linear-gradient(180deg,#ffffff,#f8fbff)] p-4 shadow-[0_14px_34px_rgba(15,23,42,0.05)]">
           <div className="mb-4 flex items-center justify-between gap-3">
             <strong className="font-display text-lg font-bold text-ink">
               {currentDataset.label} Grad-CAM
@@ -902,7 +787,7 @@ export function Inspector({
           </div>
         </section>
       ) : showSamplePredictor && currentDataset && selectedSample ? (
-        <section className="rounded-[20px] bg-panel/80 p-3">
+        <section className="rounded-[22px] border border-[#d9e2ef] bg-[linear-gradient(180deg,#ffffff,#f8fbff)] p-4 shadow-[0_14px_34px_rgba(15,23,42,0.05)]">
           <div className="mb-2.5 flex items-center justify-between gap-3">
             <strong className="font-display text-[1rem] font-bold text-ink">
               {currentDataset.label} Sample Predictor

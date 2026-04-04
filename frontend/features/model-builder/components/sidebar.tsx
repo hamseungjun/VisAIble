@@ -102,9 +102,9 @@ export function Sidebar({
       : libraryBlocks;
 
   return (
-    <aside className="flex h-full flex-col gap-5 bg-surface p-4">
+    <aside className="ui-surface flex h-full flex-col gap-5 p-4">
       <section className="grid gap-2.5">
-        <h2 className="ui-label text-[12px] tracking-[0.2em]">
+        <h2 className="ui-section-title">
           Workspace
         </h2>
         <div className="grid gap-2.5">
@@ -112,10 +112,10 @@ export function Sidebar({
             type="button"
             onClick={() => onWorkspaceSelect('tutorial')}
             className={[
-              'flex items-center gap-3 rounded-[20px] px-3.5 py-4 text-left transition-all',
+              'flex items-center gap-3 rounded-[20px] border px-3.5 py-4 text-left transition-all',
               activeWorkspace === 'tutorial'
-                ? 'bg-[linear-gradient(135deg,#2456c9,#4f7cff)] text-white shadow-[0_14px_28px_rgba(36,86,201,0.22)]'
-                : 'bg-white text-[#41526d] shadow-[0_12px_28px_rgba(13,27,51,0.05)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)] hover:-translate-y-0.5 hover:bg-[#f8fbff]',
+                ? 'border-[#2456c9] bg-[linear-gradient(135deg,#2456c9,#4f7cff)] text-white shadow-[0_14px_28px_rgba(36,86,201,0.22)]'
+                : 'border-[#d9e2ef] bg-[linear-gradient(180deg,#ffffff,#f8fbff)] text-[#41526d] shadow-[0_12px_28px_rgba(13,27,51,0.05)] hover:-translate-y-0.5 hover:bg-[#f8fbff]',
             ].join(' ')}
           >
             <span
@@ -136,7 +136,7 @@ export function Sidebar({
                   activeWorkspace === 'tutorial' ? 'text-white/78' : 'text-[#70819a]',
                 ].join(' ')}
               >
-                모델을 쌓고 학습 결과를 바로 확인
+                처음 사용해보는 학생을 위한 튜토리얼
               </span>
             </span>
           </button>
@@ -145,10 +145,10 @@ export function Sidebar({
             type="button"
             onClick={() => onWorkspaceSelect('builder')}
             className={[
-              'flex items-center gap-3 rounded-[20px] px-3.5 py-4 text-left transition-all',
+              'flex items-center gap-3 rounded-[20px] border px-3.5 py-4 text-left transition-all',
               activeWorkspace === 'builder'
-                ? 'bg-[linear-gradient(135deg,#0b7d6f,#1aa794)] text-white shadow-[0_14px_28px_rgba(11,125,111,0.2)]'
-                : 'bg-white text-[#41526d] shadow-[0_12px_28px_rgba(13,27,51,0.05)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)] hover:-translate-y-0.5 hover:bg-[#f8fbff]',
+                ? 'border-[#0b7d6f] bg-[linear-gradient(135deg,#0b7d6f,#1aa794)] text-white shadow-[0_14px_28px_rgba(11,125,111,0.2)]'
+                : 'border-[#d9e2ef] bg-[linear-gradient(180deg,#ffffff,#f8fbff)] text-[#41526d] shadow-[0_12px_28px_rgba(13,27,51,0.05)] hover:-translate-y-0.5 hover:bg-[#f8fbff]',
             ].join(' ')}
           >
             <span
@@ -178,10 +178,10 @@ export function Sidebar({
             type="button"
             onClick={() => onWorkspaceSelect('competition')}
             className={[
-              'flex items-center gap-3 rounded-[20px] px-3.5 py-4 text-left transition-all',
+              'flex items-center gap-3 rounded-[20px] border px-3.5 py-4 text-left transition-all',
               activeWorkspace === 'competition'
-                ? 'bg-[linear-gradient(135deg,#1151ff,#2f6cff)] text-white shadow-[0_14px_28px_rgba(17,81,255,0.22)]'
-                : 'bg-white text-[#41526d] shadow-[0_12px_28px_rgba(13,27,51,0.05)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)] hover:-translate-y-0.5 hover:bg-[#f8fbff]',
+                ? 'border-[#1151ff] bg-[linear-gradient(135deg,#1151ff,#2f6cff)] text-white shadow-[0_14px_28px_rgba(17,81,255,0.22)]'
+                : 'border-[#d9e2ef] bg-[linear-gradient(180deg,#ffffff,#f8fbff)] text-[#41526d] shadow-[0_12px_28px_rgba(13,27,51,0.05)] hover:-translate-y-0.5 hover:bg-[#f8fbff]',
             ].join(' ')}
           >
             <span
@@ -211,7 +211,7 @@ export function Sidebar({
 
       {activeWorkspace === 'builder' ? (
         <section className="grid gap-2.5">
-            <h2 className="ui-label text-[12px] tracking-[0.2em]">
+            <h2 className="ui-section-title">
               Dataset Selection
             </h2>
             <div className="relative grid gap-2">
@@ -223,10 +223,10 @@ export function Sidebar({
                   onMouseEnter={() => setHoveredDatasetId(dataset.id)}
                   onMouseLeave={() => setHoveredDatasetId((current) => (current === dataset.id ? null : current))}
                   className={[
-                    'flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-[14px] font-semibold transition-colors',
+                    'flex items-center gap-3 rounded-[18px] border px-3.5 py-3 text-left text-[14px] font-semibold transition-colors',
                     dataset.id === selectedDatasetId
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-[#4b5b77] hover:bg-white/60',
+                      ? 'border-primary/25 bg-primary/10 text-primary shadow-[0_8px_20px_rgba(17,81,255,0.08)]'
+                      : 'border-transparent text-[#4b5b77] hover:border-[#d9e2ef] hover:bg-white/80',
                   ].join(' ')}
                 >
                   <Icon name={dataset.icon} />
@@ -249,7 +249,7 @@ export function Sidebar({
 
       {activeWorkspace === 'tutorial' ? (
         <section className="grid gap-2.5">
-          <h2 className="ui-label text-[12px] tracking-[0.2em]">
+          <h2 className="ui-section-title">
             Class Selection
           </h2>
           <div className="relative grid gap-2">
@@ -265,10 +265,10 @@ export function Sidebar({
                     setOpenedTutorialDatasetId(dataset.id);
                   }}
                   className={[
-                    'flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-[14px] font-semibold transition-colors',
+                    'flex items-center gap-3 rounded-[18px] border px-3.5 py-3 text-left text-[14px] font-semibold transition-colors',
                     dataset.id === selectedDatasetId
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-[#4b5b77] hover:bg-white/60',
+                      ? 'border-primary/25 bg-primary/10 text-primary shadow-[0_8px_20px_rgba(17,81,255,0.08)]'
+                      : 'border-transparent text-[#4b5b77] hover:border-[#d9e2ef] hover:bg-white/80',
                   ].join(' ')}
                 >
                   <span
@@ -298,7 +298,7 @@ export function Sidebar({
 
       {activeWorkspace === 'competition' && hasCompetitionRoom && selectedDataset ? (
         <section className="relative grid gap-2.5">
-          <h2 className="ui-label text-[12px] tracking-[0.2em]">
+          <h2 className="ui-section-title">
             Classroom
           </h2>
           <div className="rounded-[22px] bg-white px-4 py-4 shadow-[0_12px_28px_rgba(13,27,51,0.06)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
@@ -334,14 +334,15 @@ export function Sidebar({
       ) : null}
 
       <section className="sticky top-4 grid content-start gap-2.5 self-start">
-          <h2 className="ui-label text-[12px] tracking-[0.2em]">
+          <h2 className="ui-section-title">
             Block Library
           </h2>
-          <div className="grid gap-2.5">
+          <div className="grid gap-2.5" data-tutorial-target="tutorial-block-library">
             {visibleBlocks.map((block) => (
               <div
                 key={block.id}
-                className="ghost-border relative rounded-[20px] bg-white/85 shadow-[0_12px_28px_rgba(13,27,51,0.05)]"
+                className="relative rounded-[20px] border border-[#d9e2ef] bg-[linear-gradient(180deg,#ffffff,#f8fbff)] shadow-[0_12px_28px_rgba(13,27,51,0.05)]"
+                data-tutorial-target={block.id === 'linear' ? 'tutorial-linear-block' : undefined}
               >
                 <button
                   type="button"
@@ -353,7 +354,7 @@ export function Sidebar({
                     onBlockDragStart(block.id);
                   }}
                   onDragEnd={onBlockDragEnd}
-                  className="flex w-full cursor-grab items-start gap-3 rounded-[20px] px-3.5 py-4 pr-12 text-left transition-transform hover:-translate-y-0.5 active:cursor-grabbing"
+                  className="flex w-full cursor-grab items-start gap-3 rounded-[20px] px-3.5 py-4 pr-12 text-left transition-transform hover:-translate-y-0.5 hover:bg-white/80 active:cursor-grabbing"
                 >
                   <div
                     className={[
