@@ -107,6 +107,20 @@ function randomFloor() {
   return missionFloors[Math.floor(Math.random() * missionFloors.length)] ?? 5;
 }
 
+function isMissionFloor(value: number): boolean {
+  return missionFloors.includes(value);
+}
+
+function resolveMissionFloor(predictedLabel: number, classLabels: string[]): number | null {
+  const classLabel = classLabels[predictedLabel]?.trim() ?? '';
+  const parsedLabel = Number.parseInt(classLabel, 10);
+  if (Number.isFinite(parsedLabel) && isMissionFloor(parsedLabel)) {
+    return parsedLabel;
+  }
+
+  return isMissionFloor(predictedLabel) ? predictedLabel : null;
+}
+
 function randomIndex(length: number) {
   if (length <= 0) {
     return 0;
@@ -248,16 +262,14 @@ function DialogueBox({
   onSecondary?: () => void;
 }) {
   return (
-    <div className="relative z-20 max-w-full pl-5 pt-5">
+    <div className="relative z-20 max-w-full px-2 pt-6">
       <div
-        className="absolute left-6 top-0 z-20 -translate-y-1/2 bg-white px-4 py-1.5 text-[15px] font-black uppercase tracking-[0.04em] text-black shadow-[0_10px_18px_rgba(0,0,0,0.25)]"
-        style={{ clipPath: 'polygon(0 0,100% 0,92% 100%,0 100%)' }}
+        className="absolute left-8 top-0 z-20 inline-flex min-h-[38px] items-center rounded-full bg-[#f8fafc] px-5 py-1.5 text-[15px] font-black uppercase tracking-[0.04em] text-black shadow-[0_8px_16px_rgba(0,0,0,0.16)] ring-1 ring-[rgba(255,255,255,0.82)]"
       >
         {name}
       </div>
       <div
-        className="relative border-[4px] border-white/92 bg-[linear-gradient(180deg,rgba(5,10,20,0.99),rgba(10,18,32,0.96))] px-6 pb-6 pt-9 text-white shadow-[0_24px_50px_rgba(0,0,0,0.42)] backdrop-blur-md"
-        style={{ clipPath: 'polygon(3.5% 0,100% 0,100% 86%,96.5% 100%,0 100%,0 12%)' }}
+        className="relative overflow-hidden rounded-[30px] border-[4px] border-white/92 bg-[linear-gradient(180deg,rgba(5,10,20,0.99),rgba(10,18,32,0.96))] px-8 pb-6 pt-11 text-white shadow-[0_24px_50px_rgba(0,0,0,0.42)] backdrop-blur-md"
       >
         <div className="text-[12px] font-extrabold uppercase tracking-[0.22em] text-[#a9c4ff]">
           {role}
@@ -286,10 +298,6 @@ function DialogueBox({
           ) : null}
         </div>
       </div>
-      <div
-        className="absolute bottom-5 left-2 h-6 w-6 border-b-[4px] border-l-[4px] border-white/92 bg-[#09111f]"
-        style={{ clipPath: 'polygon(0 0,100% 50%,0 100%)' }}
-      />
     </div>
   );
 }
@@ -334,6 +342,7 @@ export function MnistElevatorMission({
   const [elevatorCarTop, setElevatorCarTop] = useState(16);
   const [targetFloor, setTargetFloor] = useState(5);
   const [currentFloor, setCurrentFloor] = useState(1);
+  const [invalidPredictionFloor, setInvalidPredictionFloor] = useState<number | null>(null);
   const [sceneIndex, setSceneIndex] = useState(0);
 
   const isLaundryVariant = variant === 'laundry';
@@ -543,8 +552,9 @@ export function MnistElevatorMission({
       setTargetFloor(randomFloor());
     }
     setCurrentFloor(1);
+    setInvalidPredictionFloor(null);
     setPrediction(null);
-      setPredictError(null);
+    setPredictError(null);
   }, [
     phase,
     challengeLaundryAssets,
@@ -615,10 +625,19 @@ export function MnistElevatorMission({
     return `좋아, 지금 승객이 ${targetFloor}층을 요청했어. 캔버스에 ${targetFloor}를 손글씨로 적고 Predict Floor를 눌러. 이번엔 절대 틀리면 안 돼!`;
   }, [isLaundryVariant, isMissionComplete, isMissionReady, laundryAttemptFinished, laundryCorrectCount, laundryRoundIndex, phase, targetFloor, targetSample?.label]);
   const clampedCurrentFloor = Math.max(1, Math.min(currentFloor, 9));
+  const displayedCurrentFloor = invalidPredictionFloor === null ? clampedCurrentFloor : null;
   const elevatorCarHeight = 40;
   const elevatorVisualOffset = 4;
   const activeError = isLaundryVariant ? samplePredictError : predictError;
   const activePrediction = isLaundryVariant ? samplePrediction : prediction;
+  const resolvedActiveMissionFloor =
+    !isLaundryVariant && activePrediction
+      ? resolveMissionFloor(activePrediction.predictedLabel, classLabels)
+      : null;
+  const laundryBackgroundImage =
+    phase === 'complete' || isMissionComplete
+      ? '/images/tutorial/laundry-normal.png'
+      : '/images/tutorial/laundry-error.png';
   const scenarioEpisodeLabel = isLaundryVariant ? 'Episode 02' : 'Episode 01';
   const consoleEyebrow = isLaundryVariant ? 'Laundry Sorting Console' : 'Elevator Control Console';
   const introBadgeLabel = isLaundryVariant ? 'Laundry Alert' : scenarioEpisodeLabel;
@@ -653,7 +672,9 @@ export function MnistElevatorMission({
     ? (activePrediction
         ? classLabels[activePrediction.predictedLabel] ?? `Class ${activePrediction.predictedLabel}`
         : 'Sorter Idle')
-    : `Current ${clampedCurrentFloor}F`;
+    : invalidPredictionFloor !== null
+      ? `Read ${invalidPredictionFloor}F · Hold`
+      : `Current ${clampedCurrentFloor}F`;
   const latestLaundryMismatch = useMemo(() => {
     if (!isLaundryVariant) {
       return null;
@@ -674,8 +695,12 @@ export function MnistElevatorMission({
   useEffect(() => {
     const syncElevatorCarPosition = () => {
       const shaftNode = elevatorShaftRef.current;
-      const floorNode = floorLabelRefs.current[clampedCurrentFloor];
-      if (!shaftNode || !floorNode) {
+      if (!shaftNode || displayedCurrentFloor === null) {
+        return;
+      }
+
+      const floorNode = floorLabelRefs.current[displayedCurrentFloor];
+      if (!floorNode) {
         return;
       }
 
@@ -714,7 +739,7 @@ export function MnistElevatorMission({
       window.removeEventListener('resize', handleResize);
       observer?.disconnect();
     };
-  }, [clampedCurrentFloor, isCompactResultLayout]);
+  }, [displayedCurrentFloor, isCompactResultLayout]);
 
   const startDrawing = (event: PointerEvent<HTMLCanvasElement>) => {
     const canvas = drawingCanvasRef.current;
@@ -871,19 +896,28 @@ export function MnistElevatorMission({
 
     setIsPredicting(true);
     setPredictError(null);
+    setInvalidPredictionFloor(null);
     try {
       const result = await predictDigit(trainingStatus.jobId, pixels);
+      const resolvedFloor = resolveMissionFloor(result.predictedLabel, classLabels);
       setPrediction({
         predictedLabel: result.predictedLabel,
         confidence: result.confidence,
       });
-      setCurrentFloor(Math.max(1, result.predictedLabel));
+      setInvalidPredictionFloor(resolvedFloor === null ? result.predictedLabel : null);
+      if (resolvedFloor !== null) {
+        setCurrentFloor(resolvedFloor);
+      }
 
-      if (result.predictedLabel === targetFloor) {
+      if (resolvedFloor === targetFloor) {
         onMissionComplete();
+      } else if (resolvedFloor === null) {
+        setPredictError(
+          `엘리베이터가 ${result.predictedLabel}로 읽었지만 이 건물은 1층부터 9층까지만 이동할 수 있어. 숫자를 더 또렷하게 써서 다시 예측해보자.`,
+        );
       } else {
         setPredictError(
-          `엘리베이터가 ${result.predictedLabel}층으로 오인식했어. 목표는 ${targetFloor}층이야. 조금 더 또렷하고 크게 써보자.`,
+          `엘리베이터가 ${resolvedFloor}층으로 오인식했어. 목표는 ${targetFloor}층이야. 조금 더 또렷하고 크게 써보자.`,
         );
       }
     } catch (error) {
@@ -926,15 +960,13 @@ export function MnistElevatorMission({
                 >
                   {isLaundryVariant ? (
                     <>
-                      <div className="absolute inset-x-[6%] top-[17%] h-[70px] rounded-[30px] border border-[#7dd3fc]/16 bg-[linear-gradient(90deg,rgba(125,211,252,0.1),rgba(255,255,255,0.03),rgba(125,211,252,0.1))]" />
-                      <div className="absolute inset-x-[10%] top-[35%] h-[2px] bg-white/50" />
-                      <div className="absolute inset-x-[10%] top-[52%] h-[2px] bg-white/46" />
-                      <div className="absolute inset-x-[10%] top-[69%] h-[2px] bg-white/32" />
-                      <div className="absolute left-[12%] top-[22%] h-[132px] w-[132px] rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(245,158,11,0.14),rgba(30,41,59,0.02))]" />
-                      <div className="absolute right-[12%] top-[23%] h-[74px] w-[148px] rounded-[24px] border border-[#86efac]/12 bg-[linear-gradient(90deg,rgba(134,239,172,0.14),rgba(255,255,255,0.03))]" />
-                      <div className="absolute right-[10%] top-[46%] h-[58px] w-[188px] rounded-[22px] border border-white/10 bg-[linear-gradient(90deg,rgba(255,255,255,0.02),rgba(148,163,184,0.08),rgba(255,255,255,0.02))]" />
-                      <div className="absolute left-[17%] top-[18%] h-[92px] w-[92px] rounded-full border-[8px] border-[#dbeafe]/18 bg-[radial-gradient(circle,#eff6ff_0,#bfdbfe_34%,rgba(59,130,246,0.18)_35%,rgba(15,23,42,0.14)_68%,transparent_69%)] shadow-[0_18px_36px_rgba(14,165,233,0.12)]" />
-                      <div className="absolute right-[18%] top-[18%] h-[80px] w-[80px] rounded-full border-[7px] border-[#bbf7d0]/16 bg-[radial-gradient(circle,#f0fdf4_0,#bbf7d0_34%,rgba(34,197,94,0.16)_35%,rgba(15,23,42,0.14)_68%,transparent_69%)] shadow-[0_16px_30px_rgba(34,197,94,0.12)]" />
+                      <img
+                        src={laundryBackgroundImage}
+                        alt=""
+                        aria-hidden="true"
+                        className="absolute inset-0 h-full w-full object-cover opacity-[0.88]"
+                      />
+                      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,17,28,0.28),rgba(7,17,28,0.52))]" />
                     </>
                   ) : (
                     <>
@@ -943,14 +975,6 @@ export function MnistElevatorMission({
                       <div className="absolute inset-y-0 right-[8%] w-[2px] bg-[#334155]" />
                     </>
                   )}
-                  <div className="absolute left-1/2 top-[18%] h-[84px] w-[124px] -translate-x-1/2 rounded-[18px] border border-[#93c5fd]/30 bg-[linear-gradient(180deg,rgba(59,130,246,0.18),rgba(15,23,42,0.18))] shadow-[0_18px_32px_rgba(37,99,235,0.16)]">
-                    <div className="mx-auto mt-3 w-fit rounded-full bg-[#ef4444] px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.16em] text-white">
-                      Alert
-                    </div>
-                    <div className="mt-3 text-center font-display text-[24px] font-bold text-[#dbeafe]">
-                      {isLaundryVariant ? 'Sorter Core' : 'Lift Core'}
-                    </div>
-                  </div>
                 </div>
                 <div className="absolute inset-x-0 top-0 h-[20%] bg-[linear-gradient(180deg,rgba(0,0,0,0.26),transparent)]" />
                 <div className="absolute inset-x-0 bottom-0 h-[28%] bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.54))]" />
@@ -962,7 +986,7 @@ export function MnistElevatorMission({
                 />
 
                 <div className="absolute left-[6%] top-[8%] z-20 inline-flex items-center gap-3 rounded-full border border-white/14 bg-[rgba(8,13,24,0.84)] px-4 py-2.5 shadow-[0_18px_36px_rgba(0,0,0,0.22)] backdrop-blur-md">
-                    <span className="text-[11px] font-black uppercase tracking-[0.18em] text-white">
+                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-white">
                     {introBadgeLabel}
                   </span>
                   <span className="rounded-full border border-[#fef3c7]/60 bg-[#fff7dd] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#7c5b00]">
@@ -1042,6 +1066,17 @@ export function MnistElevatorMission({
                     : 'bg-[radial-gradient(circle_at_18%_20%,rgba(59,130,246,0.12),transparent_22%),radial-gradient(circle_at_84%_18%,rgba(249,115,22,0.12),transparent_18%)]',
                 ].join(' ')}
               />
+              {isLaundryVariant ? (
+                <>
+                  <img
+                    src={laundryBackgroundImage}
+                    alt=""
+                    aria-hidden="true"
+                    className="absolute inset-0 h-full w-full object-cover opacity-[0.26]"
+                  />
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,13,24,0.12),rgba(8,13,24,0.3))]" />
+                </>
+              ) : null}
               <div
                 className={[
                   'relative px-5',
@@ -1050,13 +1085,13 @@ export function MnistElevatorMission({
               >
                 {isLaundryVariant ? (
                   <div className="absolute inset-x-[10%] top-0 h-full bg-[linear-gradient(180deg,#223243,#141d2c)]">
-                    <div className="absolute inset-x-[9%] top-[18%] h-[64px] rounded-[28px] border border-[#7dd3fc]/14 bg-[linear-gradient(90deg,rgba(125,211,252,0.08),rgba(255,255,255,0.02),rgba(125,211,252,0.08))]" />
-                    <div className="absolute inset-x-[12%] top-[39%] h-[2px] bg-white/46" />
-                    <div className="absolute inset-x-[12%] top-[58%] h-[2px] bg-white/46" />
-                    <div className="absolute inset-x-[12%] top-[77%] h-[2px] bg-white/30" />
-                    <div className="absolute left-[12%] top-[22%] h-[114px] w-[114px] rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(245,158,11,0.14),rgba(30,41,59,0.02))]" />
-                    <div className="absolute right-[14%] top-[22%] h-[70px] w-[134px] rounded-[22px] border border-[#86efac]/12 bg-[linear-gradient(90deg,rgba(134,239,172,0.13),rgba(255,255,255,0.03))]" />
-                    <div className="absolute right-[12%] top-[48%] h-[54px] w-[174px] rounded-[20px] border border-white/10 bg-[linear-gradient(90deg,rgba(255,255,255,0.02),rgba(148,163,184,0.08),rgba(255,255,255,0.02))]" />
+                    <img
+                      src={laundryBackgroundImage}
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 h-full w-full object-cover opacity-[0.9]"
+                    />
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,17,29,0.18),rgba(10,17,29,0.42))]" />
                   </div>
                 ) : (
                   <div className="absolute inset-x-[14%] top-0 h-full bg-[linear-gradient(180deg,#263247,#161e2f)]">
@@ -1200,7 +1235,7 @@ export function MnistElevatorMission({
                         <div className="rounded-full bg-[#eef3ff] px-3 py-1.5 text-[11px] font-bold text-primary">
                           {isLaundryVariant
                             ? `Sorted ${classLabels[activePrediction.predictedLabel] ?? `Class ${activePrediction.predictedLabel}`}`
-                            : `Read ${activePrediction.predictedLabel}F`}
+                            : `Read ${(resolvedActiveMissionFloor ?? activePrediction.predictedLabel)}F`}
                         </div>
                       ) : null}
                     </div>
@@ -1226,7 +1261,9 @@ export function MnistElevatorMission({
                             ? activePrediction
                               ? classLabels[activePrediction.predictedLabel] ?? 'Sorted'
                               : targetSample?.label ?? 'Standby'
-                            : `Current ${clampedCurrentFloor}F`}
+                            : invalidPredictionFloor !== null
+                              ? `Read ${invalidPredictionFloor}F · Hold`
+                              : `Current ${clampedCurrentFloor}F`}
                         </div>
                       </div>
 
@@ -1292,7 +1329,7 @@ export function MnistElevatorMission({
                                       : 'flex h-8 items-center justify-between rounded-[14px] px-3 text-[12px] font-black transition-all',
                                     targetFloor === floor && !isMissionComplete
                                       ? 'animate-floor-pulse bg-[#dbeafe] text-[#1d4ed8] shadow-[0_10px_22px_rgba(59,130,246,0.14)]'
-                                      : clampedCurrentFloor === floor
+                                      : displayedCurrentFloor === floor
                                         ? 'bg-[#eff6ff] text-[#1e3a8a]'
                                         : 'bg-white/84 text-[#64748b]',
                                   ].join(' ')}
@@ -1302,7 +1339,7 @@ export function MnistElevatorMission({
                                     <span className="text-[10px] uppercase tracking-[0.14em]">
                                       {isMissionComplete ? 'Arrived' : 'Call'}
                                     </span>
-                                  ) : clampedCurrentFloor === floor ? (
+                                  ) : displayedCurrentFloor === floor ? (
                                     <span className="text-[10px] uppercase tracking-[0.14em] text-[#2563eb]">
                                       Now
                                     </span>
@@ -1326,7 +1363,7 @@ export function MnistElevatorMission({
                                 }}
                               >
                                 <div className="mx-auto mt-2 flex h-6 w-[56px] items-center justify-center rounded-[10px] bg-white/18 text-[12px] font-extrabold text-white">
-                                  {clampedCurrentFloor}F
+                                  {displayedCurrentFloor === null ? 'HOLD' : `${displayedCurrentFloor}F`}
                                 </div>
                               </div>
                             </div>
@@ -1505,21 +1542,21 @@ export function MnistElevatorMission({
                                 <div className={['font-display font-bold text-primary', isCompactResultLayout ? 'text-[30px]' : 'text-[36px]'].join(' ')}>
                                   {isLaundryVariant
                                     ? classLabels[activePrediction.predictedLabel] ?? `Class ${activePrediction.predictedLabel}`
-                                    : `${activePrediction.predictedLabel}F`}
+                                    : `${(resolvedActiveMissionFloor ?? activePrediction.predictedLabel)}F`}
                                 </div>
                                 <div
                                   className={[
                                     'rounded-full px-3 py-1.5 text-[11px] font-bold',
                                     (isLaundryVariant
                                       ? activePrediction.predictedLabel === currentLaundryTargetIndex
-                                      : activePrediction.predictedLabel === targetFloor)
+                                      : resolvedActiveMissionFloor === targetFloor)
                                       ? 'bg-[#dcfce7] text-[#166534]'
                                       : 'bg-[#fee2e2] text-[#b42318]',
                                   ].join(' ')}
                                 >
                                   {(isLaundryVariant
                                     ? activePrediction.predictedLabel === currentLaundryTargetIndex
-                                    : activePrediction.predictedLabel === targetFloor)
+                                    : resolvedActiveMissionFloor === targetFloor)
                                     ? 'Correct'
                                     : 'Retry'}
                                 </div>

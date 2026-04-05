@@ -919,13 +919,13 @@ export function Canvas({
                       </p>
                     </div>
 
-                    <div className="mx-auto grid w-full max-w-none gap-4 lg:grid-cols-4">
+                    <div className="mx-auto grid w-full max-w-[1180px] items-stretch gap-3.5 md:gap-4 lg:grid-cols-4 lg:gap-5">
                       {starterBlocks.map((block) => (
                         <div
                           key={`starter-${block.id}`}
-                          className="h-full min-h-[132px] rounded-[20px] bg-white/88 px-4.5 py-4.5 text-left shadow-[0_18px_38px_rgba(13,27,51,0.06)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
+                          className="flex h-full min-h-[148px] flex-col items-center rounded-[20px] bg-white/88 px-5 py-4.5 text-center shadow-[0_18px_38px_rgba(13,27,51,0.06)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
                         >
-                          <div className="flex items-center gap-3">
+                          <div className="flex min-h-[36px] items-center justify-center gap-3">
                             <div
                               className={[
                                 'grid h-9 w-9 place-items-center rounded-[13px] bg-[#f5f8ff]',
@@ -934,11 +934,11 @@ export function Canvas({
                             >
                               <Icon name={block.icon} className="h-4.5 w-4.5" />
                             </div>
-                            <div className="font-display text-[14px] font-bold text-ink">
+                            <div className="font-display text-[14px] font-bold leading-[1.2] text-ink">
                               {block.title}
                             </div>
                           </div>
-                          <p className="mt-3.5 text-[clamp(12.5px,0.84vw,14px)] leading-[1.6] text-[#7b89a2]">
+                          <p className="mt-3 flex-1 text-[clamp(12.5px,0.84vw,14px)] leading-[1.65] text-[#7b89a2]">
                             {starterBlockDescriptions[block.id] ?? ''}
                           </p>
                         </div>

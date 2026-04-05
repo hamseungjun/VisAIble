@@ -338,6 +338,7 @@ export function BuilderShell() {
   const [isMnistMissionMinimized, setIsMnistMissionMinimized] = useState(false);
   const [selectedTutorialLessonId, setSelectedTutorialLessonId] = useState<string | null>('mlp-1-1');
   const [lessonCoachStep, setLessonCoachStep] = useState<LessonCoachStep | null>(null);
+  const [cnn11MissionRetryPending, setCnn11MissionRetryPending] = useState(false);
   const [cnn11BaselineChallengeSamples, setCnn11BaselineChallengeSamples] = useState<
     TrainingChallengeSample[] | null
   >(null);
@@ -348,6 +349,7 @@ export function BuilderShell() {
     },
   });
   const lastLessonHandledJobIdRef = useRef<string | null>(null);
+  const lastStoryQuestOpenedJobIdRef = useRef<string | null>(null);
   const lastDismissedLessonCoachStepRef = useRef<LessonCoachStep>('mlp12-intro');
   const lastDismissedTutorialStepRef = useRef<TutorialStepKey>('build-model');
   const pollingRef = useRef<number | null>(null);
@@ -463,10 +465,23 @@ export function BuilderShell() {
       tutorialStep === 'training-metrics-loss' ||
       tutorialStep === 'training-metrics-accuracy');
   const isCompetitionSetupVisible = activeWorkspace === 'competition' && !competitionRoom;
+  const shouldResumeCnn11Mission =
+    isCnn11TutorialActive &&
+    cnn11MissionRetryPending &&
+    trainingStatus?.status === 'completed' &&
+    trainingStatus.datasetId === 'fashion_mnist' &&
+    !!trainingStatus.jobId;
+  const isStoryTutorialMissionReady =
+    isStoryTutorialActive &&
+    !tutorialPredictionDone &&
+    tutorialStep !== 'complete' &&
+    trainingStatus?.status === 'completed' &&
+    trainingStatus.datasetId === (isCnn11TutorialActive ? 'fashion_mnist' : 'mnist') &&
+    !!trainingStatus.jobId;
   const mnistQuestPhase =
     tutorialStep === 'story-intro'
       ? 'intro'
-      : tutorialStep === 'play-mission'
+      : tutorialStep === 'play-mission' || shouldResumeCnn11Mission
         ? 'mission'
         : tutorialStep === 'complete'
           ? 'complete'
@@ -488,6 +503,7 @@ export function BuilderShell() {
     isStoryTutorialActive &&
     ((isMnistTutorialActive && isMnistGuideStep && !tutorialGuideOpen) ||
       (isCnn11TutorialActive && tutorialStep === 'build-model' && !lessonCoachStep) ||
+      (isCnn11TutorialActive && shouldResumeCnn11Mission) ||
       (mnistQuestPhase && mnistQuestPhase !== 'intro' && isMnistMissionMinimized));
   const shellGridClassName = isCompetitionSetupVisible
     ? 'mt-3 grid min-h-0 gap-3'
@@ -929,7 +945,31 @@ export function BuilderShell() {
     return 'cnn11-stack-linear';
   };
   const openStoryQuest = () => {
-    if (isMnistGuideStep) {
+    if (isStoryTutorialMissionReady) {
+      if (isMnistTutorialActive) {
+        lastDismissedTutorialStepRef.current = tutorialStep;
+      }
+      if (isCnn11TutorialActive && lessonCoachStep) {
+        lastDismissedLessonCoachStepRef.current = lessonCoachStep;
+        setLessonCoachStep(null);
+      }
+      setTutorialGuideOpen(false);
+      setTutorialStep('play-mission');
+      setIsMnistMissionMinimized(false);
+      setCnn11MissionRetryPending(false);
+      return;
+    }
+
+    if (shouldResumeCnn11Mission) {
+      setTutorialGuideOpen(false);
+      setLessonCoachStep(null);
+      setTutorialStep('play-mission');
+      setIsMnistMissionMinimized(false);
+      setCnn11MissionRetryPending(false);
+      return;
+    }
+
+    if (isMnistTutorialActive && isMnistGuideStep) {
       setTutorialGuideOpen(true);
       return;
     }
@@ -939,15 +979,33 @@ export function BuilderShell() {
       return;
     }
 
-    if (isCnn11TutorialActive && lessonCoachStep !== null) {
+    if (
+      isCnn11TutorialActive &&
+      tutorialStep === 'build-model' &&
+      cnn11MissionRetryPending &&
+      trainingStatus?.status === 'completed' &&
+      trainingStatus.datasetId === 'fashion_mnist' &&
+      !!trainingStatus.jobId
+    ) {
+      setTutorialGuideOpen(false);
+      setLessonCoachStep(null);
+      setTutorialStep('play-mission');
+      setIsMnistMissionMinimized(false);
+      setCnn11MissionRetryPending(false);
+      return;
+    }
+
+    if (isCnn11TutorialActive && tutorialStep === 'build-model') {
       const fallbackStep = lessonCoachStep ?? lastDismissedLessonCoachStepRef.current ?? resolveCurrentCnn11GuideStep();
       const inferredStep =
         fallbackStep === 'cnn11-stack-linear' || fallbackStep === 'cnn11-linear-limit' || fallbackStep === 'cnn11-success'
           ? fallbackStep
           : resolveCurrentCnn11GuideStep();
+      setTutorialGuideOpen(false);
       setIsMnistMissionMinimized(false);
       lastDismissedLessonCoachStepRef.current = inferredStep;
       setLessonCoachStep(inferredStep);
+      return;
     }
   };
   const reopenMnistGuide = () => {
@@ -968,6 +1026,7 @@ export function BuilderShell() {
     setTutorialGuideOpen(false);
     setTutorialStep('story-intro');
     setTutorialPredictionDone(false);
+    setCnn11MissionRetryPending(false);
     setIsMnistMissionMinimized(false);
     setActiveWorkspace('tutorial');
     setSelectedTutorialLessonId(nextLessonId);
@@ -1028,6 +1087,7 @@ export function BuilderShell() {
     setLiveHistory({ loss: [], accuracy: [], validationLoss: [], validationAccuracy: [] });
     setCurrentJobId(null);
     lastLessonHandledJobIdRef.current = null;
+    lastStoryQuestOpenedJobIdRef.current = null;
   };
 
   const applyLessonTrainingDefaults = (lessonId: string | null) => {
@@ -1127,6 +1187,7 @@ export function BuilderShell() {
       setTutorialStep('story-intro');
       setTutorialPredictionDone(false);
       setIsMnistMissionMinimized(false);
+      setCnn11MissionRetryPending(false);
       return;
     }
 
@@ -1135,8 +1196,9 @@ export function BuilderShell() {
       setTutorialStep('story-intro');
       setTutorialPredictionDone(false);
       setIsMnistMissionMinimized(false);
+      setCnn11MissionRetryPending(false);
     }
-  }, [isCnn11TutorialActive, isMnistTutorialActive, selectedDatasetId, nodes.length, currentJobId]);
+  }, [currentJobId, isCnn11TutorialActive, isMnistTutorialActive, nodes.length, selectedDatasetId]);
 
   useEffect(() => {
     if (!isMnistTutorialActive) {
@@ -1202,6 +1264,12 @@ export function BuilderShell() {
       setTutorialStep('complete');
     }
   }, [isCnn11TutorialActive, tutorialPredictionDone, tutorialStep]);
+
+  useEffect(() => {
+    if (isCnn11TutorialActive && tutorialGuideOpen) {
+      setTutorialGuideOpen(false);
+    }
+  }, [isCnn11TutorialActive, tutorialGuideOpen]);
 
   useEffect(() => {
     if (!isMnistTutorialActive) {
@@ -1347,11 +1415,54 @@ export function BuilderShell() {
     }
     lastLessonHandledJobIdRef.current = trainingStatus.jobId;
 
+    if (cnn11MissionRetryPending) {
+      setTutorialGuideOpen(false);
+      setLessonCoachStep(null);
+      setTutorialStep('play-mission');
+      setIsMnistMissionMinimized(false);
+      setCnn11MissionRetryPending(false);
+      return;
+    }
+
     if (isCnn11ArchitectureReady) {
       setLessonCoachStep('cnn11-success');
       return;
     }
-  }, [isCnn11ArchitectureReady, isCnn11TutorialActive, trainingStatus]);
+  }, [cnn11MissionRetryPending, isCnn11ArchitectureReady, isCnn11TutorialActive, trainingStatus]);
+
+  useEffect(() => {
+    if (!isStoryTutorialMissionReady || !trainingStatus?.jobId || tutorialPredictionDone || tutorialStep === 'complete') {
+      return;
+    }
+
+    const storyQuestRunKey = `${selectedTutorialLessonId ?? 'story'}:${trainingStatus.jobId}`;
+    if (lastStoryQuestOpenedJobIdRef.current === storyQuestRunKey) {
+      return;
+    }
+    lastStoryQuestOpenedJobIdRef.current = storyQuestRunKey;
+
+    if (isMnistTutorialActive) {
+      lastDismissedTutorialStepRef.current = tutorialStep;
+    }
+    if (isCnn11TutorialActive && lessonCoachStep) {
+      lastDismissedLessonCoachStepRef.current = lessonCoachStep;
+      setLessonCoachStep(null);
+    }
+
+    setTutorialGuideOpen(false);
+    setTutorialStep('play-mission');
+    setIsMnistMissionMinimized(false);
+    setCnn11MissionRetryPending(false);
+  }, [
+    isCnn11TutorialActive,
+    isMnistTutorialActive,
+    isStoryTutorialMissionReady,
+    lessonCoachStep,
+    selectedTutorialLessonId,
+    trainingStatus?.jobId,
+    tutorialPredictionDone,
+    tutorialStep,
+  ]);
 
   useEffect(() => {
     if (!isCnn11TutorialActive) {
@@ -2281,7 +2392,7 @@ export function BuilderShell() {
                   onSelectRun={setSelectedCompetitionRunJobId}
                   onSubmitRun={(jobId) => void handleSubmitCompetitionRun(jobId)}
                 />
-              ) : !isMnistTutorialActive || showTutorialMetricsSidebar ? (
+              ) : !isMnistTutorialActive || tutorialStep !== 'story-intro' || showTutorialMetricsSidebar ? (
                 <Inspector
                   trainingStatus={trainingStatus ?? (latestTrainingResult as TrainingJobStatus | null)}
                   selectedDataset={selectedDataset}
@@ -2637,11 +2748,15 @@ export function BuilderShell() {
           trainingStatus={trainingStatus ?? (latestTrainingResult as TrainingJobStatus | null)}
           challengeSamplesOverride={null}
           isMissionComplete={tutorialPredictionDone}
-          onMissionComplete={() => setTutorialPredictionDone(true)}
+          onMissionComplete={() => {
+            setTutorialPredictionDone(true);
+            setCnn11MissionRetryPending(false);
+          }}
           onMissionFail={(summary) => {
             if (!isCnn11TutorialActive) {
               return;
             }
+            setCnn11MissionRetryPending(true);
             lastDismissedLessonCoachStepRef.current = 'cnn11-linear-limit';
             setTutorialStep('build-model');
             setLessonCoachStep('cnn11-linear-limit');
@@ -2664,9 +2779,13 @@ export function BuilderShell() {
       {isStoryTutorialActive &&
       (mnistQuestPhase || (isCnn11TutorialActive && tutorialStep === 'build-model')) &&
       tutorialStep !== 'complete' ? (
-        <div className="fixed bottom-52 right-24 z-[84] rounded-full border border-[#cfe0ff] bg-white/92 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary shadow-[0_14px_28px_rgba(17,81,255,0.12)] backdrop-blur">
+        <button
+          type="button"
+          onClick={openStoryQuest}
+          className="fixed bottom-52 right-24 z-[84] rounded-full border border-[#cfe0ff] bg-white/92 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary shadow-[0_14px_28px_rgba(17,81,255,0.12)] backdrop-blur transition hover:bg-white"
+        >
           Quest
-        </div>
+        </button>
       ) : null}
 
       {shouldShowMnistQuestOrb ? (
@@ -2676,9 +2795,9 @@ export function BuilderShell() {
           className="animate-quest-orb fixed bottom-52 right-5 z-[85] grid h-[74px] w-[74px] place-items-center rounded-full border-4 border-white/24 bg-[radial-gradient(circle_at_35%_30%,#60a5fa,#2563eb_58%,#172554_100%)] text-[32px] font-black text-white shadow-[0_26px_60px_rgba(37,99,235,0.44)] transition hover:scale-105 hover:brightness-105"
           aria-label="미션 창 다시 열기"
         >
-          <span className="relative">
+          <span className="relative text-[28px] leading-none">
             !
-            <span className="absolute -right-4 -top-3 rounded-full bg-[#ef4444] px-1.5 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-white shadow-[0_8px_16px_rgba(239,68,68,0.3)]">
+            <span className="absolute -right-2.5 -top-2 rounded-full bg-[#ef4444] px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-white shadow-[0_8px_16px_rgba(239,68,68,0.3)]">
               quest
             </span>
           </span>

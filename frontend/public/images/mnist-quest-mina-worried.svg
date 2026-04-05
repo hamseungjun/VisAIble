@@ -19,6 +19,6 @@
   <path d="M167 155L204 131" stroke="#B28E1C" stroke-width="18" stroke-linecap="round"/>
   <path d="M199 170L238 145" stroke="#EAB308" stroke-width="10" stroke-linecap="round"/>
   <circle cx="503" cy="190" r="24" fill="#EF4444"/>
-  <path d="M503 178V202" stroke="white" stroke-width="10" stroke-linecap="round"/>
-  <circle cx="503" cy="215" r="5" fill="white"/>
+  <path d="M503 178V196" stroke="white" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="503" cy="208" r="4.5" fill="white"/>
 </svg>
