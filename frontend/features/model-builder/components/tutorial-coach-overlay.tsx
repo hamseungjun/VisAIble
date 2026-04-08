@@ -15,7 +15,7 @@ type TutorialCoachOverlayProps = {
   canAdvance?: boolean;
   advanceLabel?: string;
   backdropMode?: 'spotlight' | 'none';
-  cardPlacement?: 'auto' | 'top-right' | 'right';
+  cardPlacement?: 'auto' | 'top-right' | 'top-left' | 'right';
   onAdvance?: () => void;
   onSkip: () => void;
 };
@@ -169,6 +169,13 @@ export function TutorialCoachOverlay({
           viewportPadding,
           viewportWidth - cardWidth - viewportPadding,
         ),
+      };
+    }
+
+    if (cardPlacement === 'top-left') {
+      return {
+        top: clamp(96, viewportPadding, viewportHeight - cardHeight - viewportPadding),
+        left: clamp(40, viewportPadding, viewportWidth - cardWidth - viewportPadding),
       };
     }
 

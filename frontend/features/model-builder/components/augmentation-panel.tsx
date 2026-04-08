@@ -14,6 +14,11 @@ type AugmentationPanelProps = {
   onToggle: (id: TrainingAugmentationId) => void;
   augmentationParams: TrainingAugmentationParams;
   onChangeParam: (id: TrainingAugmentationId, value: number) => void;
+  autoOpenGuideOnSelect?: boolean;
+  activeGroupId?: string;
+  onActiveGroupChange?: (groupId: string) => void;
+  guideAugmentationId?: TrainingAugmentationId | null;
+  onGuideAugmentationChange?: (augmentationId: TrainingAugmentationId | null) => void;
 };
 
 export function AugmentationPanel({
@@ -21,14 +26,37 @@ export function AugmentationPanel({
   onToggle,
   augmentationParams,
   onChangeParam,
+  autoOpenGuideOnSelect = true,
+  activeGroupId: controlledActiveGroupId,
+  onActiveGroupChange,
+  guideAugmentationId: controlledGuideAugmentationId,
+  onGuideAugmentationChange,
 }: AugmentationPanelProps) {
-  const [activeGroupId, setActiveGroupId] = useState(augmentationGroups[0]?.id ?? 'mixing');
-  const [guideAugmentationId, setGuideAugmentationId] = useState<TrainingAugmentationId | null>(null);
+  const [uncontrolledActiveGroupId, setUncontrolledActiveGroupId] = useState(augmentationGroups[0]?.id ?? 'mixing');
+  const [uncontrolledGuideAugmentationId, setUncontrolledGuideAugmentationId] =
+    useState<TrainingAugmentationId | null>(null);
+  const activeGroupId = controlledActiveGroupId ?? uncontrolledActiveGroupId;
+  const guideAugmentationId = controlledGuideAugmentationId ?? uncontrolledGuideAugmentationId;
+  const setActiveGroupId = (groupId: string) => {
+    if (controlledActiveGroupId === undefined) {
+      setUncontrolledActiveGroupId(groupId);
+    }
+    onActiveGroupChange?.(groupId);
+  };
+  const setGuideAugmentationId = (augmentationId: TrainingAugmentationId | null) => {
+    if (controlledGuideAugmentationId === undefined) {
+      setUncontrolledGuideAugmentationId(augmentationId);
+    }
+    onGuideAugmentationChange?.(augmentationId);
+  };
   const activeGroup =
     augmentationGroups.find((group) => group.id === activeGroupId) ?? augmentationGroups[0];
 
   return (
-    <section className="mb-2.5 overflow-hidden rounded-[28px] border border-[#dbe5f1] bg-[#f8fbff] shadow-[0_16px_36px_rgba(15,23,42,0.06)] [font-family:var(--font-inter)]">
+    <section
+      className="mb-2.5 overflow-hidden rounded-[28px] border border-[#dbe5f1] bg-[#f8fbff] shadow-[0_16px_36px_rgba(15,23,42,0.06)] [font-family:var(--font-inter)]"
+      data-tutorial-target="tutorial-augmentation-panel"
+    >
       <div className="px-5 py-4">
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
           {augmentationGroups.map((group) => {
@@ -42,6 +70,7 @@ export function AugmentationPanel({
                 key={group.id}
                 type="button"
                 onClick={() => setActiveGroupId(group.id)}
+                data-tutorial-target={`tutorial-augmentation-group-${group.id}`}
                 className={[
                   'relative isolate rounded-[20px] px-4 py-3 text-left transition-all',
                   active
@@ -91,11 +120,14 @@ export function AugmentationPanel({
                     key={option.id}
                     role="button"
                     tabIndex={0}
+                    data-tutorial-target={`tutorial-augmentation-option-${option.id}`}
                     onClick={() => {
                       if (!active) {
                         onToggle(option.id);
                       }
-                      setGuideAugmentationId(option.id);
+                      if (autoOpenGuideOnSelect) {
+                        setGuideAugmentationId(option.id);
+                      }
                     }}
                     onKeyDown={(event) => {
                       if (event.key !== 'Enter' && event.key !== ' ') {
@@ -105,7 +137,9 @@ export function AugmentationPanel({
                       if (!active) {
                         onToggle(option.id);
                       }
-                      setGuideAugmentationId(option.id);
+                      if (autoOpenGuideOnSelect) {
+                        setGuideAugmentationId(option.id);
+                      }
                     }}
                     aria-label={`${option.label} 설정 열기`}
                     className={[
@@ -142,7 +176,9 @@ export function AugmentationPanel({
                           if (!active) {
                             onToggle(option.id);
                           }
-                          setGuideAugmentationId(option.id);
+                          if (autoOpenGuideOnSelect) {
+                            setGuideAugmentationId(option.id);
+                          }
                         }}
                         className="relative z-10 block min-w-0 flex-1 text-left"
                       >
@@ -286,10 +322,14 @@ function AugmentationGuideModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[260] flex items-start justify-center bg-[rgba(15,23,42,0.28)] px-6 pb-6 pt-8 backdrop-blur-sm md:pt-6">
-      <div className="relative w-full max-w-[980px] overflow-hidden rounded-[34px] bg-[linear-gradient(180deg,#ffffff,#f7fbfb)] p-6 shadow-[0_30px_80px_rgba(13,27,51,0.22)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.14)] [font-family:var(--font-inter)] md:p-7">
+      <div
+        className="relative w-full max-w-[980px] overflow-hidden rounded-[34px] bg-[linear-gradient(180deg,#ffffff,#f7fbfb)] p-6 shadow-[0_30px_80px_rgba(13,27,51,0.22)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.14)] [font-family:var(--font-inter)] md:p-7"
+        data-tutorial-target={`tutorial-augmentation-guide-${augmentationId}`}
+      >
         <button
           type="button"
           onClick={onClose}
+          data-tutorial-target="tutorial-augmentation-guide-close"
           className="absolute right-5 top-5 grid h-10 w-10 place-items-center rounded-full bg-white text-[#7b8da9] shadow-[0_12px_24px_rgba(13,27,51,0.08)] transition hover:text-[#12213f]"
           aria-label="설명 닫기"
         >
@@ -384,6 +424,7 @@ function AugmentationGuideModal({
                     max={80}
                     onChange={onChangeValue}
                     suffix="%"
+                    targetName="tutorial-augmentation-slider-mixup"
                   />
                 ) : null}
                 {augmentationId === 'cutmix' ? (
@@ -394,6 +435,7 @@ function AugmentationGuideModal({
                     max={56}
                     onChange={onChangeValue}
                     suffix="%"
+                    targetName="tutorial-augmentation-slider-cutmix"
                   />
                 ) : null}
                 {augmentationId === 'flip_rotate' ? (
@@ -404,6 +446,7 @@ function AugmentationGuideModal({
                     max={100}
                     onChange={onChangeValue}
                     suffix="%"
+                    targetName="tutorial-augmentation-slider-flip_rotate"
                   />
                 ) : null}
                 {augmentationId === 'random_crop' ? (
@@ -415,6 +458,7 @@ function AugmentationGuideModal({
                       max={145}
                       onChange={onChangeValue}
                       suffix="%"
+                      targetName="tutorial-augmentation-slider-random_crop"
                     />
                     <GuideSlider
                       label="Vertical Focus"
@@ -434,6 +478,7 @@ function AugmentationGuideModal({
                     max={40}
                     onChange={onChangeValue}
                     suffix="%"
+                    targetName="tutorial-augmentation-slider-color_jitter"
                   />
                 ) : null}
                 {augmentationId === 'contrast_boost' ? (
@@ -716,6 +761,7 @@ function GuideSlider({
   max,
   onChange,
   suffix,
+  targetName,
 }: {
   label: string;
   value: number;
@@ -723,9 +769,10 @@ function GuideSlider({
   max: number;
   onChange: (value: number) => void;
   suffix: string;
+  targetName?: string;
 }) {
   return (
-    <div>
+    <div data-tutorial-target={targetName}>
       <div className="flex items-center justify-between gap-3">
         <div className="text-[12px] font-medium tracking-[0.06em] text-[#5d6f8a]">
           {label}

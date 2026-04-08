@@ -1,4 +1,4 @@
-export const optimizerOrder = ['SGD', 'AdaGrad', 'RMS Prop', 'AdamW'] as const;
+export const optimizerOrder = ['SGD', 'AdaGrad', 'RMS Prop', 'Adam'] as const;
 export const batchSizeOptions = [1, 8, 16, 32, 64, 128] as const;
 
 export type OptimizerName = (typeof optimizerOrder)[number];
@@ -67,7 +67,7 @@ export const optimizerConfigs: Record<
       defaultValue: '0.99',
     },
   },
-  AdamW: {
+  Adam: {
     learningRates: sharedLearningRates,
     defaultLearningRate: '0.001',
     parameter: null,

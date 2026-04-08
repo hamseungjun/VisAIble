@@ -120,12 +120,10 @@ def _build_validation_challenge_samples(
     easy_count: int = 7,
     hard_count: int = 3,
 ) -> list[dict[str, object]]:
-    if dataset_id != "fashion_mnist":
-        return []
-
-    fixed_samples = _load_fixed_fashion_mnist_laundry_challenge()
-    if fixed_samples:
-        return fixed_samples
+    if dataset_id == "fashion_mnist":
+        fixed_samples = _load_fixed_fashion_mnist_laundry_challenge()
+        if fixed_samples:
+            return fixed_samples
 
     model.eval()
     easy_samples: list[dict[str, object]] = []
