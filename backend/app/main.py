@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers.competition import router as competition_router
 from app.routers.datasets import router as datasets_router
+from app.routers.stocks import router as stocks_router
 from app.routers.training import router as training_router
 
 
@@ -26,9 +27,11 @@ app.add_middleware(
 app.include_router(datasets_router, prefix="/api")
 app.include_router(training_router, prefix="/api")
 app.include_router(competition_router, prefix="/api")
+app.include_router(stocks_router, prefix="/api")
 app.include_router(datasets_router)
 app.include_router(training_router)
 app.include_router(competition_router)
+app.include_router(stocks_router)
 
 
 @app.get("/health")

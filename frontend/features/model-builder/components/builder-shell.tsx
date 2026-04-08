@@ -11,6 +11,7 @@ import { Inspector } from '@/features/model-builder/components/inspector';
 import { MnistElevatorMission } from '@/features/model-builder/components/mnist-elevator-mission';
 import { ModelPreviewModal } from '@/features/model-builder/components/model-preview-modal';
 import { Sidebar } from '@/features/model-builder/components/sidebar';
+import { StockPlayground } from '@/features/model-builder/components/stock-playground';
 import { TopBar } from '@/features/model-builder/components/top-bar';
 import { TrainingLiveOverlay } from '@/features/model-builder/components/training-live-overlay';
 import { TutorialCoachOverlay } from '@/features/model-builder/components/tutorial-coach-overlay';
@@ -32,6 +33,7 @@ import {
 } from '@/lib/api/model-builder';
 import { defaultAugmentationParams } from '@/lib/constants/augmentations';
 import { datasets, libraryBlocks } from '@/lib/constants/builder-data';
+import { stockPlaygroundPresets } from '@/lib/constants/stock-playground';
 import {
   batchSizeOptions,
   optimizerConfigs,
@@ -50,6 +52,8 @@ import type {
   TrainingJobStatus,
   TrainingAugmentationParams,
   TrainingRunResult,
+  StockPreset,
+  WorkspaceMode,
 } from '@/types/builder';
 
 const competitionDataset = {
@@ -134,8 +138,6 @@ type CompetitionRunRecord = {
   submission?: CompetitionSubmissionResult | null;
   completedAt?: string | null;
 };
-
-type WorkspaceMode = 'builder' | 'tutorial' | 'competition';
 
 type DatasetTeachingConfig = {
   allowedBlocks: BlockType[];
@@ -286,6 +288,7 @@ export function BuilderShell() {
     filterNodes,
   } = useBuilderBoard();
   const [selectedDatasetId, setSelectedDatasetId] = useState(datasets[0]?.id ?? 'mnist');
+  const [selectedStock, setSelectedStock] = useState<StockPreset | null>(stockPlaygroundPresets[0] ?? null);
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceMode>('builder');
   const [optimizer, setOptimizer] = useState<OptimizerName>('AdamW');
   const [learningRate, setLearningRate] = useState(optimizerConfigs.AdamW.defaultLearningRate);
@@ -507,7 +510,9 @@ export function BuilderShell() {
       (mnistQuestPhase && mnistQuestPhase !== 'intro' && isMnistMissionMinimized));
   const shellGridClassName = isCompetitionSetupVisible
     ? 'mt-3 grid min-h-0 gap-3'
-    : 'mt-3 grid min-h-0 gap-3 lg:justify-center lg:grid-cols-[minmax(248px,0.64fr)_minmax(0,1.82fr)_minmax(280px,0.82fr)] xl:gap-4 xl:grid-cols-[clamp(252px,14.5vw,296px)_minmax(0,1fr)_clamp(320px,22vw,468px)]';
+    : activeWorkspace === 'playground'
+      ? 'mt-3 grid min-h-0 gap-3 lg:grid-cols-[clamp(252px,15vw,320px)_minmax(0,1fr)] xl:gap-4'
+      : 'mt-3 grid min-h-0 gap-3 lg:justify-center lg:grid-cols-[minmax(248px,0.64fr)_minmax(0,1.82fr)_minmax(280px,0.82fr)] xl:gap-4 xl:grid-cols-[clamp(252px,14.5vw,296px)_minmax(0,1fr)_clamp(320px,22vw,468px)]';
 
   const tutorialOverlayCopy = useMemo(
     () =>
@@ -1431,7 +1436,7 @@ export function BuilderShell() {
   }, [cnn11MissionRetryPending, isCnn11ArchitectureReady, isCnn11TutorialActive, trainingStatus]);
 
   useEffect(() => {
-    if (!isStoryTutorialMissionReady || !trainingStatus?.jobId || tutorialPredictionDone || tutorialStep === 'complete') {
+    if (!isStoryTutorialMissionReady || !trainingStatus?.jobId || tutorialPredictionDone) {
       return;
     }
 
@@ -1999,6 +2004,10 @@ export function BuilderShell() {
               );
               return;
             }
+
+            if (workspace === 'playground') {
+              return;
+            }
           }}
           onLogoClick={() => {
             saveWorkspaceSnapshot(activeWorkspace, selectedTutorialLessonId, selectedDatasetId);
@@ -2025,6 +2034,7 @@ export function BuilderShell() {
               selectedDataset={selectedDataset}
               availableBlockTypes={teachingConfig.allowedBlocks}
               selectedTutorialLessonId={selectedTutorialLessonId}
+              selectedStock={selectedStock}
               onDatasetSelect={(datasetId) => {
                 if (activeWorkspace === 'competition') {
                   return;
@@ -2056,11 +2066,14 @@ export function BuilderShell() {
                   lessonId === 'mlp-1-2' ? 'mlp12-intro' : null,
                 );
               }}
+              onStockSelect={setSelectedStock}
               onBlockDragStart={setDraggingBlock}
               onBlockDragEnd={() => setDraggingBlock(null)}
             />
           )}
-          {activeWorkspace === 'competition' && !competitionRoom ? (
+          {activeWorkspace === 'playground' ? (
+            <StockPlayground selectedStock={selectedStock ?? stockPlaygroundPresets[0]} />
+          ) : activeWorkspace === 'competition' && !competitionRoom ? (
             <CompetitionPanel
               isLoading={competitionBusy}
               error={competitionError}

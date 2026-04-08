@@ -4,18 +4,22 @@ import Image from 'next/image';
 import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@/features/model-builder/components/icons';
+import { searchStocks } from '@/lib/api/stocks';
 import { datasets, libraryBlocks } from '@/lib/constants/builder-data';
-import type { BlockAccent, BlockType, DatasetItem } from '@/types/builder';
+import { stockPlaygroundPresets } from '@/lib/constants/stock-playground';
+import type { BlockAccent, BlockType, DatasetItem, StockPreset, WorkspaceMode } from '@/types/builder';
 
 type SidebarProps = {
   selectedDatasetId: string;
-  activeWorkspace: 'builder' | 'tutorial' | 'competition';
+  activeWorkspace: WorkspaceMode;
   hasCompetitionRoom?: boolean;
   selectedDataset?: DatasetItem | null;
   availableBlockTypes: BlockType[];
   selectedTutorialLessonId?: string | null;
+  selectedStock?: StockPreset | null;
   onDatasetSelect: (datasetId: string) => void;
   onTutorialLessonSelect?: (lessonId: string) => void;
+  onStockSelect?: (stock: StockPreset) => void;
   onBlockDragStart: (type: BlockType) => void;
   onBlockDragEnd: () => void;
 };
@@ -147,8 +151,10 @@ export function Sidebar({
   selectedDataset,
   availableBlockTypes,
   selectedTutorialLessonId = null,
+  selectedStock,
   onDatasetSelect,
   onTutorialLessonSelect,
+  onStockSelect,
   onBlockDragStart,
   onBlockDragEnd,
 }: SidebarProps) {
@@ -158,6 +164,9 @@ export function Sidebar({
   const [openedTutorialLessonId, setOpenedTutorialLessonId] = useState<string | null>(
     selectedTutorialLessonId,
   );
+  const [stockSearchQuery, setStockSearchQuery] = useState('');
+  const [stockSearchResults, setStockSearchResults] = useState<StockPreset[]>(stockPlaygroundPresets);
+  const [stockSearchBusy, setStockSearchBusy] = useState(false);
   const hoveredDataset =
     datasets.find((dataset) => dataset.id === hoveredDatasetId) ?? null;
   const activeTutorialLesson =
@@ -176,6 +185,56 @@ export function Sidebar({
     activeWorkspace === 'tutorial'
       ? libraryBlocks.filter((block) => availableBlockTypes.includes(block.id))
       : libraryBlocks;
+  const selectedStockPreset =
+    selectedStock ?? stockPlaygroundPresets[0];
+
+  useEffect(() => {
+    if (activeWorkspace !== 'playground') {
+      return;
+    }
+
+    const query = stockSearchQuery.trim();
+    if (!query) {
+      setStockSearchResults(stockPlaygroundPresets);
+      setStockSearchBusy(false);
+      return;
+    }
+
+    let active = true;
+    setStockSearchBusy(true);
+    const timer = window.setTimeout(() => {
+      void searchStocks(query)
+        .then((results) => {
+          if (!active) {
+            return;
+          }
+          setStockSearchResults(results);
+        })
+        .catch(() => {
+          if (!active) {
+            return;
+          }
+          const lowered = query.toLowerCase();
+          setStockSearchResults(
+            stockPlaygroundPresets.filter((item) =>
+              [item.ticker, item.label, item.sector].some((value) =>
+                value.toLowerCase().includes(lowered),
+              ),
+            ),
+          );
+        })
+        .finally(() => {
+          if (active) {
+            setStockSearchBusy(false);
+          }
+        });
+    }, 280);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [activeWorkspace, stockSearchQuery]);
 
   return (
     <aside className="ui-surface flex h-full flex-col gap-4 px-5 py-5">
@@ -301,7 +360,90 @@ export function Sidebar({
         </section>
       ) : null}
 
-      <section className="sticky top-4 grid w-full content-start gap-2 self-stretch">
+      {activeWorkspace === 'playground' ? (
+        <section className="grid gap-3">
+          <h2 className="ui-section-title">Stock Prediction</h2>
+          <label className="rounded-[20px] border border-[#d9e2ef] bg-white px-4 py-3 shadow-[0_10px_24px_rgba(13,27,51,0.04)]">
+            <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#70819a]">
+              Search Ticker
+            </div>
+            <input
+              value={stockSearchQuery}
+              onChange={(event) => setStockSearchQuery(event.target.value)}
+              placeholder="AAPL, Tesla, AMD..."
+              className="mt-2 w-full border-none bg-transparent font-display text-[18px] font-bold text-[#10213b] outline-none placeholder:font-semibold placeholder:text-[#9badc3]"
+            />
+            <div className="mt-2 text-[11px] font-semibold text-[#7386a3]">
+              {stockSearchBusy ? '검색 중...' : '티커 또는 회사명으로 검색해서 바로 학습할 수 있습니다.'}
+            </div>
+          </label>
+          <div className="grid gap-2">
+            {stockSearchResults.map((preset) => {
+              const active = preset.ticker === selectedStockPreset?.ticker;
+              return (
+                <button
+                  key={preset.ticker}
+                  type="button"
+                  onClick={() => onStockSelect?.(preset)}
+                  className={[
+                    'rounded-[18px] border px-3.5 py-3 text-left transition-colors',
+                    active
+                      ? 'border-primary/25 bg-primary/10 shadow-[0_8px_20px_rgba(17,81,255,0.08)]'
+                      : 'border-transparent hover:border-[#d9e2ef] hover:bg-white/80',
+                  ].join(' ')}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[14px] bg-[#edf3ff] text-primary">
+                      <Icon name="chip" className="h-4.5 w-4.5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-display text-[15px] font-bold text-[#10213b]">
+                          {preset.label}
+                        </span>
+                        <span className="rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-extrabold tracking-[0.12em] text-[#6280aa]">
+                          {preset.ticker}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#6a7f9d]">
+                        {preset.sector}
+                      </div>
+                      <div className="mt-2 text-[12px] leading-5 text-[#5b6c84]">
+                        {preset.description}
+                      </div>
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+            {!stockSearchResults.length && !stockSearchBusy ? (
+              <div className="rounded-[18px] border border-dashed border-[#d9e2ef] px-4 py-4 text-[12px] leading-5 text-[#6b809d]">
+                검색 결과가 없습니다. 티커 기호를 정확히 입력해 보세요.
+              </div>
+            ) : null}
+          </div>
+
+          {selectedStockPreset ? (
+            <div className="rounded-[22px] border border-[#d9e2ef] bg-[linear-gradient(180deg,#ffffff,#f8fbff)] px-4 py-4 shadow-[0_10px_24px_rgba(13,27,51,0.04)]">
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#70819a]">
+                Selected Ticker
+              </div>
+              <div className="mt-2 font-display text-[20px] font-bold text-[#10213b]">
+                {selectedStockPreset.ticker}
+              </div>
+              <div className="mt-1 text-[13px] font-semibold text-[#4d607d]">
+                {selectedStockPreset.label}
+              </div>
+              <div className="mt-3 rounded-[16px] bg-[#f5f8ff] px-3.5 py-3 text-[12px] leading-5 text-[#5b6c84]">
+                {selectedStockPreset.description}
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {activeWorkspace !== 'playground' ? (
+        <section className="sticky top-4 grid w-full content-start gap-2 self-stretch">
           <h2 className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#7f8ea6]">
             Block Library
           </h2>
@@ -367,6 +509,7 @@ export function Sidebar({
             ))}
           </div>
         </section>
+      ) : null}
 
       {activeGuideBlock ? (
         <LayerGuideModal block={activeGuideBlock} onClose={() => setActiveGuideBlockId(null)} />

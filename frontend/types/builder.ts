@@ -20,6 +20,8 @@ export type DatasetItem = {
   classLabels?: string[];
 };
 
+export type WorkspaceMode = 'builder' | 'tutorial' | 'competition' | 'playground';
+
 export type BlockType = 'linear' | 'cnn' | 'pooling' | 'dropout';
 
 export type TrainingAugmentationId =
@@ -220,4 +222,85 @@ export type CompetitionSubmissionResult = {
   publicScore: number;
   privateScore: number | null;
   submittedAt: string;
+};
+
+export type StockPreset = {
+  ticker: string;
+  label: string;
+  sector: string;
+  description: string;
+};
+
+export type StockPlaygroundNodeField = {
+  label: string;
+  value: string;
+};
+
+export type StockPlaygroundNode = {
+  id: string;
+  type: 'lstm' | 'dropout' | 'linear';
+  title: string;
+  icon: IconName;
+  accent: BlockAccent;
+  fields: StockPlaygroundNodeField[];
+  activation: string;
+  activationOptions: string[];
+};
+
+export type StockLossPoint = {
+  epoch: number;
+  trainLoss: number;
+  validationLoss: number;
+  trainDirectionAccuracy: number;
+  validationDirectionAccuracy: number;
+};
+
+export type StockBatchMetricPoint = {
+  step: number;
+  epoch: number;
+  batch: number;
+  trainLoss: number;
+  directionAccuracy: number;
+};
+
+export type StockActualPoint = {
+  date: string;
+  actual: number;
+};
+
+export type StockBacktestPoint = {
+  date: string;
+  actual: number;
+  predicted: number;
+};
+
+export type StockForecastPoint = {
+  date: string;
+  predicted: number;
+};
+
+export type StockTrainingMetrics = {
+  trainRmse: number;
+  validationRmse: number;
+  lastClose: number;
+  forecastReturnPct: number;
+};
+
+export type StockTrainingResult = {
+  ticker: string;
+  companyName: string;
+  sector: string;
+  period: string;
+  lookbackWindow: number;
+  forecastDays: number;
+  batchSize: number;
+  trainingSamples: number;
+  validationSamples: number;
+  architecture: string[];
+  losses: StockLossPoint[];
+  batchMetrics: StockBatchMetricPoint[];
+  history: StockActualPoint[];
+  backtest: StockBacktestPoint[];
+  forecast: StockForecastPoint[];
+  metrics: StockTrainingMetrics;
 };

@@ -1,12 +1,13 @@
 'use client';
 
+import type { WorkspaceMode } from '@/types/builder';
 import type { TrainingJobStatus } from '@/types/builder';
 
 type TopBarProps = {
-  activeWorkspace: 'builder' | 'tutorial' | 'competition';
+  activeWorkspace: WorkspaceMode;
   trainingStatus: TrainingJobStatus | null;
   isTraining: boolean;
-  onWorkspaceSelect: (workspace: 'builder' | 'tutorial' | 'competition') => void;
+  onWorkspaceSelect: (workspace: WorkspaceMode) => void;
   onLogoClick: () => void;
 };
 
@@ -20,6 +21,7 @@ export function TopBar({
   const workspaceTabs = [
     { id: 'tutorial', label: 'Tutorial' },
     { id: 'builder', label: 'Lab' },
+    { id: 'playground', label: 'Playground' },
     { id: 'competition', label: 'Competition' },
   ] as const;
 
