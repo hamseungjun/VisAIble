@@ -996,7 +996,9 @@ export function Canvas({
                       const isPrimaryTargetNode = tutorialTargetNodeType
                         ? node.type === tutorialTargetNodeType &&
                           nodeOccurrenceIndex === (tutorialTargetNodeOccurrence ?? 0)
-                        : tutorialTargetFieldName && node.type === 'linear' && index === nodes.length - 1;
+                        : (tutorialTargetFieldName || tutorialTargetActivationName) &&
+                            node.type === 'linear' &&
+                            index === nodes.length - 1;
                       const isSecondaryTargetNode = tutorialSecondaryTargetNodeType
                         ? node.type === tutorialSecondaryTargetNodeType &&
                           nodeOccurrenceIndex === (tutorialSecondaryTargetNodeOccurrence ?? 0)
