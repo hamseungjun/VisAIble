@@ -126,6 +126,24 @@ cd competition_backend
 uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload
 ```
 
+## Render Test Deploy
+
+The repository root now includes [render.yaml](/Users/seungjunham/Desktop/hallym/26_1/capstone/render.yaml) for deploying only `competition_backend` to Render.
+
+Important:
+
+- deploy branch: `deploy`
+- service root: `competition_backend`
+- health check: `/health`
+- local frontend can connect by setting `NEXT_PUBLIC_COMPETITION_API_BASE_URL` to the Render URL
+
+After Render gives you a URL like `https://your-service.onrender.com`, run the frontend locally with:
+
+```bash
+cd /Users/seungjunham/Desktop/hallym/26_1/VisAIble/frontend
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 NEXT_PUBLIC_COMPETITION_API_BASE_URL=https://your-service.onrender.com npm run dev
+```
+
 ## MNIST Preparation
 
 The training flow is currently implemented for `MNIST Digit Set`.

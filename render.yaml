@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: visaible-competition-backend
+    env: python
+    rootDir: competition_backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+    disk:
+      name: competition-data
+      mountPath: /opt/render/project/src/competition_backend/data
+      sizeGB: 1
