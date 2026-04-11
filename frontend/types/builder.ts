@@ -221,3 +221,16 @@ export type CompetitionSubmissionResult = {
   privateScore: number | null;
   submittedAt: string;
 };
+
+export type CompetitionPreparedSubmission = {
+  roomCode: string;
+  participantId: number;
+  datasetId: string;
+  jobId: string;
+  optimizer: string;
+  batchSize: number;
+  trainAccuracy: number;
+  validationAccuracy: number;
+  publicScore: number;
+  privateScore: number;
+};

@@ -1,7 +1,8 @@
-import { apiClient, buildApiUrl } from '@/lib/api/client';
+import { apiClient, buildApiUrl, competitionApiClient } from '@/lib/api/client';
 import type {
   CanvasNode,
   CompetitionLeaderboard,
+  CompetitionPreparedSubmission,
   CompetitionRoomSession,
   CompetitionSubmissionResult,
   TrainingAugmentationId,
@@ -55,7 +56,7 @@ export async function createCompetitionRoom(payload: {
   startsAt?: string;
   endsAt?: string;
 }) {
-  return apiClient<CompetitionRoomSession>('/competition/rooms/create', {
+  return competitionApiClient<CompetitionRoomSession>('/competition/rooms/create', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -66,32 +67,40 @@ export async function enterCompetitionRoom(payload: {
   password: string;
   participantName: string;
 }) {
-  return apiClient<CompetitionRoomSession>('/competition/rooms/enter', {
+  return competitionApiClient<CompetitionRoomSession>('/competition/rooms/enter', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
 
 export async function getCompetitionRoom(roomCode: string, participantId?: number) {
-  return apiClient<CompetitionRoomSession>(`/competition/rooms/${roomCode}`, {
+  return competitionApiClient<CompetitionRoomSession>(`/competition/rooms/${roomCode}`, {
     query: { participant_id: participantId },
   });
 }
 
 export async function getCompetitionLeaderboard(roomCode: string, participantId?: number) {
-  return apiClient<CompetitionLeaderboard>(`/competition/rooms/${roomCode}/leaderboard`, {
+  return competitionApiClient<CompetitionLeaderboard>(`/competition/rooms/${roomCode}/leaderboard`, {
     query: { participant_id: participantId },
   });
 }
 
-export async function submitCompetitionRun(payload: {
+export async function prepareCompetitionSubmission(payload: {
   roomCode: string;
   participantId: number;
+  datasetId: string;
   jobId: string;
   optimizer: string;
   batchSize: number;
 }) {
-  return apiClient<CompetitionSubmissionResult>('/competition/submissions', {
+  return apiClient<CompetitionPreparedSubmission>('/competition/submissions/prepare', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function submitCompetitionRun(payload: CompetitionPreparedSubmission) {
+  return competitionApiClient<CompetitionSubmissionResult>('/competition/submissions', {
     method: 'POST',
     body: JSON.stringify(payload),
   });

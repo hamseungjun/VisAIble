@@ -9,6 +9,7 @@ frontend/out
 frontend/.vercel
 visaible/
 backend/data
+competition_backend/data
 __pycache__/
 *.pyc
 *.log

@@ -5,15 +5,15 @@ from app.schemas.competition import (
     CompetitionEnterRequest,
     CompetitionLeaderboardResponse,
     CompetitionRoomResponse,
+    CompetitionScoredSubmissionRequest,
     CompetitionSubmissionResponse,
-    CompetitionSubmitRequest,
 )
 from app.services.competition import (
     create_competition_room,
     enter_competition_room,
     get_competition_leaderboard,
     get_competition_room,
-    submit_competition_run,
+    submit_scored_competition_run,
 )
 
 
@@ -62,8 +62,8 @@ def get_leaderboard(
 
 
 @router.post("/competition/submissions", response_model=CompetitionSubmissionResponse)
-def submit_run(payload: CompetitionSubmitRequest) -> CompetitionSubmissionResponse:
+def submit_run(payload: CompetitionScoredSubmissionRequest) -> CompetitionSubmissionResponse:
     try:
-        return submit_competition_run(payload)
+        return submit_scored_competition_run(payload)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error

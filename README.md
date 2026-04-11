@@ -10,7 +10,8 @@
 ## Structure
 
 - `frontend/`: Next.js UI
-- `backend/`: FastAPI + PyTorch training server
+- `backend/`: local FastAPI + PyTorch training server
+- `competition_backend/`: shared FastAPI competition server for room codes and leaderboard
 - `visaible/`: shared Python virtual environment created at the project root
 
 ## Requirements
@@ -33,6 +34,7 @@ python3.12 -m venv --clear visaible
 source visaible/bin/activate
 pip install --upgrade pip
 pip install -r backend/requirements.txt
+pip install -r competition_backend/requirements.txt
 ```
 
 Install frontend dependencies:
@@ -93,6 +95,35 @@ If needed, override it with:
 
 ```bash
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
+```
+
+To split shared competition state onto a separate backend, set:
+
+```bash
+NEXT_PUBLIC_COMPETITION_API_BASE_URL=http://127.0.0.1:8001
+```
+
+In this mode:
+
+- local backend (`NEXT_PUBLIC_API_BASE_URL`) handles training and local competition scoring
+- competition backend (`NEXT_PUBLIC_COMPETITION_API_BASE_URL`) handles room codes, submissions, and leaderboard state
+
+Run the local backend with:
+
+```bash
+cd /Users/seungjunham/Desktop/hallym/26_1/VisAIble
+source visaible/bin/activate
+cd backend
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Run the competition backend separately with:
+
+```bash
+cd /Users/seungjunham/Desktop/hallym/26_1/VisAIble
+source visaible/bin/activate
+cd competition_backend
+uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload
 ```
 
 ## MNIST Preparation

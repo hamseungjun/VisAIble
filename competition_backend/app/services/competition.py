@@ -4,53 +4,21 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import numpy as np
-import torch
-from torch import nn
-from torch.utils.data import DataLoader, Subset, TensorDataset
-
 from app.schemas.competition import (
     CompetitionCreateRequest,
     CompetitionEnterRequest,
+    CompetitionLeaderboardEntry,
     CompetitionLeaderboardResponse,
     CompetitionParticipantResponse,
     CompetitionRoomResponse,
+    CompetitionScoredSubmissionRequest,
     CompetitionSubmissionResponse,
-    CompetitionSubmitRequest,
-)
-from app.services.datasets import (
-    MNIST_DATA_DIR,
-    ensure_cifar10_downloaded,
-    ensure_mnist_downloaded,
-    ensure_tiny_imagenet_downloaded,
-    get_dataset_runtime_spec,
-)
-from app.services.training import (
-    RANDOM_STATE,
-    TRAINED_CLASSIFIERS,
-    TRAINING_LOCK,
-    _classification_transform,
-    _read_idx_images,
-    _read_idx_labels,
-    get_training_job,
 )
 
 
 DB_PATH = Path(__file__).resolve().parents[2] / "data" / "competition.sqlite3"
-PUBLIC_EVAL_CONFIG = {
-    "mnist": 100,
-    "fashion_mnist": 100,
-    "cifar10": 100,
-    "imagenet": 12,
-}
-PRIVATE_EVAL_CONFIG = {
-    "mnist": 100,
-    "fashion_mnist": 100,
-    "cifar10": 100,
-    "imagenet": 12,
-}
-EVAL_BATCH_SIZE = 64
 KST = timezone(timedelta(hours=9))
+SUPPORTED_DATASETS = {"mnist", "fashion_mnist", "cifar10", "imagenet"}
 
 
 def _connect() -> sqlite3.Connection:
@@ -133,6 +101,12 @@ def _normalize_room_code(value: str | None) -> str:
     return normalized[:12]
 
 
+def _validate_dataset_id(dataset_id: str) -> str:
+    if dataset_id not in SUPPORTED_DATASETS:
+        raise ValueError(f"Competition dataset '{dataset_id}' is not supported")
+    return dataset_id
+
+
 def _generate_password() -> str:
     alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
     return "".join(secrets.choice(alphabet) for _ in range(12))
@@ -166,10 +140,8 @@ def _ensure_room_schedule_is_valid(starts_at: str | None, ends_at: str | None) -
         start = datetime.fromisoformat(starts_at)
         if start.tzinfo is None:
             start = start.replace(tzinfo=timezone.utc)
-        if start < now:
-            # Allow a small tolerance for client/server clock differences.
-            if (now - start).total_seconds() > 60:
-                raise ValueError("Competition start time must be in the future or current time")
+        if start < now and (now - start).total_seconds() > 60:
+            raise ValueError("Competition start time must be in the future or current time")
 
     if ends_at:
         end = datetime.fromisoformat(ends_at)
@@ -212,7 +184,7 @@ def _serialize_participants(connection: sqlite3.Connection, room_id: int) -> lis
 
 def create_competition_room(payload: CompetitionCreateRequest) -> CompetitionRoomResponse:
     init_competition_db()
-    dataset_spec = get_dataset_runtime_spec(payload.datasetId)
+    dataset_id = _validate_dataset_id(payload.datasetId)
     room_code = _normalize_room_code(payload.roomCode)
     password = payload.password or _generate_password()
     created_at = _now_iso()
@@ -235,7 +207,7 @@ def create_competition_room(payload: CompetitionCreateRequest) -> CompetitionRoo
             (
                 room_code,
                 payload.title,
-                dataset_spec.definition.id,
+                dataset_id,
                 payload.hostName,
                 _hash_password(password),
                 payload.startsAt,
@@ -257,11 +229,10 @@ def create_competition_room(payload: CompetitionCreateRequest) -> CompetitionRoo
             (participant_id, room_id),
         )
 
-        participants = _serialize_participants(connection, room_id)
         return CompetitionRoomResponse(
             roomCode=room_code,
             title=payload.title,
-            datasetId=dataset_spec.definition.id,
+            datasetId=dataset_id,
             hostName=payload.hostName,
             hostParticipantId=participant_id,
             participantId=participant_id,
@@ -271,7 +242,7 @@ def create_competition_room(payload: CompetitionCreateRequest) -> CompetitionRoo
             endsAt=payload.endsAt,
             createdAt=created_at,
             isActive=_room_status(payload.startsAt, payload.endsAt),
-            participants=participants,
+            participants=_serialize_participants(connection, room_id),
             generatedPassword=password,
         )
 
@@ -299,7 +270,7 @@ def enter_competition_room(payload: CompetitionEnterRequest) -> CompetitionRoomR
         else:
             existing = connection.execute(
                 """
-                SELECT id, role, joined_at, password_hash
+                SELECT id, role, password_hash
                 FROM competition_participants
                 WHERE room_id = ? AND display_name = ?
                 """,
@@ -325,7 +296,6 @@ def enter_competition_room(payload: CompetitionEnterRequest) -> CompetitionRoomR
                 participant_id = int(existing["id"])
                 participant_role = "member"
 
-        participants = _serialize_participants(connection, int(room["id"]))
         return CompetitionRoomResponse(
             roomCode=room_code,
             title=str(room["title"]),
@@ -339,7 +309,7 @@ def enter_competition_room(payload: CompetitionEnterRequest) -> CompetitionRoomR
             endsAt=room["ends_at"],
             createdAt=str(room["created_at"]),
             isActive=_room_status(room["starts_at"], room["ends_at"]),
-            participants=participants,
+            participants=_serialize_participants(connection, int(room["id"])),
             generatedPassword=None,
         )
 
@@ -371,7 +341,6 @@ def get_competition_room(room_code: str, participant_id: int | None = None) -> C
                 (participant_id, room["id"]),
             ).fetchone()
 
-        participants = _serialize_participants(connection, int(room["id"]))
         return CompetitionRoomResponse(
             roomCode=normalized,
             title=str(room["title"]),
@@ -385,122 +354,12 @@ def get_competition_room(room_code: str, participant_id: int | None = None) -> C
             endsAt=room["ends_at"],
             createdAt=str(room["created_at"]),
             isActive=_room_status(room["starts_at"], room["ends_at"]),
-            participants=participants,
+            participants=_serialize_participants(connection, int(room["id"])),
             generatedPassword=None,
         )
 
 
-def _build_eval_split_loaders(
-    dataset,
-    labels: np.ndarray,
-    dataset_id: str,
-) -> tuple[DataLoader, DataLoader]:
-    public_per_class = PUBLIC_EVAL_CONFIG.get(dataset_id, 20)
-    private_per_class = PRIVATE_EVAL_CONFIG.get(dataset_id, 20)
-    rng = np.random.default_rng(RANDOM_STATE)
-    public_indices: list[int] = []
-    private_indices: list[int] = []
-
-    for class_id in np.unique(labels).tolist():
-      class_indices = np.where(labels == class_id)[0]
-      shuffled = rng.permutation(class_indices).tolist()
-      public_count = min(len(shuffled), public_per_class)
-      remaining = shuffled[public_count:]
-      private_count = min(len(remaining), private_per_class)
-      public_indices.extend(shuffled[:public_count])
-      private_indices.extend(remaining[:private_count])
-
-    if not public_indices or not private_indices:
-        raise ValueError("Competition evaluation split is empty for the selected dataset")
-
-    public_loader = DataLoader(Subset(dataset, public_indices), batch_size=EVAL_BATCH_SIZE, shuffle=False)
-    private_loader = DataLoader(Subset(dataset, private_indices), batch_size=EVAL_BATCH_SIZE, shuffle=False)
-    return public_loader, private_loader
-
-
-def _build_mnist_eval_dataset() -> tuple[TensorDataset, np.ndarray]:
-    ensure_mnist_downloaded()
-    test_images = _read_idx_images(MNIST_DATA_DIR / "t10k-images-idx3-ubyte.gz")
-    test_labels = _read_idx_labels(MNIST_DATA_DIR / "t10k-labels-idx1-ubyte.gz")
-    return TensorDataset(test_images, test_labels), test_labels.cpu().numpy()
-
-
-def _build_fashion_mnist_eval_dataset():
-    from torchvision import datasets
-
-    transform = _classification_transform("fashion_mnist", 28)
-    dataset = datasets.FashionMNIST(
-        root=str(MNIST_DATA_DIR.parent / "fashion_mnist"),
-        train=False,
-        download=True,
-        transform=transform,
-    )
-    return dataset, np.array(dataset.targets, dtype=np.int64)
-
-
-def _build_cifar10_eval_dataset():
-    from torchvision import datasets
-
-    ensure_cifar10_downloaded()
-    transform = _classification_transform("cifar10", 32)
-    dataset = datasets.CIFAR10(
-        root=str(MNIST_DATA_DIR.parent / "cifar10"),
-        train=False,
-        download=False,
-        transform=transform,
-    )
-    return dataset, np.array(dataset.targets, dtype=np.int64)
-
-
-def _build_imagenet_eval_dataset():
-    from torchvision import datasets
-
-    imagenet_root = ensure_tiny_imagenet_downloaded()
-    validation_dir = imagenet_root / "val-by-class"
-    dataset = datasets.ImageFolder(
-        str(validation_dir),
-        transform=_classification_transform("imagenet", 64),
-    )
-    samples = getattr(dataset, "samples", [])
-    labels = np.array([label for _, label in samples], dtype=np.int64)
-    return dataset, labels
-
-
-def _build_competition_eval_loaders(dataset_id: str) -> tuple[DataLoader, DataLoader]:
-    if dataset_id == "mnist":
-        dataset, labels = _build_mnist_eval_dataset()
-        return _build_eval_split_loaders(dataset, labels, dataset_id)
-    if dataset_id == "fashion_mnist":
-        dataset, labels = _build_fashion_mnist_eval_dataset()
-        return _build_eval_split_loaders(dataset, labels, dataset_id)
-    if dataset_id == "cifar10":
-        dataset, labels = _build_cifar10_eval_dataset()
-        return _build_eval_split_loaders(dataset, labels, dataset_id)
-    if dataset_id == "imagenet":
-        dataset, labels = _build_imagenet_eval_dataset()
-        return _build_eval_split_loaders(dataset, labels, dataset_id)
-    raise ValueError(f"Competition dataset '{dataset_id}' is not supported")
-
-
-def _evaluate_accuracy(model: nn.Module, device: torch.device, loader: DataLoader) -> float:
-    correct = 0
-    total = 0
-    model.eval()
-    with torch.no_grad():
-        for inputs, targets in loader:
-            inputs = inputs.to(device)
-            targets = targets.to(device)
-            logits = model(inputs)
-            batch_size = targets.size(0)
-            correct += (logits.argmax(dim=1) == targets).sum().item()
-            total += batch_size
-
-    if total == 0:
-        raise ValueError("Competition evaluation set is empty")
-    return round(correct / total, 4)
-
-
-def submit_competition_run(payload: CompetitionSubmitRequest) -> CompetitionSubmissionResponse:
+def submit_scored_competition_run(payload: CompetitionScoredSubmissionRequest) -> CompetitionSubmissionResponse:
     init_competition_db()
     normalized = _normalize_room_code(payload.roomCode)
 
@@ -515,6 +374,8 @@ def submit_competition_run(payload: CompetitionSubmitRequest) -> CompetitionSubm
         ).fetchone()
         if room is None:
             raise ValueError("Competition room not found")
+        if str(room["dataset_id"]) != payload.datasetId:
+            raise ValueError("Competition submissions must use the room dataset")
         if not _room_status(room["starts_at"], room["ends_at"]):
             raise ValueError("Competition room is not active")
 
@@ -529,29 +390,6 @@ def submit_competition_run(payload: CompetitionSubmitRequest) -> CompetitionSubm
         if participant is None:
             raise ValueError("Competition participant was not found in this room")
 
-        training_job = get_training_job(payload.jobId)
-        if training_job is None or training_job.get("status") != "completed":
-            raise ValueError("Completed training job is required before submission")
-
-        with TRAINING_LOCK:
-            trained = TRAINED_CLASSIFIERS.get(payload.jobId)
-        if trained is None:
-            raise ValueError("No trained model is available for this job")
-
-        model, device, dataset_id = trained
-        if dataset_id != room["dataset_id"]:
-            raise ValueError("Competition submissions must use the room dataset")
-
-        public_loader, private_loader = _build_competition_eval_loaders(str(room["dataset_id"]))
-        public_score = _evaluate_accuracy(model, device, public_loader)
-        private_score = _evaluate_accuracy(model, device, private_loader)
-
-        metrics = training_job.get("metrics") or []
-        latest_metric = metrics[-1] if metrics else {}
-        train_accuracy = round(float(latest_metric.get("trainAccuracy", 0.0)), 4)
-        validation_accuracy = round(float(latest_metric.get("validationAccuracy", 0.0)), 4)
-        submitted_at = _now_iso()
-
         existing_baseline = connection.execute(
             """
             SELECT 1
@@ -562,6 +400,7 @@ def submit_competition_run(payload: CompetitionSubmitRequest) -> CompetitionSubm
             (room["id"], room["host_participant_id"]),
         ).fetchone()
         is_baseline = int(participant["role"] == "host" and existing_baseline is None)
+        submitted_at = _now_iso()
 
         cursor = connection.execute(
             """
@@ -576,10 +415,10 @@ def submit_competition_run(payload: CompetitionSubmitRequest) -> CompetitionSubm
                 payload.jobId,
                 payload.optimizer,
                 payload.batchSize,
-                train_accuracy,
-                validation_accuracy,
-                public_score,
-                private_score,
+                payload.trainAccuracy,
+                payload.validationAccuracy,
+                payload.publicScore,
+                payload.privateScore,
                 is_baseline,
                 submitted_at,
             ),
@@ -591,10 +430,10 @@ def submit_competition_run(payload: CompetitionSubmitRequest) -> CompetitionSubm
             participantId=int(participant["id"]),
             participantName=str(participant["display_name"]),
             isBaseline=bool(is_baseline),
-            trainAccuracy=train_accuracy,
-            validationAccuracy=validation_accuracy,
-            publicScore=public_score,
-            privateScore=private_score if str(participant["role"]) == "host" else None,
+            trainAccuracy=round(float(payload.trainAccuracy), 4),
+            validationAccuracy=round(float(payload.validationAccuracy), 4),
+            publicScore=round(float(payload.publicScore), 4),
+            privateScore=round(float(payload.privateScore), 4) if str(participant["role"]) == "host" else None,
             submittedAt=submitted_at,
         )
 
@@ -661,26 +500,23 @@ def get_competition_leaderboard(
             (room["id"],),
         ).fetchall()
 
-        entries = []
-        for index, row in enumerate(rows, start=1):
-            entries.append(
-                {
-                    "participantId": int(row["participant_id"]),
-                    "participantName": str(row["display_name"]),
-                    "role": str(row["role"]),
-                    "rank": index,
-                    "publicScore": round(float(row["public_score"]), 4),
-                    "privateScore": round(float(row["private_score"]), 4)
-                    if requester_role == "host"
-                    else None,
-                    "trainAccuracy": round(float(row["train_accuracy"]), 4),
-                    "validationAccuracy": round(float(row["validation_accuracy"]), 4),
-                    "optimizer": str(row["optimizer"]),
-                    "batchSize": int(row["batch_size"]),
-                    "isBaseline": bool(row["is_baseline"]),
-                    "submittedAt": str(row["submitted_at"]),
-                }
+        entries = [
+            CompetitionLeaderboardEntry(
+                participantId=int(row["participant_id"]),
+                participantName=str(row["display_name"]),
+                role=str(row["role"]),
+                rank=index,
+                publicScore=round(float(row["public_score"]), 4),
+                privateScore=round(float(row["private_score"]), 4) if requester_role == "host" else None,
+                trainAccuracy=round(float(row["train_accuracy"]), 4),
+                validationAccuracy=round(float(row["validation_accuracy"]), 4),
+                optimizer=str(row["optimizer"]),
+                batchSize=int(row["batch_size"]),
+                isBaseline=bool(row["is_baseline"]),
+                submittedAt=str(row["submitted_at"]),
             )
+            for index, row in enumerate(rows, start=1)
+        ]
 
         return CompetitionLeaderboardResponse(
             roomCode=normalized,

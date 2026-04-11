@@ -2,13 +2,23 @@ type RequestOptions = RequestInit & {
   query?: Record<string, string | number | boolean | undefined>;
 };
 
+function normalizeApiBaseUrl(rawBaseUrl: string) {
+  return rawBaseUrl.endsWith('/api') ? rawBaseUrl : `${rawBaseUrl.replace(/\/$/, '')}/api`;
+}
+
 const rawApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
-export const API_BASE_URL = rawApiBaseUrl.endsWith('/api')
-  ? rawApiBaseUrl
-  : `${rawApiBaseUrl.replace(/\/$/, '')}/api`;
+const rawCompetitionApiBaseUrl =
+  process.env.NEXT_PUBLIC_COMPETITION_API_BASE_URL ?? rawApiBaseUrl;
+
+export const API_BASE_URL = normalizeApiBaseUrl(rawApiBaseUrl);
+export const COMPETITION_API_BASE_URL = normalizeApiBaseUrl(rawCompetitionApiBaseUrl);
 
 export function buildApiUrl(path: string) {
   return new URL(path, API_BASE_URL).toString();
+}
+
+export function buildCompetitionApiUrl(path: string) {
+  return new URL(path, COMPETITION_API_BASE_URL).toString();
 }
 
 function normalizeErrorDetail(detail: unknown): string | null {
@@ -45,11 +55,8 @@ function normalizeErrorDetail(detail: unknown): string | null {
   return null;
 }
 
-export async function apiClient<T>(
-  path: string,
-  { query, headers, ...init }: RequestOptions = {},
-): Promise<T> {
-  const url = new URL(path, API_BASE_URL);
+async function requestJson<T>(baseUrl: string, path: string, { query, headers, ...init }: RequestOptions = {}) {
+  const url = new URL(path, baseUrl);
 
   if (query) {
     Object.entries(query).forEach(([key, value]) => {
@@ -88,4 +95,12 @@ export async function apiClient<T>(
   }
 
   return response.json() as Promise<T>;
+}
+
+export async function apiClient<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return requestJson<T>(API_BASE_URL, path, options);
+}
+
+export async function competitionApiClient<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return requestJson<T>(COMPETITION_API_BASE_URL, path, options);
 }

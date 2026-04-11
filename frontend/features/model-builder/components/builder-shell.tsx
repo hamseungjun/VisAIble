@@ -24,6 +24,7 @@ import {
   enterCompetitionRoom,
   getCompetitionLeaderboard,
   getCompetitionRoom,
+  prepareCompetitionSubmission,
   getTrainingStatus,
   startTraining,
   stopTraining,
@@ -43,6 +44,7 @@ import type {
   BlockType,
   CanvasNode,
   CompetitionLeaderboard,
+  CompetitionPreparedSubmission,
   CompetitionRoomSession,
   CompetitionSubmissionResult,
   TrainingAugmentationId,
@@ -454,6 +456,7 @@ export function BuilderShell() {
   const runtimeDatasetId = activeWorkspace === 'competition' ? competitionDatasetId : selectedDatasetId;
   const showAugmentationPanel =
     activeWorkspace === 'builder' ||
+    activeWorkspace === 'competition' ||
     (activeWorkspace === 'tutorial' &&
       runtimeDatasetId === 'cifar10' &&
       selectedTutorialLessonId !== 'cnn-1-2');
@@ -2837,13 +2840,15 @@ export function BuilderShell() {
     setCompetitionError(null);
     try {
       const effectiveOptimizer = optimizer === 'Adam' ? 'AdamW' : optimizer;
-      const submission = await submitCompetitionRun({
+      const preparedSubmission: CompetitionPreparedSubmission = await prepareCompetitionSubmission({
         roomCode: competitionRoom.roomCode,
         participantId: competitionRoom.participantId,
+        datasetId: competitionRoom.datasetId,
         jobId,
         optimizer: effectiveOptimizer,
         batchSize,
       });
+      const submission = await submitCompetitionRun(preparedSubmission);
       setCompetitionRuns((current) =>
         current.map((run) =>
           run.jobId === jobId
@@ -3139,10 +3144,13 @@ export function BuilderShell() {
         lessonCoachStep === 'cnn13-retrain-augmented'
       ));
   const isBottomActionVisible =
-    activeWorkspace === 'builder' ||
-    (activeWorkspace === 'competition' && competitionRoom !== null) ||
-    (activeWorkspace === 'tutorial' &&
-      (!isStoryTutorialActive || !isTutorialSceneVisible || shouldForceTutorialBottomAction));
+    !isCompetitionRankOpen &&
+    (
+      activeWorkspace === 'builder' ||
+      (activeWorkspace === 'competition' && competitionRoom !== null) ||
+      (activeWorkspace === 'tutorial' &&
+        (!isStoryTutorialActive || !isTutorialSceneVisible || shouldForceTutorialBottomAction))
+    );
   const isTrainButtonRunning = isTraining && currentJobId !== null;
   const optimizerConfig = optimizerConfigs[optimizer];
   const learningRates = optimizerConfig.learningRates;
@@ -3363,26 +3371,41 @@ export function BuilderShell() {
                     <div className="grid gap-3 px-5 py-5 xl:grid-cols-[minmax(0,1.15fr)_180px_180px]">
                       <div className="rounded-[20px] border border-[#dbe5f1] bg-white px-4 py-4">
                         <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#71839d]">
-                          Batch size
+                          Competition Progress
                         </div>
-                        <div className="mt-3 flex items-center gap-3">
-                          <input
-                            type="range"
-                            min={0}
-                            max={batchSizeOptions.length - 1}
-                            step={1}
-                            value={Math.max(0, batchSizeOptions.indexOf(batchSize as (typeof batchSizeOptions)[number]))}
-                            onChange={(event) =>
-                              setBatchSize(
-                                batchSizeOptions[Number(event.target.value)] ?? batchSizeOptions[0],
-                              )
-                            }
-                            className="h-1 w-full accent-[#2563eb]"
-                          />
-                          <div className="min-w-[48px] text-right font-display text-[20px] font-bold text-[#10213b]">
-                            {batchSize}
-                          </div>
-                        </div>
+                        {competitionTimeline ? (
+                          <>
+                            <div className="mt-2 flex items-center justify-between gap-3">
+                              <div className="font-display text-[22px] font-bold text-[#10213b]">
+                                {competitionTimeline.isEnded
+                                  ? '대회가 종료되었습니다'
+                                  : formatRemainingTime(competitionTimeline.remainingMs)}
+                              </div>
+                              <div className="rounded-full bg-[#eef4ff] px-3 py-1.5 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#2563eb]">
+                                {competitionTimeline.progress}%
+                              </div>
+                            </div>
+                            <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[#e7eef8]">
+                              <div
+                                className="h-full rounded-full bg-[linear-gradient(90deg,#2563eb,#60a5fa)] transition-all duration-500"
+                                style={{ width: `${competitionTimeline.progress}%` }}
+                              />
+                            </div>
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-[12px] font-semibold text-[#60718a]">
+                              <span>시작 {competitionTimeline.startLabel}</span>
+                              <span>종료 {competitionTimeline.endLabel}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="mt-2 font-display text-[22px] font-bold text-[#10213b]">
+                              {formatCompetitionDateLabel(competitionRoom.endsAt)}
+                            </div>
+                            <div className="mt-1 text-[12px] font-semibold text-[#6b7d96]">
+                              선택한 종료 시각까지 제출할 수 있습니다.
+                            </div>
+                          </>
+                        )}
                       </div>
                       <div className="rounded-[20px] border border-[#dbe5f1] bg-white px-4 py-4">
                         <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#71839d]">
@@ -3409,35 +3432,6 @@ export function BuilderShell() {
                         </div>
                       </div>
                     ) : null}
-                  </div>
-                ) : null}
-                {competitionTimeline ? (
-                  <div className="mb-2.5 rounded-[24px] border border-[#dbe5f1] bg-white px-5 py-4 shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#6e809a]">
-                          Competition Progress
-                        </div>
-                        <div className="mt-1 text-[18px] font-bold text-[#10213b]">
-                          {competitionTimeline.isEnded
-                            ? '대회가 종료되었습니다'
-                            : formatRemainingTime(competitionTimeline.remainingMs)}
-                        </div>
-                      </div>
-                      <div className="rounded-full bg-[#eef4ff] px-4 py-2 text-[13px] font-extrabold uppercase tracking-[0.14em] text-[#2563eb]">
-                        {competitionTimeline.progress}%
-                      </div>
-                    </div>
-                    <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#e7eef8]">
-                      <div
-                        className="h-full rounded-full bg-[linear-gradient(90deg,#2563eb,#60a5fa)] transition-all duration-500"
-                        style={{ width: `${competitionTimeline.progress}%` }}
-                      />
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-[13px] font-semibold text-[#60718a]">
-                      <span>시작 {competitionTimeline.startLabel}</span>
-                      <span>종료 {competitionTimeline.endLabel}</span>
-                    </div>
                   </div>
                 ) : null}
                 {showAugmentationPanel ? (
