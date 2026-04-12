@@ -65,6 +65,7 @@ class CompetitionRoomResponse(BaseModel):
 
 
 class CompetitionLeaderboardEntry(BaseModel):
+    jobId: str
     participantId: int
     participantName: str
     role: str
@@ -87,7 +88,30 @@ class CompetitionLeaderboardResponse(BaseModel):
     startsAt: str | None = None
     endsAt: str | None = None
     isActive: bool
+    rankBasis: str
+    isPrivateRevealed: bool
     entries: list[CompetitionLeaderboardEntry]
+
+
+class CompetitionParticipantSubmission(BaseModel):
+    submissionId: int
+    jobId: str
+    participantId: int
+    participantName: str
+    isBaseline: bool
+    trainAccuracy: float
+    validationAccuracy: float
+    publicScore: float
+    privateScore: float | None = None
+    optimizer: str
+    batchSize: int
+    submittedAt: str
+
+
+class CompetitionParticipantSubmissionListResponse(BaseModel):
+    roomCode: str
+    participantId: int
+    entries: list[CompetitionParticipantSubmission]
 
 
 class CompetitionSubmissionResponse(BaseModel):

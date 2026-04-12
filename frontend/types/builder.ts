@@ -184,6 +184,7 @@ export type CompetitionRoomSession = {
 };
 
 export type CompetitionLeaderboardEntry = {
+  jobId: string;
   participantId: number;
   participantName: string;
   role: 'host' | 'member';
@@ -206,7 +207,24 @@ export type CompetitionLeaderboard = {
   startsAt?: string | null;
   endsAt?: string | null;
   isActive: boolean;
+  rankBasis: 'public' | 'private';
+  isPrivateRevealed: boolean;
   entries: CompetitionLeaderboardEntry[];
+};
+
+export type CompetitionParticipantSubmission = {
+  submissionId: number;
+  jobId: string;
+  participantId: number;
+  participantName: string;
+  isBaseline: boolean;
+  trainAccuracy: number;
+  validationAccuracy: number;
+  publicScore: number;
+  privateScore: number | null;
+  optimizer: string;
+  batchSize: number;
+  submittedAt: string;
 };
 
 export type CompetitionSubmissionResult = {

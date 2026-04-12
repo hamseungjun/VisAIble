@@ -2,6 +2,7 @@ import { apiClient, buildApiUrl, competitionApiClient } from '@/lib/api/client';
 import type {
   CanvasNode,
   CompetitionLeaderboard,
+  CompetitionParticipantSubmission,
   CompetitionPreparedSubmission,
   CompetitionRoomSession,
   CompetitionSubmissionResult,
@@ -83,6 +84,15 @@ export async function getCompetitionLeaderboard(roomCode: string, participantId?
   return competitionApiClient<CompetitionLeaderboard>(`/competition/rooms/${roomCode}/leaderboard`, {
     query: { participant_id: participantId },
   });
+}
+
+export async function getCompetitionSubmissions(roomCode: string, participantId: number) {
+  return competitionApiClient<{ roomCode: string; participantId: number; entries: CompetitionParticipantSubmission[] }>(
+    `/competition/rooms/${roomCode}/submissions`,
+    {
+      query: { participant_id: participantId },
+    },
+  );
 }
 
 export async function prepareCompetitionSubmission(payload: {

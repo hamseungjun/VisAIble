@@ -144,6 +144,19 @@ cd /Users/seungjunham/Desktop/hallym/26_1/VisAIble/frontend
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 NEXT_PUBLIC_COMPETITION_API_BASE_URL=https://your-service.onrender.com npm run dev
 ```
 
+For one-command local startup against the deployed Render competition backend:
+
+- macOS/Linux: [run_local_with_render.sh](/Users/seungjunham/Desktop/hallym/26_1/capstone/run_local_with_render.sh)
+- Windows: [run_local_with_render.bat](/Users/seungjunham/Desktop/hallym/26_1/capstone/run_local_with_render.bat)
+
+Both scripts default to:
+
+```text
+http://210.115.229.161:8001
+```
+
+If needed, override the competition URL before running the script with `NEXT_PUBLIC_COMPETITION_API_BASE_URL`.
+
 ## MNIST Preparation
 
 The training flow is currently implemented for `MNIST Digit Set`.
@@ -176,6 +189,21 @@ Open:
 
 - frontend: `http://localhost:3000`
 - backend health: `http://127.0.0.1:8000/health`
+
+## One-Command Local Run
+
+For the basic local mode without the shared competition backend:
+
+- macOS/Linux: [run.sh](/Users/seungjunham/Desktop/hallym/26_1/capstone/run.sh)
+- Windows: [run.bat](/Users/seungjunham/Desktop/hallym/26_1/capstone/run.bat)
+
+What these scripts do:
+
+- create `visaible/` virtual environment if missing
+- install `backend/requirements.txt`
+- run `npm install` in `frontend/`
+- start the local backend on `127.0.0.1:8000`
+- start the frontend on `127.0.0.1:3000`
 
 ## Notes
 

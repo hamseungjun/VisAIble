@@ -24,7 +24,13 @@ export function CompetitionRankModal({
   onClose,
 }: CompetitionRankModalProps) {
   const entryCount = leaderboard?.entries.length ?? 0;
-  const bestScore = entryCount > 0 ? leaderboard?.entries[0]?.publicScore ?? null : null;
+  const isPrivateRevealed = leaderboard?.isPrivateRevealed ?? false;
+  const bestScore =
+    entryCount > 0
+      ? (isPrivateRevealed
+          ? leaderboard?.entries[0]?.privateScore
+          : leaderboard?.entries[0]?.publicScore) ?? null
+      : null;
 
   return (
     <div className="fixed inset-0 z-[120] bg-[rgba(15,23,42,0.5)] px-5 py-8 backdrop-blur-sm">
@@ -39,9 +45,9 @@ export function CompetitionRankModal({
                 {roomTitle}
               </div>
               <div className="mt-2 text-[13px] font-semibold text-[#66768f]">
-                {isHost
-                  ? '\uD638\uC2A4\uD2B8 \uD654\uBA74\uC5D0\uC11C\uB294 \uC228\uACA8\uC9C4 Private Score\uAE4C\uC9C0 \uD568\uAED8 \uD655\uC778\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.'
-                  : '\uCC38\uAC00\uC790 \uD654\uBA74\uC5D0\uC11C\uB294 Public Score\uB9CC \uD45C\uC2DC\uB429\uB2C8\uB2E4.'}
+                {isPrivateRevealed
+                  ? '\uB300\uD68C \uC885\uB8CC \uD6C4 Private Score \uAE30\uC900 \uC21C\uC704\uAC00 \uACF5\uAC1C\uB429\uB2C8\uB2E4.'
+                  : '\uB300\uD68C \uC9C4\uD589 \uC911\uC5D0\uB294 Public Score \uAE30\uC900 \uC21C\uC704\uB9CC \uD45C\uC2DC\uB429\uB2C8\uB2E4.'}
               </div>
             </div>
             <button
@@ -63,7 +69,7 @@ export function CompetitionRankModal({
             </div>
             <div className="rounded-[18px] border border-[#dbe5f1] bg-[#f8fbff] px-4 py-4">
               <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7b8da8]">
-                Best Public Score
+                {isPrivateRevealed ? 'Best Private Score' : 'Best Public Score'}
               </div>
               <div className="mt-2 font-display text-[22px] font-bold text-[#2563eb]">
                 {formatPercent(bestScore)}
@@ -74,7 +80,7 @@ export function CompetitionRankModal({
                 Visibility
               </div>
               <div className="mt-2 font-display text-[22px] font-bold text-[#10213b]">
-                {isHost ? 'Public + Private' : 'Public Only'}
+                {isPrivateRevealed ? 'Private Ranking Open' : 'Public Only'}
               </div>
             </div>
           </div>
@@ -84,12 +90,12 @@ export function CompetitionRankModal({
           {entryCount > 0 ? (
             <div className="overflow-hidden rounded-[24px] border border-[#dbe5f1] bg-white shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
               <div
-                className={`grid gap-3 border-b border-[#e7eef7] bg-[#f8fbff] px-5 py-4 text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#71839d] ${isHost ? 'grid-cols-[72px_minmax(180px,1.2fr)_repeat(5,minmax(0,1fr))]' : 'grid-cols-[72px_minmax(180px,1.4fr)_repeat(4,minmax(0,1fr))]'}`}
+                className={`grid gap-3 border-b border-[#e7eef7] bg-[#f8fbff] px-5 py-4 text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#71839d] ${isPrivateRevealed ? 'grid-cols-[72px_minmax(180px,1.2fr)_repeat(5,minmax(0,1fr))]' : 'grid-cols-[72px_minmax(180px,1.4fr)_repeat(4,minmax(0,1fr))]'}`}
               >
                 <div>Rank</div>
                 <div>Team</div>
                 <div>Public</div>
-                {isHost ? <div>Private</div> : null}
+                {isPrivateRevealed ? <div>Private</div> : null}
                 <div>Validation</div>
                 <div>Train</div>
                 <div>Status</div>
@@ -101,7 +107,7 @@ export function CompetitionRankModal({
                     key={`${entry.participantId}-${entry.submittedAt}`}
                     className={[
                       'grid gap-3 px-5 py-4 text-[14px] text-[#24364f]',
-                      isHost
+                      isPrivateRevealed
                         ? 'grid-cols-[72px_minmax(180px,1.2fr)_repeat(5,minmax(0,1fr))]'
                         : 'grid-cols-[72px_minmax(180px,1.4fr)_repeat(4,minmax(0,1fr))]',
                       index !== entryCount - 1 ? 'border-b border-[#eef3f8]' : '',
@@ -123,7 +129,7 @@ export function CompetitionRankModal({
                     <div className="flex items-center font-display text-[18px] font-bold text-[#2563eb]">
                       {formatPercent(entry.publicScore)}
                     </div>
-                    {isHost ? (
+                    {isPrivateRevealed ? (
                       <div className="flex items-center font-display text-[18px] font-bold text-[#10213b]">
                         {formatPercent(entry.privateScore)}
                       </div>
