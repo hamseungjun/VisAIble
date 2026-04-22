@@ -15,6 +15,7 @@ type SidebarProps = {
   hasCompetitionRoom?: boolean;
   selectedDataset?: DatasetItem | null;
   availableBlockTypes: BlockType[];
+  minaHighlightBlockType?: BlockType | null;
   selectedTutorialLessonId?: string | null;
   selectedStock?: StockPreset | null;
   onDatasetSelect: (datasetId: string) => void;
@@ -150,6 +151,7 @@ export function Sidebar({
   hasCompetitionRoom = false,
   selectedDataset,
   availableBlockTypes,
+  minaHighlightBlockType = null,
   selectedTutorialLessonId = null,
   selectedStock,
   onDatasetSelect,
@@ -237,7 +239,7 @@ export function Sidebar({
   }, [activeWorkspace, stockSearchQuery]);
 
   return (
-    <aside className="ui-surface flex h-full flex-col gap-4 px-5 py-5">
+    <aside className="relative z-10 min-w-0 overflow-hidden ui-surface flex h-full flex-col gap-4 px-5 py-5">
       {activeWorkspace === 'builder' ? (
         <section className="grid gap-2.5">
             <h2 className="ui-section-title">
@@ -377,7 +379,7 @@ export function Sidebar({
               {stockSearchBusy ? '검색 중...' : '티커 또는 회사명으로 검색해서 바로 학습할 수 있습니다.'}
             </div>
           </label>
-          <div className="grid gap-2">
+          <div className="grid gap-2 min-w-0">
             {stockSearchResults.map((preset) => {
               const active = preset.ticker === selectedStockPreset?.ticker;
               return (
@@ -386,7 +388,7 @@ export function Sidebar({
                   type="button"
                   onClick={() => onStockSelect?.(preset)}
                   className={[
-                    'rounded-[18px] border px-3.5 py-3 text-left transition-colors',
+                    'min-w-0 overflow-hidden rounded-[18px] border px-3.5 py-3 text-left transition-colors',
                     active
                       ? 'border-primary/25 bg-primary/10 shadow-[0_8px_20px_rgba(17,81,255,0.08)]'
                       : 'border-transparent hover:border-[#d9e2ef] hover:bg-white/80',
@@ -396,19 +398,19 @@ export function Sidebar({
                     <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[14px] bg-[#edf3ff] text-primary">
                       <Icon name="chip" className="h-4.5 w-4.5" />
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-display text-[15px] font-bold text-[#10213b]">
+                    <span className="min-w-0 flex-1 overflow-hidden">
+                      <div className="flex min-w-0 items-center justify-between gap-2">
+                        <span className="min-w-0 truncate font-display text-[15px] font-bold text-[#10213b]">
                           {preset.label}
                         </span>
-                        <span className="rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-extrabold tracking-[0.12em] text-[#6280aa]">
+                        <span className="shrink-0 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-extrabold tracking-[0.12em] text-[#6280aa]">
                           {preset.ticker}
                         </span>
                       </div>
-                      <div className="mt-1 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#6a7f9d]">
+                      <div className="mt-1 truncate text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#6a7f9d]">
                         {preset.sector}
                       </div>
-                      <div className="mt-2 text-[12px] leading-5 text-[#5b6c84]">
+                      <div className="mt-2 overflow-hidden break-words text-[12px] leading-5 text-[#5b6c84]">
                         {preset.description}
                       </div>
                     </span>
@@ -431,10 +433,10 @@ export function Sidebar({
               <div className="mt-2 font-display text-[20px] font-bold text-[#10213b]">
                 {selectedStockPreset.ticker}
               </div>
-              <div className="mt-1 text-[13px] font-semibold text-[#4d607d]">
+              <div className="mt-1 break-words text-[13px] font-semibold text-[#4d607d]">
                 {selectedStockPreset.label}
               </div>
-              <div className="mt-3 rounded-[16px] bg-[#f5f8ff] px-3.5 py-3 text-[12px] leading-5 text-[#5b6c84]">
+              <div className="mt-3 break-words rounded-[16px] bg-[#f5f8ff] px-3.5 py-3 text-[12px] leading-5 text-[#5b6c84]">
                 {selectedStockPreset.description}
               </div>
             </div>
@@ -451,7 +453,12 @@ export function Sidebar({
             {visibleBlocks.map((block) => (
               <div
                 key={block.id}
-                className="relative w-full overflow-hidden rounded-[22px] border border-[#d9e2ef] bg-[linear-gradient(180deg,#ffffff,#f8fbff)] shadow-[0_10px_24px_rgba(13,27,51,0.04)]"
+                className={[
+                  'relative w-full overflow-hidden rounded-[22px] border bg-[linear-gradient(180deg,#ffffff,#f8fbff)] shadow-[0_10px_24px_rgba(13,27,51,0.04)]',
+                  minaHighlightBlockType === block.id
+                    ? 'border-[#2463eb]/35 ring-2 ring-[#2463eb]/25 shadow-[0_14px_30px_rgba(36,99,235,0.14)]'
+                    : 'border-[#d9e2ef]',
+                ].join(' ')}
                 data-tutorial-target={block.id === 'linear' ? 'tutorial-linear-block' : undefined}
               >
                 <div
@@ -478,7 +485,10 @@ export function Sidebar({
                     onBlockDragStart(block.id);
                   }}
                   onDragEnd={onBlockDragEnd}
-                  className="flex min-h-[76px] w-full cursor-grab items-center gap-3 rounded-[22px] px-4 py-3.5 pr-14 text-left transition-transform hover:-translate-y-0.5 hover:bg-white/80 active:cursor-grabbing"
+                  className={[
+                    'flex min-h-[76px] w-full cursor-grab items-center gap-3 rounded-[22px] px-4 py-3.5 pr-14 text-left transition-transform hover:-translate-y-0.5 hover:bg-white/80 active:cursor-grabbing',
+                    minaHighlightBlockType === block.id ? 'bg-[#edf4ff]/72' : '',
+                  ].join(' ')}
                 >
                   <div
                     className={[
@@ -492,9 +502,15 @@ export function Sidebar({
                     <h3 className="text-[16px] font-semibold leading-[1.2] tracking-[-0.02em] text-[#16233b]">
                       {block.title}
                     </h3>
-                    <div className="text-[11px] font-medium tracking-[-0.01em] text-[#8391a8]">
-                      Drag to add
-                    </div>
+                    {minaHighlightBlockType === block.id ? (
+                      <div className="text-[11px] font-extrabold tracking-[0.04em] text-[#2456c9]">
+                        Mina 추천: 이 블록을 추가해보세요
+                      </div>
+                    ) : (
+                      <div className="text-[11px] font-medium tracking-[-0.01em] text-[#8391a8]">
+                        Drag to add
+                      </div>
+                    )}
                   </div>
                 </button>
                 <button

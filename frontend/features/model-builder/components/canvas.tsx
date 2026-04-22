@@ -12,6 +12,10 @@ type CanvasProps = {
   nodes: CanvasNode[];
   draggingBlock: BlockType | null;
   zoom: number;
+  minaHighlightNodeIndex?: number | null;
+  minaHighlightFieldLabel?: string | null;
+  minaHighlightSuggestedValue?: string | null;
+  minaHighlightReason?: string | null;
   tutorialTargetNodeType?: BlockType | null;
   tutorialTargetNodeOccurrence?: number | null;
   tutorialTargetFieldLabel?: string | null;
@@ -320,6 +324,10 @@ function NodeFieldInput({
 
 function NodeCard({
   node,
+  isMinaHighlighted,
+  minaHighlightFieldLabel,
+  minaHighlightSuggestedValue,
+  minaHighlightReason,
   dimensions,
   advice,
   tutorialTargetFieldLabel,
@@ -335,6 +343,10 @@ function NodeCard({
   onDragEnd,
 }: {
   node: CanvasNode;
+  isMinaHighlighted?: boolean;
+  minaHighlightFieldLabel?: string | null;
+  minaHighlightSuggestedValue?: string | null;
+  minaHighlightReason?: string | null;
   dimensions?: NodeDimensionInfo;
   advice?: NodeAdviceInfo;
   tutorialTargetFieldLabel?: string;
@@ -362,10 +374,17 @@ function NodeCard({
   const tone = blockTone(node.accent);
   const showAdvice = Boolean(advice?.hasError);
   const showAdviceBanner = showAdvice && advice?.message;
+  const isActivationHighlighted = minaHighlightFieldLabel === 'Activation';
   const cardClassName = showAdvice
     ? 'bg-[#fff0f0] shadow-[0_16px_32px_rgba(220,38,38,0.14)] ring-1 ring-[#fca5a5]'
-    : tone.card;
-  const barClassName = showAdvice ? 'bg-[#dc2626]' : tone.bar;
+    : isMinaHighlighted
+      ? `${tone.card} ring-2 ring-[#2463eb]/35 shadow-[0_18px_36px_rgba(36,99,235,0.16)]`
+      : tone.card;
+  const barClassName = showAdvice ? 'bg-[#dc2626]' : isMinaHighlighted ? 'bg-[#2463eb]' : tone.bar;
+  const highlightedFieldContainerClassName =
+    'ring-2 ring-[#2463eb]/22 bg-[linear-gradient(180deg,rgba(237,244,255,0.95),rgba(255,255,255,0.94))] shadow-[0_10px_22px_rgba(36,99,235,0.10)]';
+  const highlightedInputClassName =
+    '!border-[#2463eb]/30 !bg-white !shadow-[0_0_0_3px_rgba(36,99,235,0.12)] focus:!border-[#2463eb]/35 focus:!shadow-[0_0_0_3px_rgba(36,99,235,0.16)]';
 
   return (
     <article
@@ -389,6 +408,13 @@ function NodeCard({
       {showAdviceBanner && advice?.message ? (
         <div className="mb-2 rounded-[18px] bg-[#fee2e2] px-[clamp(12px,1vw,14px)] py-[clamp(8px,0.8vw,10px)] text-[clamp(12px,0.95vw,13px)] font-bold text-[#b91c1c] shadow-[inset_0_0_0_1px_rgba(239,68,68,0.14)]">
           {advice.message}
+        </div>
+      ) : null}
+
+      {!showAdviceBanner && isMinaHighlighted && minaHighlightReason ? (
+        <div className="mb-2 rounded-[18px] bg-[#e8f0ff] px-[clamp(12px,1vw,14px)] py-[clamp(8px,0.8vw,10px)] text-[clamp(12px,0.95vw,13px)] font-bold text-[#1849c6] shadow-[inset_0_0_0_1px_rgba(36,99,235,0.12)]">
+          Mina 추천: {minaHighlightReason}
+          {minaHighlightSuggestedValue ? ` · 제안값 ${minaHighlightSuggestedValue}` : ''}
         </div>
       ) : null}
 
@@ -490,7 +516,10 @@ function NodeCard({
             {node.fields.slice(0, 3).map((field) => (
               <label
                 key={field.label}
-                className="grid min-w-0 gap-0.5 rounded-[18px] bg-white/72 px-[clamp(10px,0.9vw,12px)] py-[clamp(8px,0.75vw,10px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
+                className={[
+                  'grid min-w-0 gap-0.5 rounded-[18px] bg-white/72 px-[clamp(10px,0.9vw,12px)] py-[clamp(8px,0.75vw,10px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]',
+                  minaHighlightFieldLabel === field.label ? highlightedFieldContainerClassName : '',
+                ].join(' ')}
                 data-tutorial-target={
                   tutorialTargetFieldLabel === field.label
                     ? tutorialTargetName
@@ -510,6 +539,7 @@ function NodeCard({
                 className={[
                   'w-full min-w-0 rounded-[14px] border border-transparent bg-white px-[clamp(12px,1vw,14px)] py-[clamp(8px,0.75vw,10px)] text-[clamp(13px,0.95vw,14px)] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                   tone.focus,
+                  minaHighlightFieldLabel === field.label ? highlightedInputClassName : '',
                 ].join(' ')}
                 onChange={(nextValue) => onFieldChange(field.label, nextValue)}
               />
@@ -521,7 +551,10 @@ function NodeCard({
             {node.fields.slice(3).map((field) => (
               <label
                 key={field.label}
-                className="grid min-w-0 gap-0.5 rounded-[18px] bg-white/72 px-[clamp(10px,0.9vw,12px)] py-[clamp(8px,0.75vw,10px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
+                className={[
+                  'grid min-w-0 gap-0.5 rounded-[18px] bg-white/72 px-[clamp(10px,0.9vw,12px)] py-[clamp(8px,0.75vw,10px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]',
+                  minaHighlightFieldLabel === field.label ? highlightedFieldContainerClassName : '',
+                ].join(' ')}
                 data-tutorial-target={
                   tutorialTargetFieldLabel === field.label
                     ? tutorialTargetName
@@ -538,14 +571,20 @@ function NodeCard({
                   value={field.value}
                   suggestedValue={advice?.suggestedFields[field.label]}
                   hasFieldError={Boolean(advice?.fieldErrors.includes(field.label))}
-                  className="w-full min-w-0 rounded-[14px] border border-transparent bg-white px-[clamp(12px,1vw,14px)] py-[clamp(8px,0.75vw,10px)] text-[clamp(13px,0.95vw,14px)] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow focus:border-primary/30 focus:shadow-[0_0_0_3px_rgba(17,81,255,0.12)]"
+                  className={[
+                    'w-full min-w-0 rounded-[14px] border border-transparent bg-white px-[clamp(12px,1vw,14px)] py-[clamp(8px,0.75vw,10px)] text-[clamp(13px,0.95vw,14px)] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow focus:border-primary/30 focus:shadow-[0_0_0_3px_rgba(17,81,255,0.12)]',
+                    minaHighlightFieldLabel === field.label ? highlightedInputClassName : '',
+                  ].join(' ')}
                   onChange={(nextValue) => onFieldChange(field.label, nextValue)}
                 />
               </label>
             ))}
 
             <label
-              className="grid gap-0.5 rounded-[18px] bg-white/72 px-[clamp(10px,0.9vw,12px)] py-[clamp(8px,0.75vw,10px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
+              className={[
+                'grid gap-0.5 rounded-[18px] bg-white/72 px-[clamp(10px,0.9vw,12px)] py-[clamp(8px,0.75vw,10px)] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]',
+                isActivationHighlighted ? highlightedFieldContainerClassName : '',
+              ].join(' ')}
               data-tutorial-target={tutorialTargetActivationName}
             >
               <span className="shrink-0 text-[clamp(10px,0.75vw,11px)] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
@@ -559,6 +598,7 @@ function NodeCard({
                     'w-full appearance-none rounded-[14px] border border-transparent bg-white px-[clamp(12px,1vw,14px)] py-[clamp(8px,0.75vw,10px)] text-[clamp(13px,0.95vw,14px)] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                     tone.focus,
                     advisedSelectClassName(Boolean(advice?.activationError)),
+                    isActivationHighlighted ? highlightedInputClassName : '',
                   ].join(' ')}
                 >
                   {node.activationOptions.map((option) => (
@@ -588,6 +628,7 @@ function NodeCard({
                     'grid min-w-0 gap-0.5 rounded-[16px] px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]',
                     isPoolType ? 'bg-white/72' : 'bg-white/72',
                     isCompactField ? 'xl:max-w-[170px]' : '',
+                    minaHighlightFieldLabel === field.label ? highlightedFieldContainerClassName : '',
                   ].join(' ')}
                   data-tutorial-target={
                     tutorialTargetFieldLabel === field.label
@@ -608,6 +649,7 @@ function NodeCard({
                         className={[
                           'w-full appearance-none rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[13px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                           tone.focus,
+                          minaHighlightFieldLabel === field.label ? highlightedInputClassName : '',
                         ].join(' ')}
                       >
                         <option value="MaxPool">MaxPool</option>
@@ -630,6 +672,7 @@ function NodeCard({
                         'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[13px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                         tone.focus,
                         isCompactField ? 'text-center' : '',
+                        minaHighlightFieldLabel === field.label ? highlightedInputClassName : '',
                       ].join(' ')}
                       onChange={(nextValue) => onFieldChange(field.label, nextValue)}
                     />
@@ -656,7 +699,10 @@ function NodeCard({
           {node.fields.map((field) => (
             <label
               key={field.label}
-              className="grid min-w-0 gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
+              className={[
+                'grid min-w-0 gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]',
+                minaHighlightFieldLabel === field.label ? highlightedFieldContainerClassName : '',
+              ].join(' ')}
               data-tutorial-target={
                 tutorialTargetFieldLabel === field.label ? tutorialTargetName : undefined
               }
@@ -673,6 +719,7 @@ function NodeCard({
                 className={[
                   'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-center text-[14px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                   tone.focus,
+                  minaHighlightFieldLabel === field.label ? highlightedInputClassName : '',
                 ].join(' ')}
                 onChange={(nextValue) => onFieldChange(field.label, nextValue)}
               />
@@ -690,7 +737,10 @@ function NodeCard({
           {node.fields.map((field) => (
             <label
               key={field.label}
-              className="grid min-w-0 gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
+              className={[
+                'grid min-w-0 gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]',
+                minaHighlightFieldLabel === field.label ? highlightedFieldContainerClassName : '',
+              ].join(' ')}
               data-tutorial-target={
                 tutorialTargetFieldLabel === field.label ? tutorialTargetName : undefined
               }
@@ -707,6 +757,7 @@ function NodeCard({
                 className={[
                   'w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-center text-[14px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                   tone.focus,
+                  minaHighlightFieldLabel === field.label ? highlightedInputClassName : '',
                 ].join(' ')}
                 onChange={(nextValue) => onFieldChange(field.label, nextValue)}
               />
@@ -714,7 +765,10 @@ function NodeCard({
           ))}
 
           <label
-            className="grid gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
+            className={[
+              'grid gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]',
+              isActivationHighlighted ? highlightedFieldContainerClassName : '',
+            ].join(' ')}
             data-tutorial-target={tutorialTargetActivationName}
           >
             <span className="shrink-0 text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
@@ -728,6 +782,7 @@ function NodeCard({
                   'w-full appearance-none rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[13px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow',
                   tone.focus,
                   advisedSelectClassName(Boolean(advice?.activationError)),
+                  isActivationHighlighted ? highlightedInputClassName : '',
                 ].join(' ')}
               >
                 {node.activationOptions.map((option) => (
@@ -787,6 +842,10 @@ export function Canvas({
   nodes,
   draggingBlock,
   zoom,
+  minaHighlightNodeIndex,
+  minaHighlightFieldLabel,
+  minaHighlightSuggestedValue,
+  minaHighlightReason,
   tutorialTargetNodeType,
   tutorialTargetNodeOccurrence,
   tutorialTargetFieldLabel,
@@ -1007,6 +1066,16 @@ export function Canvas({
                       return (
                     <NodeCard
                       node={node}
+                      isMinaHighlighted={minaHighlightNodeIndex === index + 1}
+                      minaHighlightFieldLabel={
+                        minaHighlightNodeIndex === index + 1 ? (minaHighlightFieldLabel ?? null) : null
+                      }
+                      minaHighlightSuggestedValue={
+                        minaHighlightNodeIndex === index + 1 ? (minaHighlightSuggestedValue ?? null) : null
+                      }
+                      minaHighlightReason={
+                        minaHighlightNodeIndex === index + 1 ? (minaHighlightReason ?? null) : null
+                      }
                       dimensions={nodeDimensions[node.id]}
                       advice={nodeAdvice[node.id]}
                       tutorialTargetFieldLabel={

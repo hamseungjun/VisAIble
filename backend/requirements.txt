@@ -6,3 +6,6 @@ torchvision==0.21.0
 uvicorn==0.34.0
 scikit-learn==1.6.1
 yfinance==0.2.54
+llama-cpp-python==0.3.20
+litert_lm
+yfinance

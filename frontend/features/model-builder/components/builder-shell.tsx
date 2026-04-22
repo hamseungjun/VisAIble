@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AugmentationPanel } from '@/features/model-builder/components/augmentation-panel';
 import { Canvas } from '@/features/model-builder/components/canvas';
@@ -8,6 +9,7 @@ import { CompetitionRankModal } from '@/features/model-builder/components/compet
 import { CompetitionSidebar } from '@/features/model-builder/components/competition-sidebar';
 import { Icon } from '@/features/model-builder/components/icons';
 import { Inspector } from '@/features/model-builder/components/inspector';
+import { MinaBubbleChat, type MinaMessage } from '@/features/model-builder/components/mina-bubble-chat';
 import { MnistElevatorMission } from '@/features/model-builder/components/mnist-elevator-mission';
 import { ModelPreviewModal } from '@/features/model-builder/components/model-preview-modal';
 import { Sidebar } from '@/features/model-builder/components/sidebar';
@@ -16,6 +18,7 @@ import { TopBar } from '@/features/model-builder/components/top-bar';
 import { TrainingLiveOverlay } from '@/features/model-builder/components/training-live-overlay';
 import { TutorialCoachOverlay } from '@/features/model-builder/components/tutorial-coach-overlay';
 import { useBuilderBoard } from '@/features/model-builder/hooks/use-builder-board';
+import { chatWithMina } from '@/lib/api/mina';
 import {
   tutorialSequence,
   type TutorialStepKey,
@@ -147,6 +150,147 @@ type WorkspaceSnapshot = {
   datasetId: string;
   nodes: CanvasNode[];
 };
+
+type MinaCanvasHighlight = {
+  blockIndex: number;
+  fieldLabel: string;
+  suggestedValue?: string | null;
+  reason?: string | null;
+};
+
+type MinaProvider = 'gemini' | 'gemma';
+
+function summarizeBlocks(nodes: CanvasNode[]) {
+  if (nodes.length === 0) {
+    return 'No blocks added yet.';
+  }
+
+  return nodes
+    .map((node, index) => {
+      const primaryFields = node.fields
+        .slice(0, 4)
+        .map((field) => `${field.label}=${field.value}`)
+        .join(', ');
+      return `${index + 1}:${node.type}(${primaryFields}${node.activation !== 'None' ? `, act=${node.activation}` : ''})`;
+    })
+    .join(' | ');
+}
+
+function summarizeArchitecture(nodes: CanvasNode[]) {
+  if (nodes.length === 0) {
+    return 'nn.Sequential()';
+  }
+
+  const layers: string[] = [];
+  let hasFlatten = false;
+
+  nodes.forEach((node, index) => {
+    const fieldValue = (label: string, fallback: string) =>
+      node.fields.find((field) => field.label === label)?.value ?? fallback;
+
+    if (node.type === 'cnn') {
+      layers.push(
+        `nn.Conv2d(${fieldValue('Channel In', '1')},${fieldValue('Channel Out', '16')},k=${fieldValue('Kernel Size', '3x3')},s=${fieldValue('Stride', '1')},p=${fieldValue('Padding', '1')})`,
+      );
+      if (node.activation !== 'None') {
+        layers.push(`act=${node.activation}`);
+      }
+      return;
+    }
+
+    if (node.type === 'pooling') {
+      const poolType = fieldValue('Pool Type', 'MaxPool');
+      if (poolType === 'AdaptiveAvgPool') {
+        layers.push('nn.AdaptiveAvgPool2d((1,1))');
+        return;
+      }
+      layers.push(
+        `${poolType}(k=${fieldValue('Kernel Size', '2x2')},s=${fieldValue('Stride', 'auto') || 'auto'},p=${fieldValue('Padding', '0')})`,
+      );
+      return;
+    }
+
+    if (node.type === 'dropout') {
+      layers.push(`nn.Dropout(p=${fieldValue('Probability', '0.30')})`);
+      return;
+    }
+
+    if (!hasFlatten) {
+      layers.push('nn.Flatten()');
+      hasFlatten = true;
+    }
+
+    layers.push(`nn.Linear(${fieldValue('Input', '?')},${fieldValue('Output', '?')})`);
+    if (node.activation !== 'None' && index !== nodes.length - 1) {
+      layers.push(`act=${node.activation}`);
+    }
+  });
+
+  return `nn.Sequential(${layers.join(' -> ')})`;
+}
+
+function summarizeMetrics(trainingStatus: TrainingJobStatus | null) {
+  const metrics = trainingStatus?.metrics ?? [];
+  const latest = metrics.at(-1);
+  if (!latest) {
+    return 'No completed training metrics yet.';
+  }
+
+  const bestValidation =
+    trainingStatus?.bestValidationAccuracy != null
+      ? `${(trainingStatus.bestValidationAccuracy * 100).toFixed(2)}%`
+      : 'unknown';
+
+  return [
+    `Epoch ${latest.epoch}`,
+    `train loss ${latest.trainLoss}`,
+    `train acc ${(latest.trainAccuracy * 100).toFixed(2)}%`,
+    `validation loss ${latest.validationLoss}`,
+    `validation acc ${(latest.validationAccuracy * 100).toFixed(2)}%`,
+    `best validation acc ${bestValidation}`,
+  ].join(', ');
+}
+
+function summarizeNodeDetails(nodes: CanvasNode[]) {
+  return nodes.map((node, index) => ({
+    index: index + 1,
+    type: node.type,
+    title: node.title,
+    activation: node.activation,
+    fields: node.fields.map((field) => ({
+      label: field.label,
+      value: field.value,
+    })),
+  }));
+}
+
+function detectMinaRequestKind(question: string): 'general' | 'improvement' {
+  const normalized = question.toLowerCase().trim();
+  const improvementSignals = [
+    '개선',
+    '수정',
+    '바꾸',
+    '올리',
+    '향상',
+    '튜닝',
+    '고치',
+    '어디를',
+    '어떤 블럭',
+    '어떤 블록',
+    '성능',
+    'improve',
+    'better',
+    'tune',
+    'change',
+    'fix',
+    'optimize',
+    'performance',
+  ];
+
+  return improvementSignals.some((signal) => normalized.includes(signal))
+    ? 'improvement'
+    : 'general';
+}
 
 type LessonCoachStep =
   | 'mlp12-intro'
@@ -335,6 +479,19 @@ export function BuilderShell() {
   const [isCompetitionInfoOpen, setIsCompetitionInfoOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [isHomeGuideOpen, setIsHomeGuideOpen] = useState(false);
+  const [isMinaChatOpen, setIsMinaChatOpen] = useState(false);
+  const [minaBusy, setMinaBusy] = useState(false);
+  const [minaProvider, setMinaProvider] = useState<MinaProvider>('gemini');
+  const [minaMessages, setMinaMessages] = useState<MinaMessage[]>([
+    {
+      id: 'mina-intro',
+      role: 'assistant',
+      content:
+        '안녕, 나는 Mina야. 지금 만든 블록 구조를 보고 어떤 블록과 파라미터를 먼저 바꾸면 좋을지 같이 짚어줄게. 궁금한 걸 바로 물어봐!',
+    },
+  ]);
+  const [minaCanvasHighlight, setMinaCanvasHighlight] = useState<MinaCanvasHighlight | null>(null);
+  const [minaLibraryHighlightBlockType, setMinaLibraryHighlightBlockType] = useState<BlockType | null>(null);
   const [tutorialGuideOpen, setTutorialGuideOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState<TutorialStepKey>('story-intro');
   const [tutorialPredictionDone, setTutorialPredictionDone] = useState(false);
@@ -368,6 +525,7 @@ export function BuilderShell() {
   const showAugmentationPanel =
     activeWorkspace === 'builder' ||
     (activeWorkspace === 'tutorial' && runtimeDatasetId === 'cifar10');
+  const shouldShowLabMina = activeWorkspace === 'builder';
   const activeAugmentations = showAugmentationPanel ? selectedAugmentations : [];
   const activeAugmentationParams = showAugmentationPanel
     ? Object.fromEntries(
@@ -511,7 +669,7 @@ export function BuilderShell() {
   const shellGridClassName = isCompetitionSetupVisible
     ? 'mt-3 grid min-h-0 gap-3'
     : activeWorkspace === 'playground'
-      ? 'mt-3 grid min-h-0 gap-3 lg:grid-cols-[clamp(252px,15vw,320px)_minmax(0,1fr)] xl:gap-4'
+      ? 'mt-3 grid min-h-0 gap-3 lg:grid-cols-[minmax(320px,360px)_minmax(0,1fr)] xl:gap-4'
       : 'mt-3 grid min-h-0 gap-3 lg:justify-center lg:grid-cols-[minmax(248px,0.64fr)_minmax(0,1.82fr)_minmax(280px,0.82fr)] xl:gap-4 xl:grid-cols-[clamp(252px,14.5vw,296px)_minmax(0,1fr)_clamp(320px,22vw,468px)]';
 
   const tutorialOverlayCopy = useMemo(
@@ -1022,6 +1180,112 @@ export function BuilderShell() {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('visaible-home-guide-seen', 'true');
     }
+  };
+
+  const handleMinaSend = async (question: string) => {
+    const userMessage: MinaMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: question,
+    };
+    setMinaMessages((current) => [...current, userMessage]);
+    setMinaBusy(true);
+    setMinaCanvasHighlight(null);
+    setMinaLibraryHighlightBlockType(null);
+    const requestKind = detectMinaRequestKind(question);
+
+    try {
+      const response = await chatWithMina({
+        question,
+        provider: minaProvider,
+        requestKind,
+        datasetId: selectedDataset.id,
+        datasetLabel: selectedDataset.label,
+        blocksSummary: summarizeBlocks(nodes),
+        architectureSummary: summarizeArchitecture(nodes),
+        metricsSummary: summarizeMetrics(trainingStatus ?? (latestTrainingResult as TrainingJobStatus | null)),
+        nodeDetails: summarizeNodeDetails(nodes),
+      });
+
+      if (requestKind === 'improvement' && response.highlight) {
+        if (
+          response.highlight.action === 'add_block' &&
+          response.highlight.blockType
+        ) {
+          setMinaLibraryHighlightBlockType(response.highlight.blockType);
+        } else if (
+          response.highlight.blockIndex != null &&
+          response.highlight.fieldLabel
+        ) {
+          setMinaCanvasHighlight({
+            blockIndex: response.highlight.blockIndex,
+            fieldLabel: response.highlight.fieldLabel,
+            suggestedValue: response.highlight.suggestedValue ?? null,
+            reason: response.highlight.reason ?? null,
+          });
+        }
+      }
+
+      setMinaMessages((current) => [
+        ...current,
+        {
+          id: `mina-${Date.now()}`,
+          role: 'assistant',
+          content: response.answer,
+        },
+      ]);
+    } catch (error) {
+      setMinaCanvasHighlight(null);
+      setMinaLibraryHighlightBlockType(null);
+      const errorMessage =
+        error instanceof Error ? error.message : '미안, 지금은 답을 가져오지 못했어. 잠시 후 다시 시도해줘.';
+      const minaErrorMessage = errorMessage.includes('Gemini API key is not configured')
+        ? '미안, 지금은 Gemini API 키가 설정되지 않아서 답할 수 없어. 백엔드 환경변수나 `backend/.env.local`에 `GOOGLE_API_KEY` 또는 `GEMINI_API_KEY`를 넣어주면 바로 사용할 수 있어.'
+        : errorMessage.includes('Gemma model is not configured')
+          ? '미안, 지금은 Gemma 모델 파일을 찾지 못했어. `gemma4` 폴더에 `.litertlm` 모델이 있는지 확인해줘.'
+        : errorMessage;
+
+      setMinaMessages((current) => [
+        ...current,
+        {
+          id: `mina-error-${Date.now()}`,
+          role: 'assistant',
+          content: `미안, 지금은 답을 가져오지 못했어. ${minaErrorMessage}`,
+        },
+      ]);
+    } finally {
+      setMinaBusy(false);
+    }
+  };
+
+  const clearMinaCanvasHighlight = () => {
+    setMinaCanvasHighlight(null);
+    setMinaLibraryHighlightBlockType(null);
+  };
+
+  const handleRemoveNode = (id: string) => {
+    clearMinaCanvasHighlight();
+    removeNode(id);
+  };
+
+  const handleUpdateNodeField = (id: string, fieldLabel: string, value: string) => {
+    clearMinaCanvasHighlight();
+    updateNodeField(id, fieldLabel, value);
+  };
+
+  const handleUpdateNodeActivation = (id: string, activation: string) => {
+    clearMinaCanvasHighlight();
+    updateNodeActivation(id, activation);
+  };
+
+  const handleMoveNode = (id: string, index: number) => {
+    clearMinaCanvasHighlight();
+    moveNode(id, index);
+  };
+
+  const handleDropBlock = (type: BlockType, index?: number) => {
+    clearMinaCanvasHighlight();
+    addNode(type, index);
   };
 
   const exitMnistQuest = () => {
@@ -2033,6 +2297,7 @@ export function BuilderShell() {
               hasCompetitionRoom={competitionRoom !== null}
               selectedDataset={selectedDataset}
               availableBlockTypes={teachingConfig.allowedBlocks}
+              minaHighlightBlockType={activeWorkspace === 'builder' ? minaLibraryHighlightBlockType : null}
               selectedTutorialLessonId={selectedTutorialLessonId}
               selectedStock={selectedStock}
               onDatasetSelect={(datasetId) => {
@@ -2072,7 +2337,9 @@ export function BuilderShell() {
             />
           )}
           {activeWorkspace === 'playground' ? (
-            <StockPlayground selectedStock={selectedStock ?? stockPlaygroundPresets[0]} />
+            <div className="min-w-0">
+              <StockPlayground selectedStock={selectedStock ?? stockPlaygroundPresets[0]} />
+            </div>
           ) : activeWorkspace === 'competition' && !competitionRoom ? (
             <CompetitionPanel
               isLoading={competitionBusy}
@@ -2266,6 +2533,10 @@ export function BuilderShell() {
                   nodes={nodes}
                   draggingBlock={draggingBlock}
                   zoom={1}
+                  minaHighlightNodeIndex={activeWorkspace === 'builder' ? minaCanvasHighlight?.blockIndex ?? null : null}
+                  minaHighlightFieldLabel={activeWorkspace === 'builder' ? minaCanvasHighlight?.fieldLabel ?? null : null}
+                  minaHighlightSuggestedValue={activeWorkspace === 'builder' ? minaCanvasHighlight?.suggestedValue ?? null : null}
+                  minaHighlightReason={activeWorkspace === 'builder' ? minaCanvasHighlight?.reason ?? null : null}
                   tutorialTargetNodeType={
                     lessonCoachStep === 'cnn11-set-first-cnn-in' ||
                     lessonCoachStep === 'cnn11-set-first-cnn-out'
@@ -2358,12 +2629,13 @@ export function BuilderShell() {
                         ? 'tutorial-linear-activation-field'
                       : null
                   }
-                  onRemoveNode={removeNode}
+                  onRemoveNode={handleRemoveNode}
                   isNodeRemovable={() => true}
-                  onUpdateNodeField={updateNodeField}
-                  onUpdateNodeActivation={updateNodeActivation}
-                  onMoveNode={moveNode}
+                  onUpdateNodeField={handleUpdateNodeField}
+                  onUpdateNodeActivation={handleUpdateNodeActivation}
+                  onMoveNode={handleMoveNode}
                   onDropBlock={(type, index) => {
+                    clearMinaCanvasHighlight();
                     if (activeWorkspace === 'tutorial' && !teachingConfig.allowedBlocks.includes(type)) {
                       setDraggingBlock(null);
                       return;
@@ -2372,7 +2644,7 @@ export function BuilderShell() {
                     if (isMlp12TutorialActive && type === 'linear' && linearNodeCount >= 1) {
                       nextInsertionIndex = Math.max(0, linearNodeCount - 1);
                     }
-                    addNode(type, nextInsertionIndex);
+                    handleDropBlock(type, nextInsertionIndex);
                     setDraggingBlock(null);
                   }}
                 />
@@ -2555,6 +2827,51 @@ export function BuilderShell() {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {shouldShowLabMina && !isMinaChatOpen ? (
+        <button
+          type="button"
+          onClick={() => setIsMinaChatOpen(true)}
+          className="fixed bottom-[156px] right-[28px] z-[92] flex items-center gap-3 rounded-[20px] border border-[#d7e2f2] bg-[linear-gradient(180deg,rgba(251,253,255,0.97),rgba(239,245,255,0.94))] px-3.5 py-3 text-left shadow-[0_18px_36px_rgba(15,23,42,0.12)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:shadow-[0_22px_42px_rgba(17,81,255,0.14)]"
+          aria-label="Mina chat 열기"
+        >
+          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[18px] border border-white/80 bg-[linear-gradient(180deg,#eef4ff,#e4ecff)] shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+            <Image
+              src="/images/mnist-quest-mina-focused.svg"
+              alt="Mina"
+              fill
+              sizes="56px"
+              className="object-contain p-1.5"
+            />
+          </div>
+          <div className="min-w-0 pr-1">
+            <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#7c8ca5]">
+              Quick Guide
+            </div>
+            <div className="mt-0.5 font-display text-[15px] font-bold tracking-[-0.03em] text-[#10213b]">
+              Mina에게 물어보기
+            </div>
+            <div className="mt-1 text-[11px] font-semibold text-[#6d7f99]">
+              막히면 바로 도움을 열 수 있어요
+            </div>
+          </div>
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[14px] border border-white/80 bg-white/82 text-[#315dc8] shadow-[0_8px_18px_rgba(15,23,42,0.05)]">
+            <Icon name="help" className="h-4.5 w-4.5" />
+          </div>
+        </button>
+      ) : null}
+
+      {shouldShowLabMina ? (
+        <MinaBubbleChat
+          open={isMinaChatOpen}
+          busy={minaBusy}
+          provider={minaProvider}
+          messages={minaMessages}
+          onClose={() => setIsMinaChatOpen(false)}
+          onProviderChange={setMinaProvider}
+          onSend={handleMinaSend}
+        />
       ) : null}
 
       {(isMlp12TutorialActive || isCnn11TutorialActive) && lessonCoachStep && activeLessonCoachStep ? (

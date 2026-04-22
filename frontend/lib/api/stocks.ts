@@ -19,7 +19,7 @@ export async function trainStockModel(payload: {
   batchSize: number;
   hiddenSize: number;
   learningRate: number;
-  nodes: StockPlaygroundNode[];
+  nodes?: StockPlaygroundNode[];
 }) {
   return apiClient<StockTrainingResult>('/stocks/train', {
     method: 'POST',

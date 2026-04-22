@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Icon } from '@/features/model-builder/components/icons';
 import { trainStockModel } from '@/lib/api/stocks';
-import type { StockPlaygroundNode, StockPreset, StockTrainingResult } from '@/types/builder';
+import type { StockPreset, StockTrainingResult } from '@/types/builder';
 
 type StockPlaygroundProps = {
   selectedStock: StockPreset;
@@ -21,50 +21,12 @@ type ChartSeries = {
   points: ChartPoint[];
 };
 
-type StockBlockTemplate = Omit<StockPlaygroundNode, 'id'>;
-
-const stockBlockTemplates: StockBlockTemplate[] = [
-  {
-    type: 'lstm',
-    title: 'LSTM Layer',
-    icon: 'chip',
-    accent: 'emerald',
-    fields: [
-      { label: 'Input Size', value: '1' },
-      { label: 'Hidden Size', value: '48' },
-      { label: 'Num Layers', value: '1' },
-    ],
-    activation: 'None',
-    activationOptions: ['None'],
-  },
-  {
-    type: 'dropout',
-    title: 'Dropout Layer',
-    icon: 'dropout',
-    accent: 'rose',
-    fields: [{ label: 'Probability', value: '0.15' }],
-    activation: 'None',
-    activationOptions: ['None'],
-  },
-  {
-    type: 'linear',
-    title: 'Linear Layer',
-    icon: 'layers',
-    accent: 'blue',
-    fields: [
-      { label: 'Input', value: '48' },
-      { label: 'Output', value: '1' },
-    ],
-    activation: 'None',
-    activationOptions: ['None', 'ReLU', 'Tanh', 'GELU', 'Sigmoid'],
-  },
-];
-
 const GRAPH_WIDTH = 320;
 const GRAPH_HEIGHT = 200;
 const GRAPH_PADDING_X = 14;
 const GRAPH_PADDING_Y = 12;
 const MAX_GRAPH_POINTS = 120;
+const DEFAULT_ARCHITECTURE = ['LSTM(1->48, layers=1)', 'Dropout(p=0.15)', 'Linear(48->1)'];
 
 function compressSeries(values: number[], maxPoints: number) {
   if (values.length <= maxPoints) {
@@ -121,145 +83,7 @@ function buildSinglePointY(values: number[], height: number, domain: [number, nu
   );
 }
 
-function cloneTemplate(type: StockPlaygroundNode['type'], count: number): StockPlaygroundNode {
-  const template = stockBlockTemplates.find((item) => item.type === type);
-  if (!template) {
-    throw new Error(`Unknown stock block type: ${type}`);
-  }
-
-  return {
-    ...template,
-    id: `stock-${type}-${count}`,
-    fields: template.fields.map((field) => ({ ...field })),
-    activationOptions: [...template.activationOptions],
-  };
-}
-
-function defaultStockNodes() {
-  return [
-    cloneTemplate('lstm', 1),
-    cloneTemplate('dropout', 2),
-    cloneTemplate('linear', 3),
-  ];
-}
-
-function blockLibrarySurface(accent: StockPlaygroundNode['accent']) {
-  const palette = {
-    blue: 'from-[#edf3ff] to-[#e5edff] text-[#2456c9]',
-    amber: 'from-[#fff4ea] to-[#ffeddc] text-[#b95b16]',
-    violet: 'from-[#f4efff] to-[#eee6ff] text-[#6846bd]',
-    rose: 'from-[#fff0f4] to-[#ffe7ed] text-[#b43b5c]',
-    emerald: 'from-[#ebfbf5] to-[#e1f7ef] text-[#0b7d6f]',
-  } as const;
-
-  return palette[accent];
-}
-
-function blockAccentBar(accent: StockPlaygroundNode['accent']) {
-  const palette = {
-    blue: 'bg-[#4f7dff]',
-    amber: 'bg-[#e58a3a]',
-    violet: 'bg-[#8b67eb]',
-    rose: 'bg-[#de6d8c]',
-    emerald: 'bg-[#19a38f]',
-  } as const;
-
-  return palette[accent];
-}
-
-function blockTone(accent: StockPlaygroundNode['accent']) {
-  const palette = {
-    blue: {
-      card: 'bg-[#edf4ff]',
-      bar: 'bg-[#2463eb]',
-      chip: 'bg-[#dbe8ff] text-[#2456c9]',
-    },
-    amber: {
-      card: 'bg-[#fff1e6]',
-      bar: 'bg-[#de7a2d]',
-      chip: 'bg-[#ffe1cc] text-[#b95b16]',
-    },
-    violet: {
-      card: 'bg-[#f2eeff]',
-      bar: 'bg-[#7b5ad6]',
-      chip: 'bg-[#e5dcff] text-[#6846bd]',
-    },
-    rose: {
-      card: 'bg-[#fff0f4]',
-      bar: 'bg-[#d45a7a]',
-      chip: 'bg-[#ffdbe6] text-[#b43b5c]',
-    },
-    emerald: {
-      card: 'bg-[#ddf5ef]',
-      bar: 'bg-[#169b8a]',
-      chip: 'bg-[#c8ede3] text-[#0b7d6f]',
-    },
-  } as const;
-
-  return palette[accent];
-}
-
-function fieldValue(node: StockPlaygroundNode, label: string, fallback: string) {
-  return node.fields.find((field) => field.label === label)?.value ?? fallback;
-}
-
-function numeric(value: string, fallback: number) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function stackWarnings(nodes: StockPlaygroundNode[]) {
-  const warnings: string[] = [];
-  let currentSize = 1;
-  let seenLinear = false;
-  let hasLstm = false;
-
-  nodes.forEach((node) => {
-    if (node.type === 'lstm') {
-      if (seenLinear) {
-        warnings.push('LSTM 블럭은 Linear head보다 앞에 있어야 합니다.');
-      }
-      const inputSize = numeric(fieldValue(node, 'Input Size', String(currentSize)), currentSize);
-      const hiddenSize = numeric(fieldValue(node, 'Hidden Size', '48'), 48);
-      if (inputSize !== currentSize) {
-        warnings.push(`${node.title}의 Input Size를 ${currentSize}로 맞춰주세요.`);
-      }
-      currentSize = hiddenSize;
-      hasLstm = true;
-      return;
-    }
-
-    if (node.type === 'dropout') {
-      const probability = numeric(fieldValue(node, 'Probability', '0.15'), 0.15);
-      if (probability < 0 || probability >= 1) {
-        warnings.push('Dropout Probability는 0 이상 1 미만이어야 합니다.');
-      }
-      return;
-    }
-
-    seenLinear = true;
-    const inputSize = numeric(fieldValue(node, 'Input', String(currentSize)), currentSize);
-    const outputSize = numeric(fieldValue(node, 'Output', '1'), 1);
-    if (inputSize !== currentSize) {
-      warnings.push(`${node.title}의 Input을 ${currentSize}로 맞춰주세요.`);
-    }
-    currentSize = outputSize;
-  });
-
-  if (!hasLstm) {
-    warnings.push('최소 1개의 LSTM Layer가 필요합니다.');
-  }
-  const lastNode = nodes.at(-1);
-  if (!lastNode || lastNode.type !== 'linear' || numeric(fieldValue(lastNode, 'Output', '1'), 1) !== 1) {
-    warnings.push('마지막 블럭은 Output 1의 Linear Layer여야 합니다.');
-  }
-
-  return Array.from(new Set(warnings));
-}
-
 export function StockPlayground({ selectedStock }: StockPlaygroundProps) {
-  const [nodes, setNodes] = useState<StockPlaygroundNode[]>(defaultStockNodes);
-  const [draggingType, setDraggingType] = useState<StockPlaygroundNode['type'] | null>(null);
   const [lookbackWindow, setLookbackWindow] = useState('30');
   const [forecastDays, setForecastDays] = useState('14');
   const [epochs, setEpochs] = useState('35');
@@ -269,15 +93,14 @@ export function StockPlayground({ selectedStock }: StockPlaygroundProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<StockTrainingResult | null>(null);
-  const warnings = useMemo(() => stackWarnings(nodes), [nodes]);
-  const lstmNode = nodes.find((node) => node.type === 'lstm') ?? null;
-  const stackStatus = warnings.length ? 'Needs Review' : 'Ready To Train';
-  const stackStatusTone = warnings.length ? 'text-[#a16207] bg-[#fff7d6]' : 'text-[#0b7d6f] bg-[#e8faf4]';
+  const [isLstmLearnMoreOpen, setIsLstmLearnMoreOpen] = useState(false);
 
   useEffect(() => {
     setError(null);
     setResult(null);
   }, [selectedStock.ticker]);
+
+  const architecture = result?.architecture ?? DEFAULT_ARCHITECTURE;
 
   const priceSeries = useMemo<ChartSeries[]>(() => {
     if (!result) {
@@ -391,63 +214,6 @@ export function StockPlayground({ selectedStock }: StockPlaygroundProps) {
     };
   }, [metricMode, result]);
 
-  const addNode = (type: StockPlaygroundNode['type'], index?: number) => {
-    setNodes((current) => {
-      const nextNode = cloneTemplate(type, current.length + 1);
-      const next = [...current];
-      const insertAt = index == null ? next.length : Math.max(0, Math.min(index, next.length));
-      next.splice(insertAt, 0, nextNode);
-      return next;
-    });
-  };
-
-  const moveNode = (index: number, direction: -1 | 1) => {
-    setNodes((current) => {
-      const nextIndex = index + direction;
-      if (nextIndex < 0 || nextIndex >= current.length) {
-        return current;
-      }
-      const next = [...current];
-      const [moved] = next.splice(index, 1);
-      next.splice(nextIndex, 0, moved);
-      return next;
-    });
-  };
-
-  const updateNodeField = (id: string, label: string, value: string) => {
-    setNodes((current) =>
-      current.map((node) =>
-        node.id !== id
-          ? node
-          : {
-              ...node,
-              fields: node.fields.map((field) =>
-                field.label === label ? { ...field, value } : field,
-              ),
-            },
-      ),
-    );
-  };
-
-  const updateNodeActivation = (id: string, value: string) => {
-    setNodes((current) =>
-      current.map((node) => (node.id === id ? { ...node, activation: value } : node)),
-    );
-  };
-
-  const removeNode = (id: string) => {
-    setNodes((current) => current.filter((node) => node.id !== id));
-  };
-
-  const handleDrop = (event: DragEvent<HTMLElement>, index?: number) => {
-    event.preventDefault();
-    if (!draggingType) {
-      return;
-    }
-    addNode(draggingType, index);
-    setDraggingType(null);
-  };
-
   const handleTrain = async () => {
     setIsLoading(true);
     setError(null);
@@ -459,9 +225,8 @@ export function StockPlayground({ selectedStock }: StockPlaygroundProps) {
         forecastDays: Number(forecastDays),
         epochs: Number(epochs),
         batchSize: Number(batchSize),
-        hiddenSize: numeric(fieldValue(nodes.find((node) => node.type === 'lstm') ?? cloneTemplate('lstm', 0), 'Hidden Size', '48'), 48),
+        hiddenSize: 48,
         learningRate: Number(learningRate),
-        nodes,
       });
       setResult(nextResult);
     } catch (nextError) {
@@ -471,325 +236,306 @@ export function StockPlayground({ selectedStock }: StockPlaygroundProps) {
     }
   };
 
-  return (
-    <section className="grid min-h-0 gap-3">
-      <div className="grid gap-2.5 xl:grid-cols-[minmax(0,1fr)_300px] 2xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="ui-surface overflow-hidden px-4 py-4">
-          <div className="ui-subtle-surface px-6 py-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <div className="ui-section-title">Playground Builder</div>
-                <div className="mt-2 font-display text-[30px] font-bold tracking-[-0.045em] text-[#10213b]">
-                  Stock Forecast Lab
-                </div>
-                <div className="mt-2 max-w-[720px] text-[14px] leading-6 text-[#54657f]">
-                  직접 LSTM 스택을 조립하고, 시계열 흐름을 학습한 뒤 검증 구간과 미래 거래일 예측을 한 화면에서 확인합니다.
-                </div>
-              </div>
-              <div className="rounded-[22px] border border-white/80 bg-white/94 px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                <div className="ui-section-title">Selected Market</div>
-                <div className="mt-1 font-display text-[24px] font-bold text-primary">{selectedStock.ticker}</div>
-                <div className="text-[12px] font-semibold text-[#5d718f]">{selectedStock.label}</div>
-                <div className="mt-3 inline-flex rounded-full bg-[#f4f7fb] px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#60718a]">
-                  {selectedStock.sector}
-                </div>
-              </div>
-            </div>
+  const handleReset = () => {
+    setLookbackWindow('30');
+    setForecastDays('14');
+    setEpochs('35');
+    setBatchSize('32');
+    setLearningRate('0.001');
+    setMetricMode('loss');
+    setError(null);
+    setResult(null);
+  };
 
-            <div className="mt-5 grid gap-2.5 md:grid-cols-4">
-              <OverviewChip label="Ticker" value={selectedStock.ticker} muted={selectedStock.label} badgeLabel="market" />
-              <OverviewChip label="Stack Depth" value={`${nodes.length} Layers`} muted="LSTM / Dropout / Linear" badgeLabel="stack" />
-              <OverviewChip label="Primary Hidden" value={`${numeric(fieldValue(lstmNode ?? cloneTemplate('lstm', 0), 'Hidden Size', '48'), 48)}`} muted="sequence width" badgeLabel="shape" />
-              <OverviewChip label="Build Status" value={stackStatus} muted={warnings.length ? `${warnings.length} checks` : 'shape aligned'} toneClassName={stackStatusTone} badgeLabel="status" />
+  const introHero = (
+    <div className="ui-subtle-surface px-6 py-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="ui-section-title">Black-Box Playground</div>
+          <div className="mt-2 font-display text-[30px] font-bold tracking-[-0.045em] text-[#10213b]">
+            Stock Forecast Lab
+          </div>
+          <div className="mt-2 max-w-[760px] text-[14px] leading-6 text-[#54657f]">
+            Playground에서는 블록을 직접 쌓지 않고, 고정된 LSTM 예측 모델을 바로 학습해보며
+            lookback, epochs, batch size 같은 하이퍼파라미터가 결과에 어떤 차이를 만드는지
+            빠르게 체험합니다.
+          </div>
+        </div>
+        <div className="w-full max-w-[280px] shrink-0 rounded-[22px] border border-white/80 bg-white/94 px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+          <div className="ui-section-title">Selected Market</div>
+          <div className="mt-1 font-display text-[24px] font-bold text-primary">{selectedStock.ticker}</div>
+          <div className="break-words text-[12px] font-semibold text-[#5d718f]">{selectedStock.label}</div>
+          <div className="mt-3 inline-flex max-w-full break-words rounded-full bg-[#f4f7fb] px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#60718a]">
+            {selectedStock.sector}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-2.5 md:grid-cols-4">
+        <OverviewChip label="Ticker" value={selectedStock.ticker} muted={selectedStock.label} badgeLabel="market" />
+        <OverviewChip label="Model" value="Default LSTM" muted="fixed sequence forecaster" badgeLabel="black-box" />
+        <OverviewChip label="Forecast Horizon" value={`${forecastDays} Days`} muted="future trading sessions" badgeLabel="target" />
+        <OverviewChip
+          label="Last Validation"
+          value={result ? result.metrics.validationRmse.toFixed(2) : 'Not Run'}
+          muted={result ? 'validation rmse' : 'train once to compare settings'}
+          toneClassName={result ? 'text-[#0b7d6f] bg-[#e8faf4]' : 'text-[#60718a] bg-[#f3f6fb]'}
+          badgeLabel="result"
+        />
+      </div>
+    </div>
+  );
+
+  const lstmLearnMoreCard = (
+    <button
+      type="button"
+      onClick={() => setIsLstmLearnMoreOpen(true)}
+      className="group block w-full overflow-hidden rounded-[26px] p-[1.5px] text-left transition-transform hover:-translate-y-0.5"
+      style={{
+        background:
+          'linear-gradient(120deg, rgba(255,123,172,0.42), rgba(255,211,102,0.42), rgba(125,242,170,0.42), rgba(108,182,255,0.42), rgba(195,128,255,0.42))',
+      }}
+    >
+      <div className="rounded-[25px] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(249,251,255,0.94))] px-5 py-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="ui-section-title text-[#7b74a9]">Learn More</div>
+            <div className="mt-1 font-display text-[22px] font-bold tracking-[-0.03em] text-[#14284c]">
+              주식을 예측하는 LSTM에 대해 더 배워보고 싶다면?
+            </div>
+            <div className="mt-2 max-w-[720px] text-[13px] leading-6 text-[#62738d]">
+              시계열 데이터에서 LSTM이 무엇을 기억하고, lookback window나 hidden state가 예측에 어떤 영향을 주는지
+              설명하는 학습형 콘텐츠를 준비 중입니다.
             </div>
           </div>
-
-          <div className="mt-3 grid gap-3 lg:grid-cols-[300px_minmax(0,1.2fr)]">
-              <div className="ui-subtle-surface px-4 py-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="ui-section-title">Block Library</div>
-                    <div className="mt-1 text-[13px] leading-6 text-[#5d718f]">
-                      필요한 레이어를 골라 스택에 쌓아보세요.
-                    </div>
-                  </div>
-                  <span className="rounded-full bg-[#eef4ff] px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-primary">
-                    {stockBlockTemplates.length} blocks
-                  </span>
-                </div>
-                <div className="mt-3 grid gap-2.5">
-                  {stockBlockTemplates.map((block) => (
-                    <div
-                      key={block.type}
-                      className="relative w-full overflow-hidden rounded-[22px] border border-[#d9e2ef] bg-[linear-gradient(180deg,#ffffff,#f8fbff)] shadow-[0_10px_24px_rgba(13,27,51,0.04)]"
-                    >
-                      <div className={['pointer-events-none absolute inset-y-3 left-0 w-1 rounded-r-full opacity-90', blockAccentBar(block.accent)].join(' ')} />
-                      <button
-                        type="button"
-                        draggable
-                        onDragStart={() => setDraggingType(block.type)}
-                        onDragEnd={() => setDraggingType(null)}
-                        onClick={() => addNode(block.type)}
-                        className="flex min-h-[76px] w-full cursor-grab items-center gap-3 rounded-[22px] px-4 py-3.5 text-left transition-transform hover:-translate-y-0.5 hover:bg-white/80 active:cursor-grabbing"
-                      >
-                        <div className={['grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-gradient-to-br', blockLibrarySurface(block.accent)].join(' ')}>
-                          <Icon name={block.icon} className="h-5 w-5" />
-                        </div>
-                        <div className="grid gap-0.5">
-                          <h3 className="text-[16px] font-semibold leading-[1.2] tracking-[-0.02em] text-[#16233b]">
-                            {block.title}
-                          </h3>
-                          <div className="text-[11px] font-medium tracking-[-0.01em] text-[#8391a8]">
-                            Drag to add
-                          </div>
-                        </div>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => handleDrop(event)}
-                className="ui-subtle-surface px-4 py-4"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="ui-section-title">Model Stack</div>
-                    <div className="mt-1 text-[13px] leading-6 text-[#5d718f]">위에서 아래로 순서대로 실행됩니다.</div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNodes(defaultStockNodes());
-                      setResult(null);
-                      setError(null);
-                    }}
-                    className="rounded-[14px] border border-white/80 bg-white/92 px-4 py-2 text-[12px] font-extrabold tracking-[0.04em] text-primary shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition hover:bg-[#f8fbff]"
-                  >
-                    Reset Stack
-                  </button>
-                </div>
-
-                <div className="mt-4 rounded-[22px] border border-dashed border-[#d5deeb] bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(245,248,252,0.92))] px-4 py-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="text-[13px] font-semibold text-[#5d718f]">
-                      Sequence flow: input window {'->'} recurrent encoder {'->'} prediction head
-                    </div>
-                    <div className="rounded-full bg-white px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#60718a] shadow-[0_6px_14px_rgba(15,23,42,0.04)]">
-                      {nodes.length} active steps
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-3">
-                  {nodes.map((node, index) => (
-                    <article
-                      key={node.id}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={(event) => handleDrop(event, index)}
-                      className={[
-                        'relative w-full rounded-[clamp(24px,2vw,30px)] px-[clamp(12px,1vw,18px)] pb-[clamp(10px,0.9vw,16px)] pt-[clamp(12px,1vw,16px)] shadow-[0_12px_24px_rgba(13,27,51,0.08)]',
-                        blockTone(node.accent).card,
-                      ].join(' ')}
-                    >
-                      <div className={['absolute inset-x-3 top-0 h-[7px] rounded-b-[10px] rounded-t-[999px]', blockTone(node.accent).bar].join(' ')} />
-                      <div className="pointer-events-none absolute left-1/2 top-0 h-[14px] w-[72px] -translate-x-1/2 -translate-y-[35%] rounded-full border-[3px] border-background bg-white/82 shadow-[0_6px_14px_rgba(13,27,51,0.06)]" />
-                      <div className="pointer-events-none absolute left-1/2 bottom-[-8px] h-[16px] w-[52px] -translate-x-1/2 rounded-b-[14px] bg-background/92 shadow-[inset_0_2px_0_rgba(129,149,188,0.14)]" />
-                      {index < nodes.length - 1 ? (
-                        <div className="pointer-events-none absolute bottom-[-18px] left-9 top-full z-10 w-px bg-[linear-gradient(180deg,rgba(191,204,225,0.9),rgba(191,204,225,0))]" />
-                      ) : null}
-                      <div className="flex items-start gap-[clamp(12px,1vw,16px)] border-b border-line pb-[clamp(8px,0.8vw,10px)]">
-                        <div className="min-w-0 flex-1 grid gap-0.5">
-                          <strong className="truncate text-[clamp(15px,1.1vw,17px)] font-semibold tracking-[-0.015em] text-ink">
-                            {node.title}
-                          </strong>
-                          <div className="flex flex-wrap items-center gap-1">
-                            <span className="rounded-full bg-white/72 px-[clamp(8px,0.8vw,10px)] py-[clamp(3px,0.35vw,5px)] text-[clamp(10px,0.75vw,11px)] font-bold uppercase tracking-[0.12em] text-muted">
-                              {node.fields.length} settings
-                            </span>
-                            <span className={['rounded-full px-[clamp(8px,0.8vw,10px)] py-[clamp(3px,0.35vw,5px)] text-[clamp(10px,0.75vw,11px)] font-bold uppercase tracking-[0.12em]', blockTone(node.accent).chip].join(' ')}>
-                              {node.type === 'lstm'
-                                ? `hidden ${fieldValue(node, 'Hidden Size', '48')}`
-                                : node.type === 'dropout'
-                                  ? `p=${fieldValue(node, 'Probability', '0.15')}`
-                                  : node.activation}
-                            </span>
-                            <span className="rounded-full bg-white/72 px-[clamp(8px,0.8vw,10px)] py-[clamp(3px,0.35vw,5px)] text-[clamp(10px,0.75vw,11px)] font-bold uppercase tracking-[0.12em] text-muted">
-                              step {index + 1}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => moveNode(index, -1)}
-                            className="rounded-full border border-white/80 bg-[#f2f6fd] px-3 py-1.5 text-[11px] font-extrabold text-[#60718a]"
-                          >
-                            Up
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveNode(index, 1)}
-                            className="rounded-full border border-white/80 bg-[#f2f6fd] px-3 py-1.5 text-[11px] font-extrabold text-[#60718a]"
-                          >
-                            Down
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => removeNode(node.id)}
-                            className="rounded-full border border-[#ffd6dc] bg-[#fff1f2] px-3 py-1.5 text-[11px] font-extrabold text-[#b42318]"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="mt-2 grid gap-1.5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.15fr)] xl:items-end">
-                        {node.fields.map((field) => (
-                          <label
-                            key={field.label}
-                            className="grid min-w-0 gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]"
-                          >
-                            <span className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
-                              {field.label}
-                            </span>
-                            <input
-                              value={field.value}
-                              onChange={(event) => updateNodeField(node.id, field.label, event.target.value)}
-                              className="w-full min-w-0 rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-center text-[14px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow focus:border-primary/30 focus:shadow-[0_0_0_3px_rgba(17,81,255,0.12)]"
-                            />
-                          </label>
-                        ))}
-                        {node.activationOptions.length > 1 ? (
-                          <label className="grid gap-0.5 rounded-[16px] bg-white/72 px-2.5 py-1.5 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
-                            <span className="shrink-0 text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#44506a]">
-                              Activation Function
-                            </span>
-                            <div className="relative">
-                              <select
-                                value={node.activation}
-                                onChange={(event) => updateNodeActivation(node.id, event.target.value)}
-                                className="w-full appearance-none rounded-[12px] border border-transparent bg-white px-3 py-1.5 text-[13px] font-semibold text-ink shadow-[inset_0_-2px_0_rgba(129,149,188,0.12)] outline-none ring-0 transition-shadow focus:border-primary/30 focus:shadow-[0_0_0_3px_rgba(17,81,255,0.12)]"
-                              >
-                                {node.activationOptions.map((option) => (
-                                  <option key={option} value={option}>
-                                    {option}
-                                  </option>
-                                ))}
-                              </select>
-                              <Icon name="chevron" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-                            </div>
-                          </label>
-                        ) : (
-                          <div className="flex justify-end rounded-[16px] bg-white/62 px-3 py-2 shadow-[inset_0_0_0_1px_rgba(129,149,188,0.1)]">
-                            <div className={['rounded-full px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em]', blockTone(node.accent).chip].join(' ')}>
-                              {node.type === 'lstm' ? 'Sequence Encoder' : 'Training-Time Regularization'}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {warnings.length ? (
-              <div className="mt-3 rounded-[20px] border border-[#fde68a] bg-[#fffbeb] px-4 py-4 text-[13px] leading-6 text-[#8a6411] shadow-[0_8px_20px_rgba(15,23,42,0.03)]">
-                {warnings.map((warning) => (
-                  <div key={warning}>{warning}</div>
-                ))}
-              </div>
-            ) : null}
+          <div className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[linear-gradient(135deg,#f6eefe,#eef6ff)] px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#5b66c8]">
+            Coming Soon
+            <Icon name="rocket" className="h-4 w-4" />
+          </div>
         </div>
+      </div>
+    </button>
+  );
 
-        <div className="ui-surface grid content-start gap-2.5 px-3.5 py-3.5">
-          <RailPanel title="Market Snapshot" icon="chip">
-            <div className="grid gap-2">
-              <RailMetricRow label="Ticker" value={selectedStock.ticker} />
-              <RailMetricRow label="Company" value={selectedStock.label} />
-              <RailMetricRow label="Sector" value={selectedStock.sector} />
-              <RailMetricRow label="Mode" value="LSTM Forecast" />
+  return (
+    <section className="grid min-h-0 min-w-0 gap-3">
+      <div className="ui-surface overflow-hidden px-4 py-4">
+        {!result ? introHero : null}
+
+        {result ? (
+          <div className="grid gap-3">
+            <div className="mt-3">{lstmLearnMoreCard}</div>
+            <div className="mt-3 grid gap-3">
+              <ChartCard
+                title="Large Forecast Graph"
+                subtitle="실제 종가, 검증 구간 예측, 미래 거래일 예측을 가장 먼저 확인할 수 있도록 상단에 배치했습니다."
+                series={priceSeries}
+                height={420}
+                emptyCopy="모델을 학습하면 예측 그래프가 크게 표시됩니다."
+              />
+              <div className="grid gap-3 xl:grid-cols-2">
+                <ChartCard
+                  title="Batch Direction Accuracy"
+                  subtitle="각 배치에서 예측 방향이 실제 방향과 맞았는지의 비율입니다."
+                  series={batchAccuracySeries}
+                  height={250}
+                  emptyCopy="학습 후 배치 단위 방향성 정확도가 여기에 표시됩니다."
+                />
+                <ChartCard
+                  title="Batch Loss Trace"
+                  subtitle="배치 단위 train loss와 epoch 기준 validation loss입니다."
+                  series={batchLossSeries}
+                  height={250}
+                  emptyCopy="학습 후 손실 추적 곡선이 여기에 표시됩니다."
+                />
+              </div>
             </div>
-          </RailPanel>
+            <div className="mt-3">{introHero}</div>
+          </div>
+        ) : null}
 
-          <TrainingMetricsPanel
-            metricMode={metricMode}
-            onMetricModeChange={setMetricMode}
-            trainPath={trainingMetricView.trainPath}
-            validationPath={trainingMetricView.validationPath}
-            trainSinglePointY={trainingMetricView.trainSinglePointY}
-            validationSinglePointY={trainingMetricView.validationSinglePointY}
-            summaryLabel={trainingMetricView.summaryLabel}
-            summaryValue={trainingMetricView.summaryValue}
-            secondaryLabel={trainingMetricView.secondaryLabel}
-            secondaryValue={trainingMetricView.secondaryValue}
-            hasData={trainingMetricView.hasData}
+        <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1.08fr)_340px]">
+          <div className="ui-subtle-surface px-5 py-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="ui-section-title">Model Capsule</div>
+                  <div className="mt-1 font-display text-[24px] font-bold tracking-[-0.03em] text-[#10213b]">
+                    고정된 예측 파이프라인
+                  </div>
+                  <div className="mt-2 max-w-[760px] text-[13px] leading-6 text-[#5d718f]">
+                    여기서는 모델 구조 자체를 수정하지 않습니다. 같은 LSTM 구조를 유지한 채 학습 설정을
+                    바꿔보면서, 종목과 하이퍼파라미터 변화가 예측 성능에 어떤 영향을 주는지 집중해서 볼 수
+                    있습니다.
+                  </div>
+                </div>
+                <div className="rounded-full bg-[#eef4ff] px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-primary">
+                  architecture locked
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)]">
+                <div className="rounded-[24px] border border-[#d7e2f2] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(245,248,255,0.92))] px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                  <div className="ui-section-title">Model Flow</div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2.5">
+                    {architecture.map((item, index) => (
+                      <div key={`${item}-${index}`} className="flex items-center gap-2.5">
+                        <div className="rounded-[18px] border border-white/80 bg-white px-3.5 py-2 text-[12px] font-bold text-[#17315c] shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
+                          {item}
+                        </div>
+                        {index < architecture.length - 1 ? (
+                          <Icon name="chevron" className="h-4 w-4 -rotate-90 text-[#7b8da8]" />
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 grid gap-2 md:grid-cols-3">
+                    <MiniNote
+                      title="Input"
+                      body={`최근 ${lookbackWindow}일 종가 흐름을 시퀀스로 사용`}
+                    />
+                    <MiniNote
+                      title="Encoder"
+                      body="LSTM이 시간축 패턴을 압축해 다음 가격 방향을 학습"
+                    />
+                    <MiniNote
+                      title="Output"
+                      body={`앞으로 ${forecastDays}일 구간의 흐름을 순차 예측`}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-[#d7e2f2] bg-[linear-gradient(180deg,rgba(238,244,255,0.92),rgba(229,238,255,0.88))] px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                  <div className="ui-section-title">How To Explore</div>
+                  <div className="mt-3 grid gap-2.5">
+                    <GuideStep step="1" text="같은 종목으로 lookback window를 바꿔 성능 차이를 비교해보세요." />
+                    <GuideStep step="2" text="epochs와 learning rate를 바꿔 학습 곡선이 어떻게 달라지는지 보세요." />
+                    <GuideStep step="3" text="여러 종목을 선택해 예측 난이도 차이도 함께 관찰해보세요." />
+                  </div>
+                </div>
+              </div>
+
+          </div>
+
+          <div className="ui-surface grid content-start gap-2.5 self-start px-3.5 py-3.5">
+              <RailPanel title="Market Snapshot" icon="chip">
+                <div className="grid gap-2">
+                  <RailMetricRow label="Ticker" value={selectedStock.ticker} />
+                  <RailMetricRow label="Company" value={selectedStock.label} />
+                  <RailMetricRow label="Sector" value={selectedStock.sector} />
+                  <RailMetricRow label="Mode" value="Black-Box LSTM" />
+                </div>
+              </RailPanel>
+
+              <RailPanel title="Experiment Setup" icon="settings">
+                <div className="grid gap-2">
+                  <RailMetricRow label="Lookback" value={`${lookbackWindow} days`} />
+                  <RailMetricRow label="Forecast" value={`${forecastDays} days`} />
+                  <RailMetricRow label="Epochs" value={epochs} />
+                  <RailMetricRow label="Batch Size" value={batchSize} />
+                  <RailMetricRow label="Learning Rate" value={learningRate} />
+                </div>
+                <div className="mt-3 rounded-[18px] bg-[linear-gradient(180deg,#f8fbff,#f2f6ff)] px-3.5 py-3 text-[12px] leading-6 text-[#5f718d] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
+                  같은 종목에서 설정을 조금씩 바꿔가며 `Val RMSE`와 방향성 정확도를 비교하면 어떤 하이퍼파라미터가 민감한지 빠르게 볼 수 있습니다.
+                </div>
+              </RailPanel>
+
+              <TrainingMetricsPanel
+                metricMode={metricMode}
+                onMetricModeChange={setMetricMode}
+                trainPath={trainingMetricView.trainPath}
+                validationPath={trainingMetricView.validationPath}
+                trainSinglePointY={trainingMetricView.trainSinglePointY}
+                validationSinglePointY={trainingMetricView.validationSinglePointY}
+                summaryLabel={trainingMetricView.summaryLabel}
+                summaryValue={trainingMetricView.summaryValue}
+                secondaryLabel={trainingMetricView.secondaryLabel}
+                secondaryValue={trainingMetricView.secondaryValue}
+                hasData={trainingMetricView.hasData}
+              />
+
+              <RailPanel title="Run Metrics" icon="play">
+                <div className="grid gap-2">
+                  <RailMetricRow
+                    label="Last Close"
+                    value={result ? `$${result.metrics.lastClose.toFixed(2)}` : '-'}
+                  />
+                  <RailMetricRow
+                    label="Train RMSE"
+                    value={result ? result.metrics.trainRmse.toFixed(2) : '-'}
+                  />
+                  <RailMetricRow
+                    label="Val RMSE"
+                    value={result ? result.metrics.validationRmse.toFixed(2) : '-'}
+                  />
+                  <RailMetricRow
+                    label="Forecast Return"
+                    value={
+                      result
+                        ? `${result.metrics.forecastReturnPct >= 0 ? '+' : ''}${result.metrics.forecastReturnPct.toFixed(2)}%`
+                        : '-'
+                    }
+                    valueClassName={
+                      result
+                        ? result.metrics.forecastReturnPct >= 0
+                          ? 'text-[#0b7d6f]'
+                          : 'text-[#b42318]'
+                        : undefined
+                    }
+                  />
+                </div>
+                <div className="mt-3 rounded-[18px] bg-[linear-gradient(180deg,#f8fbff,#f2f6ff)] px-3.5 py-3 text-[12px] leading-6 text-[#5f718d] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
+                  방향성 정확도는 가격 자체보다 상승·하락 흐름을 얼마나 잘 맞췄는지 보여줍니다.
+                </div>
+              </RailPanel>
+
+              <RailPanel title="Reading Guide" icon="help">
+                <div className="grid gap-2">
+                  <GuideHint
+                    title="Lookback"
+                    body="너무 짧으면 최근 노이즈에 흔들리고, 너무 길면 오래된 패턴까지 같이 끌고 와서 학습이 둔해질 수 있습니다."
+                  />
+                  <GuideHint
+                    title="Epochs"
+                    body="Train Loss만 내려가고 Val Loss가 다시 오르면 과적합이 시작됐을 가능성이 큽니다."
+                  />
+                  <GuideHint
+                    title="Forecast Return"
+                    body="예측 수익률은 참고 지표일 뿐이고, 검증 RMSE와 방향성 정확도를 함께 보는 편이 더 안정적입니다."
+                  />
+                </div>
+              </RailPanel>
+          </div>
+        </div>
+      </div>
+
+      {!result ? (
+        <ChartCard
+          title="Large Forecast Graph"
+          subtitle="실제 종가, 검증 구간 예측, 미래 거래일 예측을 하나의 대형 차트로 정리했습니다."
+          series={priceSeries}
+          height={420}
+          emptyCopy="모델을 학습하면 예측 그래프가 크게 표시됩니다."
+        />
+      ) : null}
+
+      {!result ? (
+        <div className="grid gap-3 xl:grid-cols-2">
+          <ChartCard
+            title="Batch Direction Accuracy"
+            subtitle="각 배치에서 예측 방향이 실제 방향과 맞았는지의 비율입니다."
+            series={batchAccuracySeries}
+            height={250}
+            emptyCopy="학습 후 배치 단위 방향성 정확도가 여기에 표시됩니다."
           />
-
-          <RailPanel title="Run Metrics" icon="play">
-            <div className="grid gap-2">
-              <RailMetricRow
-                label="Last Close"
-                value={result ? `$${result.metrics.lastClose.toFixed(2)}` : '-'}
-              />
-              <RailMetricRow
-                label="Train RMSE"
-                value={result ? result.metrics.trainRmse.toFixed(2) : '-'}
-              />
-              <RailMetricRow
-                label="Val RMSE"
-                value={result ? result.metrics.validationRmse.toFixed(2) : '-'}
-              />
-              <RailMetricRow
-                label="Forecast Return"
-                value={
-                  result
-                    ? `${result.metrics.forecastReturnPct >= 0 ? '+' : ''}${result.metrics.forecastReturnPct.toFixed(2)}%`
-                    : '-'
-                }
-                valueClassName={
-                  result
-                    ? result.metrics.forecastReturnPct >= 0
-                      ? 'text-[#0b7d6f]'
-                      : 'text-[#b42318]'
-                    : undefined
-                }
-              />
-            </div>
-            <div className="mt-3 rounded-[18px] bg-[linear-gradient(180deg,#f8fbff,#f2f6ff)] px-3.5 py-3 text-[12px] leading-6 text-[#5f718d] shadow-[inset_0_0_0_1px_rgba(129,149,188,0.12)]">
-              방향성 정확도는 가격 자체보다 상승·하락 흐름을 얼마나 잘 맞췄는지 보여줍니다.
-            </div>
-          </RailPanel>
+          <ChartCard
+            title="Batch Loss Trace"
+            subtitle="배치 단위 train loss와 epoch 기준 validation loss입니다."
+            series={batchLossSeries}
+            height={250}
+            emptyCopy="학습 후 손실 추적 곡선이 여기에 표시됩니다."
+          />
         </div>
-      </div>
-
-      <ChartCard
-        title="Large Forecast Graph"
-        subtitle="실제 종가, 검증 구간 예측, 미래 거래일 예측을 하나의 대형 차트로 정리했습니다."
-        series={priceSeries}
-        height={420}
-        emptyCopy="모델을 학습하면 예측 그래프가 크게 표시됩니다."
-      />
-
-      <div className="grid gap-3 xl:grid-cols-2">
-        <ChartCard
-          title="Batch Direction Accuracy"
-          subtitle="각 배치에서 예측 방향이 실제 방향과 맞았는지의 비율입니다."
-          series={batchAccuracySeries}
-          height={250}
-          emptyCopy="학습 후 배치 단위 방향성 정확도가 여기에 표시됩니다."
-        />
-        <ChartCard
-          title="Batch Loss Trace"
-          subtitle="배치 단위 train loss와 epoch 기준 validation loss입니다."
-          series={batchLossSeries}
-          height={250}
-          emptyCopy="학습 후 손실 추적 곡선이 여기에 표시됩니다."
-        />
-      </div>
+      ) : null}
 
       <div className="sticky bottom-3 z-20">
         <div className="rounded-[30px] border border-white/80 bg-[linear-gradient(180deg,rgba(251,253,255,0.97),rgba(239,245,255,0.94))] px-3 py-3 shadow-[0_24px_60px_rgba(15,23,42,0.16)] backdrop-blur-xl">
@@ -820,17 +566,13 @@ export function StockPlayground({ selectedStock }: StockPlaygroundProps) {
                       {isLoading ? 'Running' : 'Start'}
                     </span>
                     <span className="mt-1 block text-[12px] font-semibold leading-none text-white/80">
-                      {isLoading ? 'Training sequence model' : 'Run forecasting'}
+                      {isLoading ? 'Training fixed LSTM model' : 'Run forecasting'}
                     </span>
                   </span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setNodes(defaultStockNodes());
-                    setResult(null);
-                    setError(null);
-                  }}
+                  onClick={handleReset}
                   className="flex min-w-0 items-center gap-3 rounded-[20px] border border-white/80 bg-white/90 px-4 py-3.5 text-left text-[#28405f] shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition hover:bg-white"
                 >
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] bg-white">
@@ -838,7 +580,9 @@ export function StockPlayground({ selectedStock }: StockPlaygroundProps) {
                   </span>
                   <span className="min-w-0">
                     <span className="block font-display text-[15px] font-bold leading-none">Reset</span>
-                    <span className="mt-1 block text-[12px] font-semibold leading-none text-[#61758f]">Clear stack</span>
+                    <span className="mt-1 block text-[12px] font-semibold leading-none text-[#61758f]">
+                      Clear results
+                    </span>
                   </span>
                 </button>
               </div>
@@ -851,6 +595,44 @@ export function StockPlayground({ selectedStock }: StockPlaygroundProps) {
           </div>
         </div>
       </div>
+
+      {isLstmLearnMoreOpen ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(15,23,42,0.28)] px-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-[520px] rounded-[30px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(243,247,255,0.96))] p-[1.5px] shadow-[0_30px_80px_rgba(15,23,42,0.24)]">
+            <div className="rounded-[29px] bg-white/96 px-6 py-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="ui-section-title">Coming Soon</div>
+                  <div className="mt-2 font-display text-[30px] font-bold tracking-[-0.04em] text-[#13284b]">
+                    LSTM Deep Dive
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsLstmLearnMoreOpen(false)}
+                  className="rounded-full border border-[#dbe5f1] bg-[#f8fbff] px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#6a7f9d]"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="mt-4 rounded-[24px] bg-[linear-gradient(135deg,rgba(255,236,246,0.82),rgba(239,246,255,0.86),rgba(242,255,237,0.82))] px-5 py-5">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-12 w-12 place-items-center rounded-[16px] bg-white/80 text-[#5b66c8] shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
+                    <Icon name="rocket" className="h-5 w-5" />
+                  </div>
+                  <div className="font-display text-[22px] font-bold text-[#17315c]">
+                    곧 열릴 예정이에요
+                  </div>
+                </div>
+                <div className="mt-4 text-[14px] leading-7 text-[#5f718d]">
+                  앞으로 이 섹션에서는 시계열 예측용 LSTM의 동작 방식, hidden state, sequence length, overfitting,
+                  그리고 주가 데이터에 맞는 해석 포인트를 더 깊게 설명할 예정입니다.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -876,6 +658,55 @@ function ControlField({
   );
 }
 
+function MiniNote({
+  title,
+  body,
+}: {
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="rounded-[18px] border border-white/80 bg-white/92 px-4 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+      <div className="ui-section-title">{title}</div>
+      <div className="mt-2 text-[12px] leading-5 text-[#60718a]">{body}</div>
+    </div>
+  );
+}
+
+function GuideStep({
+  step,
+  text,
+}: {
+  step: string;
+  text: string;
+}) {
+  return (
+    <div className="flex items-start gap-3 rounded-[18px] border border-white/70 bg-white/86 px-3.5 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+      <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#e8f0ff] text-[11px] font-extrabold text-primary">
+        {step}
+      </div>
+      <div className="text-[12px] leading-5 text-[#556883]">{text}</div>
+    </div>
+  );
+}
+
+function GuideHint({
+  title,
+  body,
+}: {
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="rounded-[16px] border border-white/80 bg-white/92 px-3.5 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+      <div className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#5f7390]">
+        {title}
+      </div>
+      <div className="mt-1.5 text-[12px] leading-5 text-[#5b6c84]">{body}</div>
+    </div>
+  );
+}
+
 function OverviewChip({
   label,
   value,
@@ -890,15 +721,15 @@ function OverviewChip({
   badgeLabel?: string;
 }) {
   return (
-    <div className="rounded-[18px] border border-white/80 bg-white/92 px-4 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+    <div className="min-w-0 rounded-[18px] border border-white/80 bg-white/92 px-4 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
       <div className="ui-section-title">{label}</div>
-      <div className="mt-2 flex items-center justify-between gap-3">
-        <div className="font-display text-[18px] font-bold text-[#10213b]">{value}</div>
-        <div className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] ${toneClassName}`}>
+      <div className="mt-2 flex min-w-0 items-center justify-between gap-3">
+        <div className="min-w-0 break-words font-display text-[18px] font-bold text-[#10213b]">{value}</div>
+        <div className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] ${toneClassName}`}>
           {badgeLabel}
         </div>
       </div>
-      <div className="mt-1 text-[12px] font-semibold text-[#71839d]">{muted}</div>
+      <div className="mt-1 break-words text-[12px] font-semibold text-[#71839d]">{muted}</div>
     </div>
   );
 }
@@ -909,7 +740,7 @@ function RailPanel({
   children,
 }: {
   title: string;
-  icon: 'chip' | 'play';
+  icon: 'chip' | 'play' | 'settings' | 'help';
   children: ReactNode;
 }) {
   return (
@@ -939,10 +770,10 @@ function RailMetricRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-[16px] border border-white/80 bg-white/92 px-3.5 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
-      <span className="text-[12px] font-semibold text-[#60718a]">{label}</span>
+      <span className="min-w-0 text-[12px] font-semibold text-[#60718a]">{label}</span>
       <span
         className={[
-          'max-w-[60%] truncate text-right font-display text-[14px] font-bold text-[#10213b]',
+          'max-w-[62%] break-words text-right font-display text-[14px] font-bold leading-5 text-[#10213b]',
           valueClassName ?? '',
         ].join(' ')}
       >
