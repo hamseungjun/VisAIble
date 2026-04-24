@@ -44,11 +44,10 @@ npm install
 ```
 
 Download Gemma4 Here : 
-
+- Put it in gemma4 folder
 ```
 https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/tree/main
 ```
-Put it in gemma4 folder
 
 ## Run Backend
 
