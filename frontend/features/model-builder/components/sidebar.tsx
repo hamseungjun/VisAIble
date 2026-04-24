@@ -456,7 +456,7 @@ export function Sidebar({
                 className={[
                   'relative w-full overflow-hidden rounded-[22px] border bg-[linear-gradient(180deg,#ffffff,#f8fbff)] shadow-[0_10px_24px_rgba(13,27,51,0.04)]',
                   minaHighlightBlockType === block.id
-                    ? 'border-[#2463eb]/35 ring-2 ring-[#2463eb]/25 shadow-[0_14px_30px_rgba(36,99,235,0.14)]'
+                    ? 'ui-amber-advice animate-amber-pulse ring-0'
                     : 'border-[#d9e2ef]',
                 ].join(' ')}
                 data-tutorial-target={block.id === 'linear' ? 'tutorial-linear-block' : undefined}
@@ -487,7 +487,7 @@ export function Sidebar({
                   onDragEnd={onBlockDragEnd}
                   className={[
                     'flex min-h-[76px] w-full cursor-grab items-center gap-3 rounded-[22px] px-4 py-3.5 pr-14 text-left transition-transform hover:-translate-y-0.5 hover:bg-white/80 active:cursor-grabbing',
-                    minaHighlightBlockType === block.id ? 'bg-[#edf4ff]/72' : '',
+                    minaHighlightBlockType === block.id ? 'bg-white/40' : '',
                   ].join(' ')}
                 >
                   <div

@@ -9,6 +9,7 @@ import { CompetitionRankModal } from '@/features/model-builder/components/compet
 import { CompetitionSidebar } from '@/features/model-builder/components/competition-sidebar';
 import { Icon } from '@/features/model-builder/components/icons';
 import { Inspector } from '@/features/model-builder/components/inspector';
+import { LearningWorkspace as LearningWorkspacePanel } from '@/features/model-builder/components/learning-workspace';
 import { MinaBubbleChat, type MinaMessage } from '@/features/model-builder/components/mina-bubble-chat';
 import { MnistElevatorMission } from '@/features/model-builder/components/mnist-elevator-mission';
 import { ModelPreviewModal } from '@/features/model-builder/components/model-preview-modal';
@@ -131,6 +132,10 @@ function formatRemainingTime(ms: number) {
   }
 
   return `${minutes}분 남음`;
+}
+
+function LearningWorkspace() {
+  return <LearningWorkspacePanel />;
 }
 
 type CompetitionRunRecord = {
@@ -668,7 +673,7 @@ export function BuilderShell() {
       (mnistQuestPhase && mnistQuestPhase !== 'intro' && isMnistMissionMinimized));
   const shellGridClassName = isCompetitionSetupVisible
     ? 'mt-3 grid min-h-0 gap-3'
-    : activeWorkspace === 'playground'
+    : activeWorkspace === 'playground' || activeWorkspace === 'learning'
       ? 'mt-3 grid min-h-0 gap-3 lg:grid-cols-[minmax(320px,360px)_minmax(0,1fr)] xl:gap-4'
       : 'mt-3 grid min-h-0 gap-3 lg:justify-center lg:grid-cols-[minmax(248px,0.64fr)_minmax(0,1.82fr)_minmax(280px,0.82fr)] xl:gap-4 xl:grid-cols-[clamp(252px,14.5vw,296px)_minmax(0,1fr)_clamp(320px,22vw,468px)]';
 
@@ -2269,7 +2274,7 @@ export function BuilderShell() {
               return;
             }
 
-            if (workspace === 'playground') {
+            if (workspace === 'playground' || workspace === 'learning') {
               return;
             }
           }}
@@ -2290,7 +2295,7 @@ export function BuilderShell() {
         />
 
         <div className={shellGridClassName}>
-          {isCompetitionSetupVisible ? null : (
+          {isCompetitionSetupVisible || activeWorkspace === 'learning' ? null : (
             <Sidebar
               selectedDatasetId={selectedDatasetId}
               activeWorkspace={activeWorkspace}
@@ -2339,6 +2344,10 @@ export function BuilderShell() {
           {activeWorkspace === 'playground' ? (
             <div className="min-w-0">
               <StockPlayground selectedStock={selectedStock ?? stockPlaygroundPresets[0]} />
+            </div>
+          ) : activeWorkspace === 'learning' ? (
+            <div className="min-w-0 lg:col-span-2">
+              <LearningWorkspace />
             </div>
           ) : activeWorkspace === 'competition' && !competitionRoom ? (
             <CompetitionPanel
@@ -2833,7 +2842,7 @@ export function BuilderShell() {
         <button
           type="button"
           onClick={() => setIsMinaChatOpen(true)}
-          className="fixed bottom-[156px] right-[28px] z-[92] flex items-center gap-3 rounded-[20px] border border-[#d7e2f2] bg-[linear-gradient(180deg,rgba(251,253,255,0.97),rgba(239,245,255,0.94))] px-3.5 py-3 text-left shadow-[0_18px_36px_rgba(15,23,42,0.12)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:shadow-[0_22px_42px_rgba(17,81,255,0.14)]"
+          className="ui-electric-cyan-border fixed bottom-[156px] right-[28px] z-[92] flex items-center gap-3 rounded-[20px] px-3.5 py-3 text-left shadow-[0_18px_36px_rgba(15,23,42,0.12)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:shadow-[0_22px_42px_rgba(17,81,255,0.14)]"
           aria-label="Mina chat 열기"
         >
           <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[18px] border border-white/80 bg-[linear-gradient(180deg,#eef4ff,#e4ecff)] shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
@@ -2856,7 +2865,7 @@ export function BuilderShell() {
               막히면 바로 도움을 열 수 있어요
             </div>
           </div>
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[14px] border border-white/80 bg-white/82 text-[#315dc8] shadow-[0_8px_18px_rgba(15,23,42,0.05)]">
+          <div className="ui-lime-action grid h-9 w-9 shrink-0 place-items-center rounded-[14px]">
             <Icon name="help" className="h-4.5 w-4.5" />
           </div>
         </button>

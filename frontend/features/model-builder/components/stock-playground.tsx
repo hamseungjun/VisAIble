@@ -542,7 +542,7 @@ export function StockPlayground({ selectedStock }: StockPlaygroundProps) {
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1.95fr)_minmax(360px,0.95fr)]">
             <div className="rounded-[24px] border border-[#d7e2f2] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(244,248,255,0.88))] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75),0_10px_24px_rgba(15,23,42,0.05)]">
               <div className="grid gap-2.5 lg:grid-cols-[1fr_1fr_0.8fr_0.9fr_1fr]">
-                <ControlField label="Lookback Window" value={lookbackWindow} onChange={setLookbackWindow} />
+                <ControlField label="Lookback" value={lookbackWindow} onChange={setLookbackWindow} />
                 <ControlField label="Forecast Days" value={forecastDays} onChange={setForecastDays} />
                 <ControlField label="Epochs" value={epochs} onChange={setEpochs} />
                 <ControlField label="Batch Size" value={batchSize} onChange={setBatchSize} />

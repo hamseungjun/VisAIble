@@ -56,8 +56,8 @@ export function MinaBubbleChat({
         />
       </div>
 
-      <section className="relative w-[min(390px,calc(100vw-176px))] rounded-[30px] border-[3px] border-white/92 bg-[linear-gradient(180deg,rgba(248,250,252,0.98),rgba(240,246,255,0.98))] px-5 pb-4 pt-5 text-[#10213b] shadow-[0_24px_50px_rgba(15,23,42,0.16)] backdrop-blur-xl">
-        <div className="absolute bottom-8 -left-3 h-6 w-6 rotate-45 rounded-[4px] border-b-[3px] border-l-[3px] border-white/92 bg-[rgba(244,248,255,0.98)]" />
+      <section className="ui-electric-cyan-border relative w-[min(390px,calc(100vw-176px))] rounded-[30px] px-5 pb-4 pt-5 text-[#10213b] shadow-[0_24px_50px_rgba(15,23,42,0.16)] backdrop-blur-xl">
+        <div className="absolute bottom-8 -left-3 h-6 w-6 rotate-45 rounded-[4px] border-[2.5px] border-transparent bg-[linear-gradient(rgba(244,248,255,0.98),rgba(244,248,255,0.98))_padding-box,linear-gradient(135deg,rgba(17,81,255,0.84),rgba(47,108,255,0.78),rgba(90,145,255,0.72),rgba(145,197,255,0.68))_border-box]" />
         <div className="absolute left-6 top-0 inline-flex min-h-[34px] -translate-y-1/2 items-center rounded-full bg-[#f8fafc] px-4 py-1 text-[13px] font-black uppercase tracking-[0.04em] text-[#10213b] shadow-[0_8px_16px_rgba(15,23,42,0.12)] ring-1 ring-[rgba(255,255,255,0.82)]">
           Mina
         </div>
@@ -70,7 +70,7 @@ export function MinaBubbleChat({
             <div className="mt-1 font-display text-[18px] font-bold tracking-[-0.04em] text-[#10213b]">
               어떤 블록부터 고치면 좋을까?
             </div>
-            <div className="mt-3 inline-flex rounded-full border border-[#d8e3f2] bg-white/88 p-1 shadow-[0_8px_18px_rgba(15,23,42,0.06)]">
+            <div className="ui-provider-toggle mt-3 inline-flex rounded-full p-1">
               {([
                 ['gemini', 'Gemini'],
                 ['gemma', 'Gemma'],
@@ -83,7 +83,7 @@ export function MinaBubbleChat({
                     onClick={() => onProviderChange(value)}
                     className={`rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.08em] transition ${
                       active
-                        ? 'bg-[linear-gradient(135deg,#1151ff,#2f6cff)] text-white shadow-[0_10px_20px_rgba(17,81,255,0.18)]'
+                        ? 'ui-provider-toggle-active'
                         : 'text-[#7083a1] hover:text-[#10213b]'
                     }`}
                     aria-pressed={active}
@@ -112,14 +112,14 @@ export function MinaBubbleChat({
             message.role === 'assistant' ? (
               <div
                 key={message.id}
-                className="rounded-[20px] rounded-tl-[10px] border border-[#dbe5f1] bg-white px-4 py-3 text-[13px] leading-6 text-[#24405f] shadow-[0_8px_20px_rgba(15,23,42,0.05)] whitespace-pre-wrap"
+                className="ui-chat-assistant-bubble rounded-[20px] rounded-tl-[10px] px-4 py-3 text-[13px] leading-6 text-[#24405f] whitespace-pre-wrap"
               >
                 {message.content}
               </div>
             ) : (
               <div
                 key={message.id}
-                className="ml-10 rounded-[20px] rounded-tr-[10px] bg-[linear-gradient(135deg,#1151ff,#2f6cff)] px-4 py-3 text-[13px] font-semibold leading-6 text-white shadow-[0_12px_24px_rgba(17,81,255,0.16)] whitespace-pre-wrap"
+                className="ui-chat-user-bubble ml-10 rounded-[20px] rounded-tr-[10px] px-4 py-3 text-[13px] font-semibold leading-6 text-white whitespace-pre-wrap"
               >
                 {message.content}
               </div>
@@ -127,7 +127,7 @@ export function MinaBubbleChat({
           )}
 
           {busy ? (
-            <div className="rounded-[20px] rounded-tl-[10px] border border-[#dbe5f1] bg-white px-4 py-3 text-[13px] font-semibold text-[#5f7390] shadow-[0_8px_20px_rgba(15,23,42,0.05)]">
+            <div className="ui-chat-assistant-bubble rounded-[20px] rounded-tl-[10px] px-4 py-3 text-[13px] font-semibold text-[#5f7390]">
               Mina가 블록 구조를 읽고, 바꿀 지점을 찾고 있어요...
             </div>
           ) : null}
@@ -168,7 +168,7 @@ export function MinaBubbleChat({
                 setDraft('');
                 void onSend(trimmed);
               }}
-              className="inline-flex items-center gap-2 rounded-[16px] bg-[linear-gradient(135deg,#1151ff,#2f6cff)] px-4 py-2.5 text-[12px] font-extrabold tracking-[0.06em] text-white shadow-[0_12px_22px_rgba(17,81,255,0.16)] disabled:cursor-not-allowed disabled:opacity-55"
+              className="ui-lime-action inline-flex items-center gap-2 rounded-[16px] px-4 py-2.5 text-[12px] font-extrabold tracking-[0.06em] disabled:cursor-not-allowed disabled:opacity-55"
             >
               <Icon name="help" className="h-4 w-4" />
               Ask

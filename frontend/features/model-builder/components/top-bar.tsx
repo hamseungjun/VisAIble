@@ -21,8 +21,9 @@ export function TopBar({
   const workspaceTabs = [
     { id: 'tutorial', label: 'Tutorial' },
     { id: 'builder', label: 'Lab' },
-    { id: 'playground', label: 'Playground' },
     { id: 'competition', label: 'Competition' },
+    { id: 'playground', label: 'Playground' },
+    { id: 'learning', label: 'Learning' },
   ] as const;
 
   return (

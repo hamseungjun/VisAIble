@@ -382,9 +382,9 @@ function NodeCard({
       : tone.card;
   const barClassName = showAdvice ? 'bg-[#dc2626]' : isMinaHighlighted ? 'bg-[#2463eb]' : tone.bar;
   const highlightedFieldContainerClassName =
-    'ring-2 ring-[#2463eb]/22 bg-[linear-gradient(180deg,rgba(237,244,255,0.95),rgba(255,255,255,0.94))] shadow-[0_10px_22px_rgba(36,99,235,0.10)]';
+    'ui-blue-field-highlight';
   const highlightedInputClassName =
-    '!border-[#2463eb]/30 !bg-white !shadow-[0_0_0_3px_rgba(36,99,235,0.12)] focus:!border-[#2463eb]/35 focus:!shadow-[0_0_0_3px_rgba(36,99,235,0.16)]';
+    'ui-blue-input-highlight';
 
   return (
     <article
@@ -412,7 +412,7 @@ function NodeCard({
       ) : null}
 
       {!showAdviceBanner && isMinaHighlighted && minaHighlightReason ? (
-        <div className="mb-2 rounded-[18px] bg-[#e8f0ff] px-[clamp(12px,1vw,14px)] py-[clamp(8px,0.8vw,10px)] text-[clamp(12px,0.95vw,13px)] font-bold text-[#1849c6] shadow-[inset_0_0_0_1px_rgba(36,99,235,0.12)]">
+        <div className="ui-amber-advice mb-2 rounded-[18px] px-[clamp(12px,1vw,14px)] py-[clamp(8px,0.8vw,10px)] text-[clamp(12px,0.95vw,13px)] font-bold text-[#1849c6]">
           Mina 추천: {minaHighlightReason}
           {minaHighlightSuggestedValue ? ` · 제안값 ${minaHighlightSuggestedValue}` : ''}
         </div>

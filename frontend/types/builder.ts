@@ -20,7 +20,7 @@ export type DatasetItem = {
   classLabels?: string[];
 };
 
-export type WorkspaceMode = 'builder' | 'tutorial' | 'competition' | 'playground';
+export type WorkspaceMode = 'builder' | 'tutorial' | 'competition' | 'playground' | 'learning';
 
 export type BlockType = 'linear' | 'cnn' | 'pooling' | 'dropout';
 
