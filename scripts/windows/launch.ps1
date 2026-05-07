@@ -41,7 +41,10 @@ function Get-PythonCommand {
         try {
             & py -3.12 --version *> $null
             if ($LASTEXITCODE -eq 0) {
-                return "py -3.12"
+                return [pscustomobject]@{
+                    FilePath = "py"
+                    Arguments = @("-3.12")
+                }
             }
         } catch {
         }
@@ -51,7 +54,10 @@ function Get-PythonCommand {
         try {
             $versionOutput = & python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
             if ($LASTEXITCODE -eq 0 -and [version]$versionOutput -ge [version]"3.12") {
-                return "python"
+                return [pscustomobject]@{
+                    FilePath = "python"
+                    Arguments = @()
+                }
             }
         } catch {
         }
@@ -120,14 +126,6 @@ NEXT_PUBLIC_COMPETITION_API_BASE_URL=$competitionBackendUrl
     $frontendEnvContent | Set-Content -Path $FrontendEnv -Encoding UTF8
 }
 
-function Invoke-CommandString {
-    param([string]$Command)
-    & powershell -NoProfile -ExecutionPolicy Bypass -Command $Command
-    if ($LASTEXITCODE -ne 0) {
-        throw "Command failed: $Command"
-    }
-}
-
 function Ensure-BackendDependencies {
     New-Item -ItemType Directory -Force -Path $RuntimeDir, $LogDir | Out-Null
     $pythonCommand = Ensure-Python
@@ -135,7 +133,11 @@ function Ensure-BackendDependencies {
 
     if (-not (Test-Path $venvPython)) {
         Write-Step "Creating backend virtual environment"
-        Invoke-CommandString "$pythonCommand -m venv `"$BackendVenv`""
+        $venvArgs = @($pythonCommand.Arguments) + @("-m", "venv", $BackendVenv)
+        & $pythonCommand.FilePath @venvArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to create backend virtual environment."
+        }
     }
 
     Write-Step "Installing backend packages"
