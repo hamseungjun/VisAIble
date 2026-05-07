@@ -38,17 +38,10 @@ jobs:
 
       - name: Publish latest release
         if: github.ref == 'refs/heads/deploy'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $tag = "windows-installer-latest"
-          $asset = "tools/windows-installer/output/VisAIble_Setup.exe"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -f $tag $env:GITHUB_SHA
-          git push origin "refs/tags/$tag" --force
-          if (gh release view $tag *> $null) {
-            gh release upload $tag $asset --clobber
-          } else {
-            gh release create $tag $asset --title "VisAIble Windows Installer" --notes "Latest Windows installer for VisAIble."
-          }
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: windows-installer-latest
+          name: VisAIble Windows Installer
+          body: Latest Windows installer for VisAIble.
+          files: tools/windows-installer/output/VisAIble_Setup.exe
+          make_latest: true
