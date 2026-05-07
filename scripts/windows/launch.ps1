@@ -93,21 +93,74 @@ function Ensure-Node {
     }
 }
 
-function Ensure-Configuration {
-    $needsBackendEnv = -not (Test-Path $BackendEnv)
-    $needsFrontendEnv = -not (Test-Path $FrontendEnv)
+function Read-EnvValue {
+    param(
+        [string]$Path,
+        [string]$Name
+    )
 
-    if (-not $needsBackendEnv -and -not $needsFrontendEnv) {
-        return
+    if (-not (Test-Path $Path)) {
+        return $null
     }
 
-    Write-Step "First run configuration"
-    $geminiKey = Read-Host "Gemini API Key"
+    foreach ($rawLine in [System.IO.File]::ReadAllLines($Path)) {
+        $line = $rawLine.Trim().TrimStart([char]0xFEFF)
+        if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith("#") -or -not $line.Contains("=")) {
+            continue
+        }
+        $parts = $line.Split("=", 2)
+        if ($parts[0].Trim() -eq $Name) {
+            return $parts[1].Trim().Trim('"').Trim("'")
+        }
+    }
+
+    return $null
+}
+
+function Read-RequiredSetting {
+    param(
+        [string]$Prompt,
+        [string]$CurrentValue,
+        [switch]$Secret
+    )
+
+    if ([string]::IsNullOrWhiteSpace($CurrentValue)) {
+        $value = Read-Host $Prompt
+    } else {
+        if ($Secret) {
+            Write-Host "$Prompt is already configured. Press Enter to keep it, or type a new value."
+            $value = Read-Host $Prompt
+        } else {
+            $value = Read-Host "$Prompt [$CurrentValue]"
+        }
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            $value = $CurrentValue
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        throw "$Prompt is required."
+    }
+
+    return $value.Trim()
+}
+
+function Ensure-Configuration {
+    Write-Step "Configuration"
+    Write-Host "Press Enter to keep an existing value."
+
+    $currentGeminiKey = Read-EnvValue -Path $BackendEnv -Name "GOOGLE_API_KEY"
+    if ([string]::IsNullOrWhiteSpace($currentGeminiKey)) {
+        $currentGeminiKey = Read-EnvValue -Path $BackendEnv -Name "GEMINI_API_KEY"
+    }
+    $currentCompetitionBackendUrl = Read-EnvValue -Path $FrontendEnv -Name "NEXT_PUBLIC_COMPETITION_API_BASE_URL"
+
+    $geminiKey = Read-RequiredSetting -Prompt "Gemini API Key" -CurrentValue $currentGeminiKey -Secret
     if ([string]::IsNullOrWhiteSpace($geminiKey)) {
         throw "Gemini API Key is required."
     }
 
-    $competitionBackendUrl = Read-Host "Competition Backend URL"
+    $competitionBackendUrl = Read-RequiredSetting -Prompt "Competition Backend URL" -CurrentValue $currentCompetitionBackendUrl
     if ([string]::IsNullOrWhiteSpace($competitionBackendUrl)) {
         throw "Competition Backend URL is required."
     }
