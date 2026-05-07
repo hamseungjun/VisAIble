@@ -30,7 +30,7 @@ jobs:
           rsync -a --exclude 'data/' --exclude '__pycache__/' --exclude '*.pyc' --exclude '.env.local' backend dist/VisAIble_mac/
           rsync -a --exclude 'node_modules/' --exclude '.next/' --exclude '.next-dev/' --exclude '.next-build/' --exclude '.next_stale_*/' --exclude 'dist/' --exclude 'out/' --exclude '.vercel/' --exclude '.env.local' --exclude 'tsconfig.tsbuildinfo' frontend dist/VisAIble_mac/
           rsync -a scripts/macos dist/VisAIble_mac/scripts/
-          cp README.md LICENSE dist/VisAIble_mac/
+          cp README.md LICENSE MACOS_INSTALL.txt dist/VisAIble_mac/
           chmod +x dist/VisAIble_mac/scripts/macos/launch.command
           xattr -cr dist/VisAIble_mac
 

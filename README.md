@@ -292,6 +292,14 @@ VisAIble_mac.zip
 4. Competition Backend URL 입력
 ```
 
+macOS가 `launch.command`를 열 수 없다고 막으면 Terminal에서 아래처럼 quarantine을 제거한 뒤 실행합니다.
+
+```bash
+xattr -dr com.apple.quarantine "$HOME/Downloads/VisAIble_mac"
+chmod +x "$HOME/Downloads/VisAIble_mac/scripts/macos/launch.command"
+open "$HOME/Downloads/VisAIble_mac/scripts/macos/launch.command"
+```
+
 실행 시 자동 처리:
 
 - Python 3.12 확인 및 Homebrew로 설치 시도

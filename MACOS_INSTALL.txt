@@ -1,0 +1,28 @@
+VisAIble macOS 실행 방법
+
+macOS에서 "launch.command을(를) 열 수 없음" 경고가 뜨면 Gatekeeper가 다운로드한 스크립트를 차단한 상태입니다.
+
+해결 방법:
+
+1. VisAIble_mac.zip 압축을 푼 폴더를 찾습니다.
+2. Terminal 앱을 엽니다.
+3. 아래 명령에서 /path/to/VisAIble_mac 부분을 실제 압축 해제 폴더 경로로 바꿔 실행합니다.
+
+   xattr -dr com.apple.quarantine "/path/to/VisAIble_mac"
+   chmod +x "/path/to/VisAIble_mac/scripts/macos/launch.command"
+   open "/path/to/VisAIble_mac/scripts/macos/launch.command"
+
+예시:
+
+   xattr -dr com.apple.quarantine "$HOME/Downloads/VisAIble_mac"
+   chmod +x "$HOME/Downloads/VisAIble_mac/scripts/macos/launch.command"
+   open "$HOME/Downloads/VisAIble_mac/scripts/macos/launch.command"
+
+실행 후 입력:
+
+   Gemini API Key
+   Competition Backend URL
+
+Competition Backend URL 예시:
+
+   http://210.115.229.161:8001
