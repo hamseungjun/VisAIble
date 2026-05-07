@@ -117,13 +117,14 @@ function Ensure-Configuration {
 GOOGLE_API_KEY=$geminiKey
 GEMINI_MODEL=gemini-3-flash-preview
 "@
-    $backendEnvContent | Set-Content -Path $BackendEnv -Encoding UTF8
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($BackendEnv, $backendEnvContent, $utf8NoBom)
 
     $frontendEnvContent = @"
 NEXT_PUBLIC_API_BASE_URL=$BackendUrl
 NEXT_PUBLIC_COMPETITION_API_BASE_URL=$competitionBackendUrl
 "@
-    $frontendEnvContent | Set-Content -Path $FrontendEnv -Encoding UTF8
+    [System.IO.File]::WriteAllText($FrontendEnv, $frontendEnvContent, $utf8NoBom)
 }
 
 function Ensure-BackendDependencies {

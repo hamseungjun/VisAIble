@@ -23,7 +23,7 @@ def _read_local_env_value(key: str) -> str | None:
             line = raw_line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
-            name, value = line.split("=", 1)
+            name, value = line.lstrip("\ufeff").split("=", 1)
             if name.strip() != key:
                 continue
             return value.strip().strip('"').strip("'")
