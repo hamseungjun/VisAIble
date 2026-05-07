@@ -1,0 +1,34 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - deploy
+    paths:
+      - backend/**
+      - frontend/**
+      - scripts/windows/**
+      - tools/windows-installer/**
+      - .github/workflows/windows-installer.yml
+
+jobs:
+  build:
+    name: Build VisAIble_Setup.exe
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build installer
+        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" tools\windows-installer\VisAIble.iss'
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VisAIble_Setup
+          path: tools/windows-installer/output/VisAIble_Setup.exe

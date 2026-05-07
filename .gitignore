@@ -16,6 +16,7 @@ __pycache__/
 .DS_Store
 frontend/node_modules_broken_*/
 frontend/tsconfig.tsbuildinfo
+tools/windows-installer/output/
 venv/venv/
 .venv/
 __pycache__/

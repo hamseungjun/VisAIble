@@ -238,6 +238,40 @@ Open:
 ./run.sh
 ```
 
+## Windows 설치 EXE 만들기
+
+Windows 배포판은 `frontend`와 `backend`만 포함합니다. `competition_backend`는 설치 파일에 넣지 않고,
+처음 실행할 때 사용자가 이미 호스팅된 Competition Backend URL을 입력해 연결합니다.
+
+GitHub Actions에서 `Build Windows Installer` 워크플로를 실행하면 아래 파일이 artifact로 생성됩니다.
+
+```txt
+VisAIble_Setup.exe
+```
+
+설치 후 첫 실행 시 입력값:
+
+```txt
+Gemini API Key
+Competition Backend URL
+```
+
+설치 위치:
+
+```txt
+C:\Users\<사용자>\AppData\Local\VisAIble
+```
+
+실행 시 자동 처리:
+
+- Python 3.12 확인 및 설치 시도
+- Node.js LTS 확인 및 설치 시도
+- `backend/.env.local` 생성
+- `frontend/.env.local` 생성
+- backend `127.0.0.1:8000` 실행
+- frontend `127.0.0.1:3000` 실행
+- 브라우저 자동 열기
+
 ## 환경 변수
 
 Frontend는 기본적으로 `http://127.0.0.1:8000/api`를 API 서버로 사용합니다.  
