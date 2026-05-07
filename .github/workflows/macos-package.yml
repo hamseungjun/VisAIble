@@ -1,0 +1,56 @@
+name: Build macOS Package
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - deploy
+    paths:
+      - backend/**
+      - frontend/**
+      - scripts/macos/**
+      - .github/workflows/macos-package.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build VisAIble_mac.zip
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Stage macOS package
+        run: |
+          rm -rf dist/VisAIble_mac
+          mkdir -p dist/VisAIble_mac/scripts
+          rsync -a --exclude 'data/' --exclude '__pycache__/' --exclude '*.pyc' --exclude '.env.local' backend dist/VisAIble_mac/
+          rsync -a --exclude 'node_modules/' --exclude '.next/' --exclude '.next-dev/' --exclude '.next-build/' --exclude '.next_stale_*/' --exclude 'dist/' --exclude 'out/' --exclude '.vercel/' --exclude '.env.local' --exclude 'tsconfig.tsbuildinfo' frontend dist/VisAIble_mac/
+          rsync -a scripts/macos dist/VisAIble_mac/scripts/
+          cp README.md LICENSE dist/VisAIble_mac/
+          chmod +x dist/VisAIble_mac/scripts/macos/launch.command
+          xattr -cr dist/VisAIble_mac
+
+      - name: Build zip
+        run: |
+          cd dist
+          ditto -c -k --sequesterRsrc --keepParent VisAIble_mac VisAIble_mac.zip
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VisAIble_mac
+          path: dist/VisAIble_mac.zip
+
+      - name: Publish macOS release
+        if: github.ref == 'refs/heads/deploy'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: macos-package-latest
+          name: VisAIble macOS Package
+          body: Latest macOS package for VisAIble.
+          files: dist/VisAIble_mac.zip
+          make_latest: false

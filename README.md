@@ -272,6 +272,36 @@ C:\Users\<사용자>\AppData\Local\VisAIble
 - frontend `127.0.0.1:3000` 실행
 - 브라우저 자동 열기
 
+## macOS 실행 패키지 만들기
+
+macOS 배포판도 `frontend`와 `backend`만 포함합니다. `competition_backend`는 포함하지 않고,
+처음 실행할 때 호스팅된 Competition Backend URL을 입력합니다.
+
+GitHub Actions에서 `Build macOS Package` 워크플로를 실행하면 아래 파일이 artifact와 release asset으로 생성됩니다.
+
+```txt
+VisAIble_mac.zip
+```
+
+사용 방법:
+
+```txt
+1. VisAIble_mac.zip 압축 해제
+2. scripts/macos/launch.command 더블클릭
+3. Gemini API Key 입력
+4. Competition Backend URL 입력
+```
+
+실행 시 자동 처리:
+
+- Python 3.12 확인 및 Homebrew로 설치 시도
+- Node.js 확인 및 Homebrew로 설치 시도
+- `backend/.env.local` 생성
+- `frontend/.env.local` 생성
+- backend `127.0.0.1:8000` 실행
+- frontend `127.0.0.1:3000` 실행
+- 브라우저 자동 열기
+
 ## 환경 변수
 
 Frontend는 기본적으로 `http://127.0.0.1:8000/api`를 API 서버로 사용합니다.  

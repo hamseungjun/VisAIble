@@ -17,6 +17,7 @@ __pycache__/
 frontend/node_modules_broken_*/
 frontend/tsconfig.tsbuildinfo
 tools/windows-installer/output/
+dist/
 venv/venv/
 .venv/
 __pycache__/
