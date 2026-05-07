@@ -151,10 +151,10 @@ Competition은 모델을 잘 만들었는지 혼자 보는 데서 끝내지 않�
 │   ├── lib/                   # API client, 모델 코드/조언, 상수 데이터
 │   └── public/                # PDF, showcase 이미지, 튜토리얼 이미지, 데이터셋 샘플
 ├── backend/                   # FastAPI + PyTorch 학습 서버
-│   ├── app/routers            # training, datasets, mina, competition, learning API
-│   ├── app/services           # 학습, 데이터셋, Mina, 경쟁 로직
+│   ├── app/routers            # training, datasets, mina, learning, competition score prepare API
+│   ├── app/services           # 학습, 데이터셋, Mina, competition score 계산
 │   └── data/                  # 로컬 학습/샘플 데이터
-├── competition_backend/       # Competition 관련 보조 백엔드 작업 공간
+├── competition_backend/       # Competition 방/참가자/제출/리더보드 저장 서버
 └── visaible/                  # 로컬 Python 가상환경
 ```
 
@@ -169,6 +169,7 @@ python3.12 -m venv --clear visaible
 source visaible/bin/activate
 pip install --upgrade pip
 pip install -r backend/requirements.txt
+pip install -r competition_backend/requirements.txt
 ```
 
 ### 2. Frontend 의존성 설치
@@ -198,12 +199,30 @@ Expected:
 {"status":"ok"}
 ```
 
-### 4. Frontend 실행
+### 4. Competition Backend 실행
+
+새 터미널에서 실행합니다.
+
+```bash
+source visaible/bin/activate
+cd competition_backend
+uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload
+```
+
+Health check:
+
+```bash
+curl http://127.0.0.1:8001/health
+```
+
+### 5. Frontend 실행
 
 새 터미널에서 실행합니다.
 
 ```bash
 cd frontend
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 \
+NEXT_PUBLIC_COMPETITION_API_BASE_URL=http://127.0.0.1:8001 \
 npm run dev
 ```
 
@@ -211,14 +230,22 @@ Open:
 
 - Frontend: `http://localhost:3000`
 - Backend: `http://127.0.0.1:8000`
+- Competition Backend: `http://127.0.0.1:8001`
+
+한 번에 로컬 전체를 실행하려면:
+
+```bash
+./run.sh
+```
 
 ## 환경 변수
 
 Frontend는 기본적으로 `http://127.0.0.1:8000/api`를 API 서버로 사용합니다.  
-필요하면 다음 값으로 바꿀 수 있습니다.
+Competition API는 기본적으로 일반 API와 같은 주소를 쓰지만, 분리 배포 시 다음 값으로 나눌 수 있습니다.
 
 ```bash
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
+NEXT_PUBLIC_COMPETITION_API_BASE_URL=http://127.0.0.1:8001
 ```
 
 Mina Assistant는 Gemini 기반으로 동작합니다.  

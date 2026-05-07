@@ -37,13 +37,14 @@ export function CompetitionRankModal({
   const entryCount = leaderboard?.entries.length ?? 0;
   const scoreMode = leaderboard?.scoreMode ?? 'public';
   const isFinalMode = scoreMode === 'private';
+  const canViewPrivate = isFinalMode || Boolean(leaderboard?.entries.some((entry) => entry.privateScore != null));
   const bestScore =
     entryCount > 0
       ? isFinalMode
         ? leaderboard?.entries[0]?.privateScore ?? null
         : leaderboard?.entries[0]?.publicScore ?? null
       : null;
-  const gridClassName = isFinalMode
+  const gridClassName = canViewPrivate
     ? 'grid-cols-[72px_84px_minmax(180px,1.2fr)_repeat(5,minmax(0,1fr))]'
     : 'grid-cols-[72px_minmax(180px,1.4fr)_repeat(4,minmax(0,1fr))]';
 
@@ -62,7 +63,9 @@ export function CompetitionRankModal({
               <div className="mt-2 text-[13px] font-semibold text-[#66768f]">
                 {isFinalMode
                   ? '대회가 종료되어 Private Score 기준 최종 순위와 Public 순위 대비 변동을 표시합니다.'
-                  : '대회 진행 중에는 Public Score 기준 순위만 표시합니다.'}
+                  : canViewPrivate
+                    ? '호스트는 대회 진행 중에도 Private Score를 확인할 수 있습니다. 순위는 Public Score 기준입니다.'
+                    : '대회 진행 중에는 Public Score 기준 순위만 표시합니다.'}
               </div>
             </div>
             <button
@@ -95,7 +98,7 @@ export function CompetitionRankModal({
                 Visibility
               </div>
               <div className="mt-2 font-display text-[22px] font-bold text-[#10213b]">
-                {isFinalMode ? 'Final Private' : 'Public Only'}
+                {isFinalMode ? 'Final Private' : canViewPrivate ? 'Host Private' : 'Public Only'}
               </div>
             </div>
           </div>
@@ -109,9 +112,10 @@ export function CompetitionRankModal({
               >
                 <div>Rank</div>
                 {isFinalMode ? <div>Change</div> : null}
+                {!isFinalMode && canViewPrivate ? <div>Private #</div> : null}
                 <div>Team</div>
                 <div>Public</div>
-                {isFinalMode ? <div>Private</div> : null}
+                {canViewPrivate ? <div>Private</div> : null}
                 <div>Validation</div>
                 <div>Train</div>
                 <div>Status</div>
@@ -146,6 +150,11 @@ export function CompetitionRankModal({
                         {formatRankChange(entry.rankChange)}
                       </div>
                     ) : null}
+                    {!isFinalMode && canViewPrivate ? (
+                      <div className="flex items-center font-display text-[16px] font-bold text-[#71839d]">
+                        #{entry.privateRank ?? '-'}
+                      </div>
+                    ) : null}
                     <div className="min-w-0">
                       <div className="truncate font-display text-[18px] font-bold text-[#10213b]">
                         {entry.participantName}
@@ -159,7 +168,7 @@ export function CompetitionRankModal({
                     <div className="flex items-center font-display text-[18px] font-bold text-[#2563eb]">
                       {formatPercent(entry.publicScore)}
                     </div>
-                    {isFinalMode ? (
+                    {canViewPrivate ? (
                       <div className="flex items-center font-display text-[18px] font-bold text-[#10213b]">
                         {formatPercent(entry.privateScore)}
                       </div>

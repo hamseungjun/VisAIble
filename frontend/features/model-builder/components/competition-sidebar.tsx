@@ -67,7 +67,7 @@ export function CompetitionSidebar({
   const submittedRuns = runs.filter((run) => run.submitted);
   const selectedRun = submittedRuns.find((run) => run.jobId === selectedRunJobId) ?? null;
   const isHost = room.participantRole === 'host';
-  const displayPrivateScore = hasCompetitionEnded(room);
+  const displayPrivateScore = isHost || hasCompetitionEnded(room);
   const remainingSubmissions = Math.max(0, room.dailySubmissionLimit - room.dailySubmissionCount);
   const finalOwnEntry = displayPrivateScore
     ? leaderboard?.entries.find((entry) => entry.participantId === room.participantId) ?? null

@@ -5,9 +5,9 @@ from app.schemas.competition import (
     CompetitionEnterRequest,
     CompetitionLeaderboardResponse,
     CompetitionRoomResponse,
+    CompetitionScoredSubmissionRequest,
     CompetitionSubmissionHistoryResponse,
     CompetitionSubmissionResponse,
-    CompetitionSubmitRequest,
 )
 from app.services.competition import (
     create_competition_room,
@@ -15,7 +15,7 @@ from app.services.competition import (
     get_competition_leaderboard,
     get_competition_room,
     get_competition_submission_history,
-    submit_competition_run,
+    submit_scored_competition_run,
 )
 
 
@@ -69,7 +69,7 @@ def get_leaderboard(
 )
 def get_submission_history(
     room_code: str,
-    participant_id: int = Query(...),
+    participant_id: int = Query(..., ge=1),
 ) -> CompetitionSubmissionHistoryResponse:
     try:
         return get_competition_submission_history(room_code, participant_id=participant_id)
@@ -78,8 +78,8 @@ def get_submission_history(
 
 
 @router.post("/competition/submissions", response_model=CompetitionSubmissionResponse)
-def submit_run(payload: CompetitionSubmitRequest) -> CompetitionSubmissionResponse:
+def submit_run(payload: CompetitionScoredSubmissionRequest) -> CompetitionSubmissionResponse:
     try:
-        return submit_competition_run(payload)
+        return submit_scored_competition_run(payload)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error

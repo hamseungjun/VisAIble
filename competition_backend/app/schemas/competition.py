@@ -20,12 +20,17 @@ class CompetitionEnterRequest(BaseModel):
     participantName: str = Field(..., min_length=1, max_length=40)
 
 
-class CompetitionSubmitRequest(BaseModel):
+class CompetitionScoredSubmissionRequest(BaseModel):
     roomCode: str = Field(..., min_length=4, max_length=12)
     participantId: int = Field(..., ge=1)
+    datasetId: str = Field(..., min_length=1, max_length=32)
     jobId: str = Field(..., min_length=1)
     optimizer: str = Field(..., min_length=1)
     batchSize: int = Field(...)
+    trainAccuracy: float
+    validationAccuracy: float
+    publicScore: float
+    privateScore: float
 
     @field_validator("batchSize")
     @classmethod
@@ -33,23 +38,6 @@ class CompetitionSubmitRequest(BaseModel):
         if value not in ALLOWED_BATCH_SIZES:
             raise ValueError("Batch size must be one of 1, 8, 16, 32, 64, 128")
         return value
-
-
-class CompetitionPrepareSubmissionRequest(CompetitionSubmitRequest):
-    datasetId: str = Field(..., min_length=1, max_length=32)
-
-
-class CompetitionPreparedSubmission(BaseModel):
-    roomCode: str
-    participantId: int
-    datasetId: str
-    jobId: str
-    optimizer: str
-    batchSize: int
-    trainAccuracy: float
-    validationAccuracy: float
-    publicScore: float
-    privateScore: float
 
 
 class CompetitionParticipantResponse(BaseModel):

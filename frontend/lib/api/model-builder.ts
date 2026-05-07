@@ -1,4 +1,4 @@
-import { apiClient, buildApiUrl } from '@/lib/api/client';
+import { apiClient, buildApiUrl, competitionApiClient } from '@/lib/api/client';
 import type {
   CanvasNode,
   CompetitionLeaderboard,
@@ -33,6 +33,19 @@ export type TrainModelPayload = {
   nodes: CanvasNode[];
 };
 
+type CompetitionPreparedSubmission = {
+  roomCode: string;
+  participantId: number;
+  datasetId: string;
+  jobId: string;
+  optimizer: string;
+  batchSize: number;
+  trainAccuracy: number;
+  validationAccuracy: number;
+  publicScore: number;
+  privateScore: number;
+};
+
 export async function saveArchitecture(payload: SaveArchitecturePayload) {
   return apiClient<{ id: string; savedAt: string }>('/architectures', {
     method: 'POST',
@@ -56,7 +69,7 @@ export async function createCompetitionRoom(payload: {
   startsAt?: string;
   endsAt?: string;
 }) {
-  return apiClient<CompetitionRoomSession>('/competition/rooms/create', {
+  return competitionApiClient<CompetitionRoomSession>('/competition/rooms/create', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -67,26 +80,26 @@ export async function enterCompetitionRoom(payload: {
   password: string;
   participantName: string;
 }) {
-  return apiClient<CompetitionRoomSession>('/competition/rooms/enter', {
+  return competitionApiClient<CompetitionRoomSession>('/competition/rooms/enter', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
 
 export async function getCompetitionRoom(roomCode: string, participantId?: number) {
-  return apiClient<CompetitionRoomSession>(`/competition/rooms/${roomCode}`, {
+  return competitionApiClient<CompetitionRoomSession>(`/competition/rooms/${roomCode}`, {
     query: { participant_id: participantId },
   });
 }
 
 export async function getCompetitionLeaderboard(roomCode: string, participantId?: number) {
-  return apiClient<CompetitionLeaderboard>(`/competition/rooms/${roomCode}/leaderboard`, {
+  return competitionApiClient<CompetitionLeaderboard>(`/competition/rooms/${roomCode}/leaderboard`, {
     query: { participant_id: participantId },
   });
 }
 
 export async function getCompetitionSubmissionHistory(roomCode: string, participantId: number) {
-  return apiClient<CompetitionSubmissionHistory>(`/competition/rooms/${roomCode}/submissions`, {
+  return competitionApiClient<CompetitionSubmissionHistory>(`/competition/rooms/${roomCode}/submissions`, {
     query: { participant_id: participantId },
   });
 }
@@ -98,9 +111,18 @@ export async function submitCompetitionRun(payload: {
   optimizer: string;
   batchSize: number;
 }) {
-  return apiClient<CompetitionSubmissionResult>('/competition/submissions', {
+  const room = await getCompetitionRoom(payload.roomCode, payload.participantId);
+  const prepared = await apiClient<CompetitionPreparedSubmission>('/competition/submissions/prepare', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      ...payload,
+      datasetId: room.datasetId,
+    }),
+  });
+
+  return competitionApiClient<CompetitionSubmissionResult>('/competition/submissions', {
+    method: 'POST',
+    body: JSON.stringify(prepared),
   });
 }
 
